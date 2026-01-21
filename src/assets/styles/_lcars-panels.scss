@@ -1,0 +1,140 @@
+@use 'variables' as *;
+
+// ============================================
+// LCARS Panel Styles
+// ============================================
+
+// Base panel container
+.lcars-panel {
+  background-color: $color-black-panel;
+  border: $panel-border-width solid $color-purple;
+  border-radius: $radius-lcars-corner;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+// Panel header bar
+.lcars-panel__header {
+  background-color: $color-purple;
+  color: $color-black;
+  font-family: $font-display;
+  font-size: $font-size-sm;
+  font-weight: $font-weight-bold;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: $space-sm $space-md;
+  min-height: $panel-header-height;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  &--gold {
+    background-color: $color-gold;
+  }
+
+  &--purple {
+    background-color: $color-purple;
+  }
+
+  &--warning {
+    background-color: $color-warning;
+  }
+
+  &--danger {
+    background-color: $color-danger;
+  }
+}
+
+// Panel content area
+.lcars-panel__content {
+  padding: $space-md;
+  flex: 1;
+  overflow: auto;
+}
+
+// Panel footer
+.lcars-panel__footer {
+  background-color: $color-purple-dim;
+  padding: $space-sm $space-md;
+  display: flex;
+  justify-content: flex-end;
+  gap: $space-sm;
+}
+
+// ============================================
+// LCARS Elbow (Corner piece)
+// ============================================
+
+.lcars-elbow {
+  position: relative;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    background-color: $color-purple;
+  }
+
+  &--top-left {
+    border-top-left-radius: $radius-lcars-elbow;
+    
+    &::before {
+      top: 0;
+      left: 0;
+      width: $radius-lcars-elbow;
+      height: $panel-header-height;
+      border-bottom-right-radius: $radius-lcars-elbow;
+    }
+  }
+
+  &--top-right {
+    border-top-right-radius: $radius-lcars-elbow;
+  }
+}
+
+// ============================================
+// LCARS Decorative Bar
+// ============================================
+
+.lcars-bar {
+  height: 8px;
+  background-color: $color-purple;
+  border-radius: $radius-pill;
+
+  &--gold {
+    background-color: $color-gold;
+  }
+
+  &--thin {
+    height: 4px;
+  }
+
+  &--thick {
+    height: 12px;
+  }
+}
+
+// ============================================
+// LCARS Divider
+// ============================================
+
+.lcars-divider {
+  display: flex;
+  align-items: center;
+  gap: $space-sm;
+  margin: $space-md 0;
+
+  &__line {
+    flex: 1;
+    height: 2px;
+    background-color: $color-purple-dim;
+  }
+
+  &__text {
+    font-family: $font-display;
+    font-size: $font-size-xs;
+    color: $color-purple;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+}

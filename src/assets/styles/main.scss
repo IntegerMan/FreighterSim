@@ -1,0 +1,146 @@
+@use 'variables' as *;
+
+// ============================================
+// CSS Reset & Base Styles
+// ============================================
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: $font-body;
+  font-size: $font-size-md;
+  line-height: $line-height-normal;
+  color: $color-white;
+  background-color: $color-black;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+// ============================================
+// Typography
+// ============================================
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: $font-display;
+  font-weight: $font-weight-bold;
+  line-height: $line-height-tight;
+  color: $color-white;
+}
+
+h1 { font-size: $font-size-xxl; }
+h2 { font-size: $font-size-xl; }
+h3 { font-size: $font-size-lg; }
+h4 { font-size: $font-size-md; }
+
+.text-mono {
+  font-family: $font-mono;
+}
+
+.text-display {
+  font-family: $font-display;
+}
+
+.text-purple { color: $color-purple; }
+.text-gold { color: $color-gold; }
+.text-success { color: $color-success; }
+.text-warning { color: $color-warning; }
+.text-danger { color: $color-danger; }
+.text-muted { color: $color-gray; }
+
+// ============================================
+// Data Display (for readings/values)
+// ============================================
+
+.data-value {
+  font-family: $font-mono;
+  font-size: $font-size-lg;
+  color: $color-gold;
+  letter-spacing: 0.05em;
+
+  &--large {
+    font-size: $font-size-xl;
+  }
+
+  &--small {
+    font-size: $font-size-md;
+  }
+}
+
+.data-label {
+  font-family: $font-display;
+  font-size: $font-size-xs;
+  color: $color-purple;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: $space-xs;
+}
+
+.data-pair {
+  display: flex;
+  flex-direction: column;
+  gap: $space-xs;
+}
+
+.data-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: $space-xs 0;
+  border-bottom: 1px solid $color-gray-dark;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+// ============================================
+// Utility Classes
+// ============================================
+
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.flex-1 { flex: 1; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.gap-xs { gap: $space-xs; }
+.gap-sm { gap: $space-sm; }
+.gap-md { gap: $space-md; }
+.gap-lg { gap: $space-lg; }
+
+.p-xs { padding: $space-xs; }
+.p-sm { padding: $space-sm; }
+.p-md { padding: $space-md; }
+.p-lg { padding: $space-lg; }
+
+.m-xs { margin: $space-xs; }
+.m-sm { margin: $space-sm; }
+.m-md { margin: $space-md; }
+.m-lg { margin: $space-lg; }
+
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+
+// ============================================
+// App Layout
+// ============================================
+
+#app {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

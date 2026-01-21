@@ -1,0 +1,137 @@
+// ============================================
+// Color Palette - LCARS Inspired (Purple/Gold/White/Black)
+// ============================================
+
+// Primary colors
+$color-purple: #9966FF;
+$color-purple-light: #BB99FF;
+$color-purple-dark: #6633CC;
+$color-purple-dim: #4D3380;
+
+// Secondary colors
+$color-gold: #FFCC00;
+$color-gold-light: #FFE066;
+$color-gold-dark: #CC9900;
+$color-gold-dim: #997300;
+
+// Neutral colors
+$color-white: #FFFFFF;
+$color-gray-light: #CCCCCC;
+$color-gray: #888888;
+$color-gray-dark: #444444;
+$color-black: #000000;
+$color-black-light: #1A1A1A;
+$color-black-panel: #0D0D0D;
+
+// Semantic colors
+$color-success: #66FF66;
+$color-success-dim: #339933;
+$color-warning: #FFAA00;
+$color-warning-dim: #996600;
+$color-danger: #FF6666;
+$color-danger-dim: #993333;
+$color-info: #66CCFF;
+$color-info-dim: #336699;
+
+// Contact type colors
+$color-station: $color-gold;
+$color-planet: $color-info;
+$color-ship: $color-success;
+$color-jump-gate: $color-purple-light;
+$color-unknown: $color-gray;
+
+// ============================================
+// Typography
+// ============================================
+
+$font-display: 'Orbitron', 'Segoe UI', system-ui, sans-serif;
+$font-body: 'Inter', 'Segoe UI', system-ui, sans-serif;
+$font-mono: 'Share Tech Mono', 'Consolas', 'Monaco', monospace;
+
+$font-size-xs: 0.75rem;   // 12px
+$font-size-sm: 0.875rem;  // 14px
+$font-size-md: 1rem;      // 16px
+$font-size-lg: 1.25rem;   // 20px
+$font-size-xl: 1.5rem;    // 24px
+$font-size-xxl: 2rem;     // 32px
+$font-size-display: 2.5rem; // 40px
+
+$font-weight-normal: 400;
+$font-weight-medium: 500;
+$font-weight-bold: 700;
+
+$line-height-tight: 1.2;
+$line-height-normal: 1.5;
+$line-height-relaxed: 1.75;
+
+// ============================================
+// Spacing
+// ============================================
+
+$space-xs: 0.25rem;  // 4px
+$space-sm: 0.5rem;   // 8px
+$space-md: 1rem;     // 16px
+$space-lg: 1.5rem;   // 24px
+$space-xl: 2rem;     // 32px
+$space-xxl: 3rem;    // 48px
+
+// ============================================
+// Border Radius (LCARS style)
+// ============================================
+
+$radius-sm: 4px;
+$radius-md: 8px;
+$radius-lg: 16px;
+$radius-xl: 24px;
+$radius-pill: 9999px;
+
+// LCARS-specific radii
+$radius-lcars-corner: 20px;
+$radius-lcars-elbow: 40px;
+
+// ============================================
+// Shadows
+// ============================================
+
+$shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+$shadow-md: 0 4px 6px rgba(0, 0, 0, 0.5);
+$shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+$shadow-glow-purple: 0 0 10px rgba($color-purple, 0.5);
+$shadow-glow-gold: 0 0 10px rgba($color-gold, 0.5);
+
+// ============================================
+// Transitions
+// ============================================
+
+$transition-fast: 100ms ease;
+$transition-normal: 200ms ease;
+$transition-slow: 400ms ease;
+
+// ============================================
+// Z-index layers
+// ============================================
+
+$z-base: 0;
+$z-panel: 10;
+$z-overlay: 100;
+$z-modal: 200;
+$z-tooltip: 300;
+
+// ============================================
+// Breakpoints
+// ============================================
+
+$breakpoint-sm: 640px;
+$breakpoint-md: 768px;
+$breakpoint-lg: 1024px;
+$breakpoint-xl: 1280px;
+$breakpoint-xxl: 1536px;
+
+// ============================================
+// Panel dimensions
+// ============================================
+
+$panel-header-height: 40px;
+$panel-border-width: 3px;
+$panel-min-width: 200px;
+$panel-gap: $space-md;
