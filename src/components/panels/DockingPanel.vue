@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useShipStore, useSensorStore, useNavigationStore } from '@/stores';
-import { LcarsFrame, LcarsButton } from '@/components/ui';
+import { LcarsButton } from '@/components/ui';
 import { formatDistance } from '@/models';
 
 const shipStore = useShipStore();
@@ -76,8 +76,7 @@ const dockedStation = computed(() => {
 </script>
 
 <template>
-  <LcarsFrame title="Docking" color="gold">
-    <div class="docking-panel">
+  <div class="docking-panel">
       <!-- Docked State -->
       <template v-if="shipStore.isDocked && dockedStation">
         <div class="docking-panel__docked">
@@ -153,7 +152,6 @@ const dockedStation = computed(() => {
         />
       </template>
     </div>
-  </LcarsFrame>
 </template>
 
 <style scoped lang="scss">

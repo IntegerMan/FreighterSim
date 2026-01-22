@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Navigation', () => {
+test.describe('Helm Navigation Controls', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    // Wait for game to initialize
-    await page.waitForSelector('.system-map');
+    // Navigate to Helm view for navigation controls
+    await page.goto('/helm');
+    await page.waitForSelector('.helm-map');
   });
 
   test('should display heading', async ({ page }) => {
@@ -49,5 +49,19 @@ test.describe('Navigation', () => {
     
     // Should show 0 target
     await expect(page.locator('text=Target: 0')).toBeVisible();
+  });
+
+  test('should display helm station title', async ({ page }) => {
+    await expect(page.locator('.helm-view__title-text')).toContainText('HELM CONTROL');
+  });
+
+  test('should show zoomed map with course projection', async ({ page }) => {
+    // Helm map should be visible
+    await expect(page.locator('.helm-map')).toBeVisible();
+    await expect(page.locator('.helm-map__system-name')).toContainText('Kestrel Reach');
+  });
+
+  test('should have docking panel', async ({ page }) => {
+    await expect(page.locator('text=Docking').first()).toBeVisible();
   });
 });

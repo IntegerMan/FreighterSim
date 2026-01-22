@@ -1,101 +1,79 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useShipStore } from '@/stores';
-import { LcarsFrame, LcarsButton, LcarsDisplay } from '@/components/ui';
+import { useShipStore, useNavigationStore } from '@/stores';
+import { LcarsFrame, LcarsDisplay } from '@/components/ui';
 
 const shipStore = useShipStore();
+const navStore = useNavigationStore();
 
 const headingDisplay = computed(() => shipStore.headingFormatted);
-const targetHeadingDisplay = computed(() => {
-  return shipStore.targetHeading.toFixed(0).padStart(3, '0') + '°';
-});
 const speedDisplay = computed(() => shipStore.speed.toFixed(0));
-const targetSpeedDisplay = computed(() => shipStore.targetSpeed.toFixed(0));
-
-function adjustHeading(delta: number) {
-  shipStore.adjustHeading(delta);
-}
-
-function adjustSpeed(delta: number) {
-  shipStore.adjustSpeed(delta);
-}
-
-function setSpeedPreset(percent: number) {
-  shipStore.setTargetSpeed(shipStore.maxSpeed * (percent / 100));
-}
+const selectedObject = computed(() => {
+  if (!navStore.selectedObjectId) return null;
+  
+  // Check stations
+  const station = navStore.stations.find(s => s.id === navStore.selectedObjectId);
+  if (station) return { name: station.name, type: 'Station' };
+  
+  // Check planets
+  const planet = navStore.planets.find(p => p.id === navStore.selectedObjectId);
+  if (planet) return { name: planet.name, type: 'Planet' };
+  
+  // Check jump gates
+  const gate = navStore.jumpGates.find(g => g.id === navStore.selectedObjectId);
+  if (gate) return { name: gate.name, type: 'Jump Gate' };
+  
+  return null;
+});
 </script>
 
 <template>
   <LcarsFrame title="Navigation" color="purple">
     <div class="nav-panel">
-      <!-- Heading Section -->
+      <!-- Ship Status Summary -->
       <div class="nav-panel__section">
-        <div class="nav-panel__heading-display">
-          <LcarsDisplay label="Heading" :value="headingDisplay" size="lg" />
-          <span class="nav-panel__target">
-            Target: {{ targetHeadingDisplay }}
-          </span>
-        </div>
-        
-        <div class="nav-panel__heading-controls">
-          <LcarsButton label="◀◀" size="sm" color="gold" :disabled="shipStore.isDocked" @click="adjustHeading(-15)" />
-          <LcarsButton label="◀" size="sm" color="gold" :disabled="shipStore.isDocked" @click="adjustHeading(-5)" />
-          <LcarsButton label="▶" size="sm" color="gold" :disabled="shipStore.isDocked" @click="adjustHeading(5)" />
-          <LcarsButton label="▶▶" size="sm" color="gold" :disabled="shipStore.isDocked" @click="adjustHeading(15)" />
-        </div>
+        <LcarsDisplay label="Heading" :value="headingDisplay" />
+        <LcarsDisplay label="Speed" :value="speedDisplay" unit="u/s" />
+      </div>
+
+      <!-- Ship Telemetry -->
+      <div class="nav-panel__divider"></div>
+
+      <div class="nav-panel__section">
+        <div class="nav-panel__section-header">Ship Telemetry</div>
+        <LcarsDisplay label="Position X" :value="shipStore.position.x.toFixed(0)" unit="u" />
+        <LcarsDisplay label="Position Y" :value="shipStore.position.y.toFixed(0)" unit="u" />
+        <LcarsDisplay label="Velocity" :value="shipStore.speed.toFixed(1)" unit="u/s" />
+        <LcarsDisplay label="Max Speed" :value="shipStore.maxSpeed.toFixed(0)" unit="u/s" />
       </div>
 
       <!-- Divider -->
       <div class="nav-panel__divider"></div>
 
-      <!-- Speed Section -->
+      <!-- Selected Target -->
       <div class="nav-panel__section">
-        <div class="nav-panel__speed-display">
-          <LcarsDisplay label="Speed" :value="speedDisplay" unit="u/s" size="lg" />
-          <span class="nav-panel__target">
-            Target: {{ targetSpeedDisplay }} u/s
-          </span>
+        <div class="nav-panel__target-header">Selected Target</div>
+        <div v-if="selectedObject" class="nav-panel__target-info">
+          <span class="nav-panel__target-name">{{ selectedObject.name }}</span>
+          <span class="nav-panel__target-type">{{ selectedObject.type }}</span>
         </div>
-
-        <div class="nav-panel__speed-bar">
-          <div 
-            class="nav-panel__speed-fill" 
-            :style="{ width: `${shipStore.speedPercent}%` }"
-          ></div>
-        </div>
-
-        <div class="nav-panel__speed-presets">
-          <LcarsButton label="0%" size="sm" :disabled="shipStore.isDocked" @click="setSpeedPreset(0)" />
-          <LcarsButton label="25%" size="sm" :disabled="shipStore.isDocked" @click="setSpeedPreset(25)" />
-          <LcarsButton label="50%" size="sm" :disabled="shipStore.isDocked" @click="setSpeedPreset(50)" />
-          <LcarsButton label="75%" size="sm" :disabled="shipStore.isDocked" @click="setSpeedPreset(75)" />
-          <LcarsButton label="100%" size="sm" :disabled="shipStore.isDocked" @click="setSpeedPreset(100)" />
-        </div>
-
-        <div class="nav-panel__speed-controls">
-          <LcarsButton label="-10" size="sm" color="gold" :disabled="shipStore.isDocked" @click="adjustSpeed(-10)" />
-          <LcarsButton label="-5" size="sm" color="gold" :disabled="shipStore.isDocked" @click="adjustSpeed(-5)" />
-          <LcarsButton label="+5" size="sm" color="gold" :disabled="shipStore.isDocked" @click="adjustSpeed(5)" />
-          <LcarsButton label="+10" size="sm" color="gold" :disabled="shipStore.isDocked" @click="adjustSpeed(10)" />
+        <div v-else class="nav-panel__no-target">
+          No target selected
         </div>
       </div>
 
-      <!-- Emergency Controls -->
+      <!-- Helm Link -->
       <div class="nav-panel__divider"></div>
       
-      <div class="nav-panel__emergency">
-        <LcarsButton 
-          label="ALL STOP" 
-          color="danger" 
-          full-width 
-          :disabled="shipStore.isDocked"
-          @click="shipStore.allStop()" 
-        />
+      <div class="nav-panel__link-section">
+        <router-link to="/helm" class="nav-panel__helm-link">
+          OPEN HELM CONTROLS →
+        </router-link>
       </div>
 
       <!-- Docked indicator -->
       <div v-if="shipStore.isDocked" class="nav-panel__docked-notice">
-        SHIP DOCKED - NAVIGATION DISABLED
+        SHIP DOCKED
       </div>
     </div>
   </LcarsFrame>
@@ -108,6 +86,31 @@ function setSpeedPreset(percent: number) {
   display: flex;
   flex-direction: column;
   gap: $space-md;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: $space-xs;
+  
+  // Custom scrollbar styling
+  scrollbar-width: thin;
+  scrollbar-color: $color-purple $color-black;
+  
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: $color-black;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: $color-purple;
+    border-radius: $radius-pill;
+    
+    &:hover {
+      background: lighten($color-purple, 10%);
+    }
+  }
 
   &__section {
     display: flex;
@@ -115,44 +118,12 @@ function setSpeedPreset(percent: number) {
     gap: $space-sm;
   }
 
-  &__heading-display,
-  &__speed-display {
-    display: flex;
-    flex-direction: column;
-    gap: $space-xs;
-  }
-
-  &__target {
-    font-family: $font-mono;
+  &__section-header {
+    font-family: $font-display;
     font-size: $font-size-xs;
     color: $color-gray;
-  }
-
-  &__heading-controls,
-  &__speed-controls {
-    display: flex;
-    gap: $space-xs;
-    justify-content: center;
-  }
-
-  &__speed-presets {
-    display: flex;
-    gap: $space-xs;
-    justify-content: space-between;
-  }
-
-  &__speed-bar {
-    height: 8px;
-    background-color: $color-gray-dark;
-    border-radius: $radius-pill;
-    overflow: hidden;
-  }
-
-  &__speed-fill {
-    height: 100%;
-    background-color: $color-gold;
-    border-radius: $radius-pill;
-    transition: width $transition-normal;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
   }
 
   &__divider {
@@ -160,8 +131,61 @@ function setSpeedPreset(percent: number) {
     background-color: $color-purple-dim;
   }
 
-  &__emergency {
-    padding-top: $space-sm;
+  &__target-header {
+    font-family: $font-display;
+    font-size: $font-size-xs;
+    color: $color-gray;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  &__target-info {
+    display: flex;
+    flex-direction: column;
+    gap: $space-xs;
+  }
+
+  &__target-name {
+    font-family: $font-mono;
+    font-size: $font-size-md;
+    color: $color-white;
+  }
+
+  &__target-type {
+    font-family: $font-mono;
+    font-size: $font-size-xs;
+    color: $color-gray;
+    text-transform: uppercase;
+  }
+
+  &__no-target {
+    font-family: $font-mono;
+    font-size: $font-size-sm;
+    color: $color-gray;
+    font-style: italic;
+  }
+
+  &__link-section {
+    display: flex;
+    justify-content: center;
+  }
+
+  &__helm-link {
+    font-family: $font-display;
+    font-size: $font-size-sm;
+    color: $color-gold;
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: $space-sm $space-md;
+    border: 1px solid $color-gold;
+    border-radius: $radius-pill;
+    transition: background-color 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      background-color: $color-gold;
+      color: $color-black;
+    }
   }
 
   &__docked-notice {

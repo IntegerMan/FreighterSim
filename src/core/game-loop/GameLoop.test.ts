@@ -110,7 +110,8 @@ describe('GameLoop', () => {
 
       vi.advanceTimersByTime(100);
 
-      const lastCall = callback.mock.calls[callback.mock.calls.length - 1][0];
+      expect(callback.mock.calls.length).toBeGreaterThan(0);
+      const lastCall = callback.mock.calls[callback.mock.calls.length - 1]![0];
       // deltaTime should be roughly double realDeltaTime
       expect(lastCall.timeScale).toBe(2);
     });
@@ -145,7 +146,8 @@ describe('GameLoop', () => {
 
       vi.advanceTimersByTime(100);
 
-      const lastCall = callback.mock.calls[callback.mock.calls.length - 1][0];
+      expect(callback.mock.calls.length).toBeGreaterThan(0);
+      const lastCall = callback.mock.calls[callback.mock.calls.length - 1]![0];
       expect(lastCall.deltaTime).toBe(0);
       expect(lastCall.paused).toBe(true);
     });

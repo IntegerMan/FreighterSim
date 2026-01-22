@@ -1,43 +1,6 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
-import { useGameStore, useShipStore, useNavigationStore, useSensorStore } from '@/stores';
-import { useGameLoop } from '@/core/game-loop';
-import { KESTREL_REACH, KESTREL_REACH_SPAWN } from '@/data';
-
 import { SystemMap } from '@/components/map';
-import { NavigationPanel, SensorPanel, DockingPanel, TimePanel } from '@/components/panels';
-
-const gameStore = useGameStore();
-const shipStore = useShipStore();
-const navStore = useNavigationStore();
-const sensorStore = useSensorStore();
-const { start, stop, subscribe } = useGameLoop();
-
-onMounted(() => {
-  // Initialize game state
-  navStore.loadSystem(KESTREL_REACH);
-  shipStore.reset(KESTREL_REACH_SPAWN);
-  gameStore.initialize(KESTREL_REACH.id);
-  
-  // Initial sensor refresh
-  sensorStore.refreshContacts();
-  
-  // Subscribe stores to game loop
-  const unsubscribe = subscribe((gameTime) => {
-    gameStore.update(gameTime);
-    shipStore.update(gameTime);
-    navStore.update(gameTime);
-    sensorStore.update(gameTime);
-  });
-
-  // Start the game loop
-  start();
-
-  onUnmounted(() => {
-    unsubscribe();
-    stop();
-  });
-});
+import { NavigationPanel, SensorPanel } from '@/components/panels';
 </script>
 
 <template>
@@ -52,9 +15,6 @@ onMounted(() => {
       <div class="bridge-view__panel">
         <NavigationPanel />
       </div>
-      <div class="bridge-view__panel">
-        <TimePanel />
-      </div>
     </div>
 
     <!-- Right Panel Column -->
@@ -62,15 +22,11 @@ onMounted(() => {
       <div class="bridge-view__panel bridge-view__panel--grow">
         <SensorPanel />
       </div>
-      <div class="bridge-view__panel">
-        <DockingPanel />
-      </div>
     </div>
 
-    <!-- Title Bar -->
+    <!-- Station Title -->
     <div class="bridge-view__title">
-      <span class="bridge-view__title-text">SPACE FREIGHTER SIM</span>
-      <span class="bridge-view__title-subtitle">BRIDGE CONTROL</span>
+      <span class="bridge-view__title-text">TACTICAL OVERVIEW</span>
     </div>
   </div>
 </template>
@@ -92,29 +48,20 @@ onMounted(() => {
   &__title {
     grid-column: 1 / -1;
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
-    padding: $space-sm $space-md;
-    background-color: $color-purple;
-    border-radius: $radius-lcars-corner;
+    padding: $space-xs $space-md;
+    background-color: $color-purple-dark;
+    border-radius: $radius-md;
   }
 
   &__title-text {
     font-family: $font-display;
-    font-size: $font-size-lg;
-    font-weight: $font-weight-bold;
-    color: $color-black;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-  }
-
-  &__title-subtitle {
-    font-family: $font-display;
     font-size: $font-size-sm;
-    color: $color-black;
+    font-weight: $font-weight-medium;
+    color: $color-white;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
-    opacity: 0.7;
+    letter-spacing: 0.15em;
   }
 
   &__map {

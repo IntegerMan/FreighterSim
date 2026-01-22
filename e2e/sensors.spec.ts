@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Sensors', () => {
+test.describe('Sensors on Bridge', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/bridge');
     await page.waitForSelector('.system-map');
   });
 
@@ -28,5 +28,30 @@ test.describe('Sensors', () => {
     
     // Should become selected
     await expect(contact).toHaveClass(/sensor-panel__contact--selected/);
+  });
+});
+
+test.describe('Sensors View', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/sensors');
+    await page.waitForSelector('.sensors-view');
+  });
+
+  test('should display sensor station title', async ({ page }) => {
+    await expect(page.locator('.sensors-view__title-text')).toContainText('SENSOR STATION');
+  });
+
+  test('should show radar placeholder', async ({ page }) => {
+    await expect(page.locator('text=RADAR DISPLAY')).toBeVisible();
+    await expect(page.locator('text=Coming Soon')).toBeVisible();
+  });
+
+  test('should have sensor panel', async ({ page }) => {
+    await expect(page.locator('text=Sensors').first()).toBeVisible();
+  });
+
+  test('should navigate to Bridge when clicking tab', async ({ page }) => {
+    await page.locator('a', { hasText: 'Bridge' }).click();
+    await expect(page).toHaveURL(/\/bridge/);
   });
 });
