@@ -32,11 +32,16 @@ const waypointHeading = computed(() => {
     <!-- Right Panel Column -->
     <div class="bridge-view__right-panels">
       <!-- Helm Status Panel -->
-      <LcarsFrame title="Helm Status" color="gold">
+      <LcarsFrame
+        title="Helm Status"
+        color="gold"
+      >
         <div class="bridge-view__helm-status">
           <!-- Heading Gauge (read-only) -->
           <div class="bridge-view__gauge-section">
-            <div class="bridge-view__section-header">Heading</div>
+            <div class="bridge-view__section-header">
+              Heading
+            </div>
             <HeadingGauge
               :current-heading="shipStore.heading"
               :target-heading="shipStore.targetHeading"
@@ -47,7 +52,9 @@ const waypointHeading = computed(() => {
 
           <!-- Speed Slider (read-only) -->
           <div class="bridge-view__gauge-section">
-            <div class="bridge-view__section-header">Speed</div>
+            <div class="bridge-view__section-header">
+              Speed
+            </div>
             <SpeedSlider
               :current-speed="shipStore.speed"
               :target-speed="shipStore.targetSpeed"
@@ -58,7 +65,10 @@ const waypointHeading = computed(() => {
           </div>
 
           <!-- Autopilot Indicator -->
-          <div v-if="navStore.autopilotEnabled" class="bridge-view__autopilot-indicator">
+          <div
+            v-if="navStore.autopilotEnabled"
+            class="bridge-view__autopilot-indicator"
+          >
             AUTOPILOT ACTIVE
           </div>
         </div>
@@ -71,7 +81,10 @@ const waypointHeading = computed(() => {
 
     <!-- Station Title -->
     <div class="bridge-view__title">
-      <span v-if="navStore.autopilotEnabled" class="bridge-view__autopilot-badge">AUTOPILOT</span>
+      <span
+        v-if="navStore.autopilotEnabled"
+        class="bridge-view__autopilot-badge"
+      >AUTOPILOT</span>
       <span class="bridge-view__title-text">TACTICAL OVERVIEW</span>
     </div>
   </div>

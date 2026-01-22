@@ -59,8 +59,11 @@ function closeOverflow() {
 </script>
 
 <template>
-  <nav class="lcars-tab-bar" @mouseleave="closeOverflow">
-    <div class="lcars-tab-bar__left-cap"></div>
+  <nav
+    class="lcars-tab-bar"
+    @mouseleave="closeOverflow"
+  >
+    <div class="lcars-tab-bar__left-cap" />
     
     <div class="lcars-tab-bar__tabs">
       <router-link
@@ -84,7 +87,7 @@ function closeOverflow() {
       </button>
     </div>
 
-    <div class="lcars-tab-bar__right-cap"></div>
+    <div class="lcars-tab-bar__right-cap" />
     
     <!-- Overflow dropdown -->
     <div 

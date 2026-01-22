@@ -134,31 +134,32 @@ describe('shipStore', () => {
       const store = useShipStore();
       store.dock('station-1');
       store.targetHeading = 90;
-      
+
       store.update({ deltaTime: 1, elapsed: 1, realDeltaTime: 1, timeScale: 1, paused: false });
-      
+
       expect(store.heading).toBe(0);
     });
 
     it('should not update when paused', () => {
       const store = useShipStore();
       store.setTargetSpeed(50);
-      
+
       store.update({ deltaTime: 0, elapsed: 1, realDeltaTime: 1, timeScale: 1, paused: true });
-      
+
       expect(store.speed).toBe(0);
     });
 
     it('should move ship based on heading and speed', () => {
       const store = useShipStore();
-      store.heading = 0;
+      store.heading = 0; // North = +Y direction
       store.speed = 100;
       store.targetSpeed = 100;
-      
+
       store.update({ deltaTime: 1, elapsed: 1, realDeltaTime: 1, timeScale: 1, paused: false });
-      
-      expect(store.position.x).toBeCloseTo(100, 0);
-      expect(store.position.y).toBeCloseTo(0, 0);
+
+      // Heading 0° (North) moves in +Y direction
+      expect(store.position.x).toBeCloseTo(0, 0);
+      expect(store.position.y).toBeCloseTo(100, 0);
     });
   });
 
@@ -190,9 +191,9 @@ describe('shipStore', () => {
       store.heading = 90;
       store.speed = 50;
       store.dock('station-1');
-      
+
       store.reset();
-      
+
       expect(store.position).toEqual({ x: 0, y: 0 });
       expect(store.heading).toBe(0);
       expect(store.speed).toBe(0);

@@ -26,18 +26,18 @@ describe('MovementSystem', () => {
 
     it('should move in the direction of heading', () => {
       const state = createDefaultState({
-        heading: 0, // East
+        heading: 0, // North (0° = +Y in this coordinate system)
         speed: 100,
         targetSpeed: 100,
       });
       const result = updateMovement(state, 1);
 
-      expect(result.position.x).toBeCloseTo(100, 1);
-      expect(result.position.y).toBeCloseTo(0, 1);
+      expect(result.position.x).toBeCloseTo(0, 1);
+      expect(result.position.y).toBeCloseTo(100, 1);
     });
 
-    it('should move south when heading is 90 degrees (world Y up)', () => {
-      // World coordinates use +Y up; heading 90° must move down (negative Y)
+    it('should move east when heading is 90 degrees', () => {
+      // 0° = North (+Y), 90° = East (+X)
       const state = createDefaultState({
         heading: 90,
         targetHeading: 90, // Must match to prevent turning
@@ -46,8 +46,8 @@ describe('MovementSystem', () => {
       });
       const result = updateMovement(state, 1);
 
-      expect(result.position.x).toBeCloseTo(0, 1);
-      expect(result.position.y).toBeCloseTo(-100, 1);
+      expect(result.position.x).toBeCloseTo(100, 1);
+      expect(result.position.y).toBeCloseTo(0, 1);
     });
 
     it('should accelerate towards target speed', () => {
@@ -121,13 +121,14 @@ describe('MovementSystem', () => {
 
     it('should scale movement by delta time', () => {
       const state = createDefaultState({
-        heading: 0,
+        heading: 0, // North = +Y direction
         speed: 100,
         targetSpeed: 100,
       });
       const result = updateMovement(state, 0.5);
 
-      expect(result.position.x).toBeCloseTo(50, 1);
+      // At 0.5s, should move 50 units in +Y direction
+      expect(result.position.y).toBeCloseTo(50, 1);
     });
   });
 

@@ -252,7 +252,10 @@ watch([() => props.segments, () => props.shipHeading], () => {
 </script>
 
 <template>
-  <div ref="containerRef" class="radar-display">
+  <div
+    ref="containerRef"
+    class="radar-display"
+  >
     <canvas
       ref="canvasRef"
       class="radar-display__canvas"

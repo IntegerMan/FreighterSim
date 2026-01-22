@@ -43,7 +43,11 @@ const displayValue = computed(() => {
   <div class="lcars-gauge">
     <div class="lcars-gauge__header">
       <span class="lcars-gauge__label">{{ label }}</span>
-      <span v-if="showValue" class="lcars-gauge__value" :class="`lcars-gauge__value--${statusClass}`">
+      <span
+        v-if="showValue"
+        class="lcars-gauge__value"
+        :class="`lcars-gauge__value--${statusClass}`"
+      >
         {{ displayValue }}
       </span>
     </div>

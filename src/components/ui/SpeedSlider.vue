@@ -95,10 +95,16 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="speed-slider" :class="{ 'speed-slider--disabled': disabled, 'speed-slider--readonly': readonly, 'speed-slider--reversing': isReversing }">
+  <div
+    class="speed-slider"
+    :class="{ 'speed-slider--disabled': disabled, 'speed-slider--readonly': readonly, 'speed-slider--reversing': isReversing }"
+  >
     <!-- Speed value display -->
     <div class="speed-slider__value">
-      <span class="speed-slider__current" :style="{ color: speedColor }">
+      <span
+        class="speed-slider__current"
+        :style="{ color: speedColor }"
+      >
         {{ currentSpeed.toFixed(0) }}
       </span>
       <span class="speed-slider__unit">u/s</span>
@@ -137,12 +143,30 @@ onUnmounted(() => {
       />
 
       <!-- Zero line -->
-      <div class="speed-slider__zero" :style="{ left: `${zeroPercent}%` }" />
+      <div
+        class="speed-slider__zero"
+        :style="{ left: `${zeroPercent}%` }"
+      />
 
       <!-- Tick marks at 0 and 100 -->
-      <div class="speed-slider__tick speed-slider__tick--zero" :style="{ left: `${zeroPercent}%` }">0</div>
-      <div class="speed-slider__tick speed-slider__tick--max" :style="{ left: '100%' }">{{ maxSpeed }}</div>
-      <div class="speed-slider__tick speed-slider__tick--min" :style="{ left: '0%' }">{{ minSpeed }}</div>
+      <div
+        class="speed-slider__tick speed-slider__tick--zero"
+        :style="{ left: `${zeroPercent}%` }"
+      >
+        0
+      </div>
+      <div
+        class="speed-slider__tick speed-slider__tick--max"
+        :style="{ left: '100%' }"
+      >
+        {{ maxSpeed }}
+      </div>
+      <div
+        class="speed-slider__tick speed-slider__tick--min"
+        :style="{ left: '0%' }"
+      >
+        {{ minSpeed }}
+      </div>
     </div>
 
     <!-- Target display -->

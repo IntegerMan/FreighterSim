@@ -35,17 +35,26 @@ function getContactClass(type: string): string {
 </script>
 
 <template>
-  <LcarsFrame title="Sensors" color="purple">
+  <LcarsFrame
+    title="Sensors"
+    color="purple"
+  >
     <div class="sensor-panel">
       <div class="sensor-panel__header">
         <span class="sensor-panel__count">{{ sensorStore.contactCount }} CONTACTS</span>
       </div>
 
-      <div v-if="sortedContacts.length === 0" class="sensor-panel__empty">
+      <div
+        v-if="sortedContacts.length === 0"
+        class="sensor-panel__empty"
+      >
         NO CONTACTS DETECTED
       </div>
 
-      <div v-else class="sensor-panel__list">
+      <div
+        v-else
+        class="sensor-panel__list"
+      >
         <div
           v-for="contact in sortedContacts"
           :key="contact.id"

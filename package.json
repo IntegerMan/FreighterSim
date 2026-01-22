@@ -13,13 +13,16 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix"
   },
   "dependencies": {
     "vue": "^3.5.24",
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@pinia/testing": "^1.0.3",
     "@playwright/test": "^1.57.0",
     "@types/node": "^24.10.1",
@@ -28,10 +31,13 @@
     "@vitest/ui": "^4.0.17",
     "@vue/test-utils": "^2.4.6",
     "@vue/tsconfig": "^0.8.1",
+    "eslint": "^9.39.2",
+    "eslint-plugin-vue": "^10.7.0",
     "happy-dom": "^20.3.4",
     "pinia": "^3.0.4",
     "sass": "^1.97.2",
     "typescript": "~5.9.3",
+    "typescript-eslint": "^8.53.1",
     "vite": "^7.2.4",
     "vitest": "^4.0.17",
     "vue-tsc": "^3.1.4"

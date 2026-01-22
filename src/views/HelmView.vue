@@ -89,7 +89,9 @@ function handleRadarSelect(contactId: string) {
       <div class="helm-view__panel">
         <!-- Heading Section -->
         <div class="helm-view__section">
-          <div class="helm-view__section-header">Heading</div>
+          <div class="helm-view__section-header">
+            Heading
+          </div>
           <HeadingGauge
             :current-heading="shipStore.heading"
             :target-heading="shipStore.targetHeading"
@@ -100,11 +102,13 @@ function handleRadarSelect(contactId: string) {
         </div>
 
         <!-- Divider -->
-        <div class="helm-view__divider"></div>
+        <div class="helm-view__divider" />
 
         <!-- Speed Section -->
         <div class="helm-view__section">
-          <div class="helm-view__section-header">Speed</div>
+          <div class="helm-view__section-header">
+            Speed
+          </div>
           <SpeedSlider
             :current-speed="shipStore.speed"
             :target-speed="shipStore.targetSpeed"
@@ -116,7 +120,7 @@ function handleRadarSelect(contactId: string) {
         </div>
 
         <!-- Divider -->
-        <div class="helm-view__divider"></div>
+        <div class="helm-view__divider" />
 
         <!-- Emergency Controls -->
         <div class="helm-view__controls">
@@ -168,11 +172,13 @@ function handleRadarSelect(contactId: string) {
         </div>
 
         <!-- Divider -->
-        <div class="helm-view__divider"></div>
+        <div class="helm-view__divider" />
 
         <!-- Proximity Radar -->
         <div class="helm-view__section">
-          <div class="helm-view__section-header">Proximity</div>
+          <div class="helm-view__section-header">
+            Proximity
+          </div>
           <div class="helm-view__radar-container">
             <CompactRadar
               :segments="sensorStore.radarSegments"
@@ -183,16 +189,25 @@ function handleRadarSelect(contactId: string) {
               @select-contact="handleRadarSelect"
             />
           </div>
-          <div v-if="nearestStation" class="helm-view__nearest">
+          <div
+            v-if="nearestStation"
+            class="helm-view__nearest"
+          >
             <span class="helm-view__nearest-label">{{ nearestStation.name }}</span>
-            <span class="helm-view__nearest-distance" :class="{ 'helm-view__nearest-distance--in-range': isInDockingRange }">
+            <span
+              class="helm-view__nearest-distance"
+              :class="{ 'helm-view__nearest-distance--in-range': isInDockingRange }"
+            >
               {{ formatDistance(nearestStation.distance) }}
             </span>
           </div>
         </div>
 
         <!-- Docked indicator -->
-        <div v-if="shipStore.isDocked" class="helm-view__docked-notice">
+        <div
+          v-if="shipStore.isDocked"
+          class="helm-view__docked-notice"
+        >
           HELM DISABLED WHILE DOCKED
         </div>
       </div>
@@ -200,7 +215,10 @@ function handleRadarSelect(contactId: string) {
 
     <!-- Station Title -->
     <div class="helm-view__title">
-      <span v-if="navStore.autopilotEnabled" class="helm-view__autopilot-badge">AUTOPILOT</span>
+      <span
+        v-if="navStore.autopilotEnabled"
+        class="helm-view__autopilot-badge"
+      >AUTOPILOT</span>
       <span class="helm-view__title-text">HELM CONTROL</span>
     </div>
   </div>

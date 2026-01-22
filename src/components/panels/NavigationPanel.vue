@@ -28,36 +28,72 @@ const selectedObject = computed(() => {
 </script>
 
 <template>
-  <LcarsFrame title="Navigation" color="purple">
+  <LcarsFrame
+    title="Navigation"
+    color="purple"
+  >
     <div class="nav-panel">
       <!-- Ship Status Summary -->
       <div class="nav-panel__section">
-        <LcarsDisplay label="Heading" :value="headingDisplay" />
-        <LcarsDisplay label="Speed" :value="speedDisplay" unit="u/s" />
+        <LcarsDisplay
+          label="Heading"
+          :value="headingDisplay"
+        />
+        <LcarsDisplay
+          label="Speed"
+          :value="speedDisplay"
+          unit="u/s"
+        />
       </div>
 
       <!-- Ship Telemetry -->
-      <div class="nav-panel__divider"></div>
+      <div class="nav-panel__divider" />
 
       <div class="nav-panel__section">
-        <div class="nav-panel__section-header">Ship Telemetry</div>
-        <LcarsDisplay label="Position X" :value="shipStore.position.x.toFixed(0)" unit="u" />
-        <LcarsDisplay label="Position Y" :value="shipStore.position.y.toFixed(0)" unit="u" />
-        <LcarsDisplay label="Velocity" :value="shipStore.speed.toFixed(1)" unit="u/s" />
-        <LcarsDisplay label="Max Speed" :value="shipStore.engines.maxSpeed.toFixed(0)" unit="u/s" />
+        <div class="nav-panel__section-header">
+          Ship Telemetry
+        </div>
+        <LcarsDisplay
+          label="Position X"
+          :value="shipStore.position.x.toFixed(0)"
+          unit="u"
+        />
+        <LcarsDisplay
+          label="Position Y"
+          :value="shipStore.position.y.toFixed(0)"
+          unit="u"
+        />
+        <LcarsDisplay
+          label="Velocity"
+          :value="shipStore.speed.toFixed(1)"
+          unit="u/s"
+        />
+        <LcarsDisplay
+          label="Max Speed"
+          :value="shipStore.engines.maxSpeed.toFixed(0)"
+          unit="u/s"
+        />
       </div>
 
       <!-- Divider -->
-      <div class="nav-panel__divider"></div>
+      <div class="nav-panel__divider" />
 
       <!-- Selected Target -->
       <div class="nav-panel__section">
-        <div class="nav-panel__target-header">Selected Target</div>
-        <div v-if="selectedObject" class="nav-panel__target-info">
+        <div class="nav-panel__target-header">
+          Selected Target
+        </div>
+        <div
+          v-if="selectedObject"
+          class="nav-panel__target-info"
+        >
           <span class="nav-panel__target-name">{{ selectedObject.name }}</span>
           <span class="nav-panel__target-type">{{ selectedObject.type }}</span>
         </div>
-        <div v-else class="nav-panel__no-target">
+        <div
+          v-else
+          class="nav-panel__no-target"
+        >
           No target selected
         </div>
       </div>
@@ -65,7 +101,10 @@ const selectedObject = computed(() => {
 
 
       <!-- Docked indicator -->
-      <div v-if="shipStore.isDocked" class="nav-panel__docked-notice">
+      <div
+        v-if="shipStore.isDocked"
+        class="nav-panel__docked-notice"
+      >
         SHIP DOCKED
       </div>
     </div>

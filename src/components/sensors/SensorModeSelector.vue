@@ -3,18 +3,10 @@ import { LcarsButton } from '@/components/ui';
 
 export type SensorMode = 'radar' | 'particles';
 
-interface Props {
-  modelValue: SensorMode;
-}
-
-const props = defineProps<Props>();
-
-const emit = defineEmits<{
-  'update:modelValue': [mode: SensorMode];
-}>();
+const modelValue = defineModel<SensorMode>({ required: true });
 
 function selectMode(mode: SensorMode) {
-  emit('update:modelValue', mode);
+  modelValue.value = mode;
 }
 </script>
 

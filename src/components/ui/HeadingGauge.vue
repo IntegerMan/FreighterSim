@@ -207,7 +207,10 @@ watch([() => props.currentHeading, () => props.targetHeading, () => props.waypoi
 </script>
 
 <template>
-  <div class="heading-gauge" :class="{ 'heading-gauge--disabled': disabled }">
+  <div
+    class="heading-gauge"
+    :class="{ 'heading-gauge--disabled': disabled }"
+  >
     <canvas
       ref="canvasRef"
       class="heading-gauge__canvas"

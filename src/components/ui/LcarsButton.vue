@@ -12,6 +12,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  label: undefined,
   color: 'purple',
   size: 'md',
   disabled: false,

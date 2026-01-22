@@ -13,10 +13,16 @@ const props = withDefaults(defineProps<Props>(), {
 </script>
 
 <template>
-  <div class="lcars-display" :class="`lcars-display--${size}`">
+  <div
+    class="lcars-display"
+    :class="`lcars-display--${size}`"
+  >
     <span class="lcars-display__label">{{ label }}</span>
     <span class="lcars-display__value">
-      {{ value }}<span v-if="unit" class="lcars-display__unit">{{ unit }}</span>
+      {{ value }}<span
+        v-if="unit"
+        class="lcars-display__unit"
+      >{{ unit }}</span>
     </span>
   </div>
 </template>

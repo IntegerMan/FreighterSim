@@ -15,14 +15,23 @@ const props = withDefaults(defineProps<Props>(), {
 
 <template>
   <div class="lcars-frame">
-    <div class="lcars-frame__header" :class="`lcars-frame__header--${color}`">
+    <div
+      class="lcars-frame__header"
+      :class="`lcars-frame__header--${color}`"
+    >
       <span class="lcars-frame__title">{{ title }}</span>
       <slot name="header-actions" />
     </div>
-    <div class="lcars-frame__content" :class="{ 'lcars-frame__content--no-padding': noPadding }">
+    <div
+      class="lcars-frame__content"
+      :class="{ 'lcars-frame__content--no-padding': noPadding }"
+    >
       <slot />
     </div>
-    <div v-if="$slots.footer" class="lcars-frame__footer">
+    <div
+      v-if="$slots.footer"
+      class="lcars-frame__footer"
+    >
       <slot name="footer" />
     </div>
   </div>

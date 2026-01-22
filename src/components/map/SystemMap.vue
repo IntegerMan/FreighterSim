@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useShipStore, useNavigationStore, useSensorStore } from '@/stores';
 import { useGameLoop } from '@/core/game-loop';
 import { 
-  headingDegToCanvasRad, 
+  
   drawCourseProjection, 
   drawShipIcon,
   drawWaypoint,
@@ -464,7 +464,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div ref="containerRef" class="system-map">
+  <div
+    ref="containerRef"
+    class="system-map"
+  >
     <canvas
       ref="canvasRef"
       :width="canvasWidth"

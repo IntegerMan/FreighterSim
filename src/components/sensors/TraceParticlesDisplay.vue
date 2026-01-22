@@ -231,7 +231,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="containerRef" class="trace-particles-display">
+  <div
+    ref="containerRef"
+    class="trace-particles-display"
+  >
     <canvas
       ref="canvasRef"
       class="trace-particles-display__canvas"

@@ -36,7 +36,11 @@ function handleSelectContact(contactId: string) {
 
     <!-- Radar Display -->
     <div class="sensors-view__display">
-      <LcarsFrame title="Proximity Radar" color="purple" no-padding>
+      <LcarsFrame
+        title="Proximity Radar"
+        color="purple"
+        no-padding
+      >
         <RadarDisplay
           :segments="radarSegments"
           :range="sensorRange"
@@ -49,7 +53,11 @@ function handleSelectContact(contactId: string) {
 
     <!-- Particle Display -->
     <div class="sensors-view__display">
-      <LcarsFrame title="Particle Traces" color="purple" no-padding>
+      <LcarsFrame
+        title="Particle Traces"
+        color="purple"
+        no-padding
+      >
         <TraceParticlesDisplay
           :cells="particleCells"
           :cell-size="particleCellSize"

@@ -430,7 +430,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div ref="containerRef" class="helm-map">
+  <div
+    ref="containerRef"
+    class="helm-map"
+  >
     <canvas
       ref="canvasRef"
       :width="canvasWidth"
@@ -452,14 +455,47 @@ onMounted(() => {
       <button 
         class="helm-map__toggle"
         :class="{ 'helm-map__toggle--active': settingsStore.showRadarOverlay }"
-        @click="settingsStore.toggleRadarOverlay()"
         title="Toggle Radar Overlay"
+        @click="settingsStore.toggleRadarOverlay()"
       >
-        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-          <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
-          <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1"/>
-          <circle cx="12" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1"/>
-          <line x1="12" y1="2" x2="12" y2="8" stroke="currentColor" stroke-width="1.5"/>
+        <svg
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          width="20"
+          height="20"
+        >
+          <circle
+            cx="12"
+            cy="12"
+            r="10"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          />
+          <circle
+            cx="12"
+            cy="12"
+            r="6"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1"
+          />
+          <circle
+            cx="12"
+            cy="12"
+            r="2"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1"
+          />
+          <line
+            x1="12"
+            y1="2"
+            x2="12"
+            y2="8"
+            stroke="currentColor"
+            stroke-width="1.5"
+          />
         </svg>
       </button>
     </div>
