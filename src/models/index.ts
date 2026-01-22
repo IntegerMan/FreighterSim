@@ -13,7 +13,27 @@ export type { StarSystem, Star, JumpGate } from './StarSystem';
 export { createStarSystem } from './StarSystem';
 
 export type { Contact, ContactType } from './Contact';
-export { createContact, updateContactRelative, getContactSymbol, formatBearing, formatDistance } from './Contact';
+export { createContact, updateContactRelative, getContactSymbol, formatBearing, formatDistance, DEFAULT_CONTACT_RADIUS } from './Contact';
 
-export type { Ship, SystemStatus } from './Ship';
-export { createShip, DEFAULT_SHIP } from './Ship';
+export type { Ship, SystemStatus, ShipEngines, ShipSensors } from './Ship';
+export { createShip, DEFAULT_SHIP, DEFAULT_ENGINES, DEFAULT_SENSORS } from './Ship';
+
+export type {
+  ParticleGridConfig,
+  ParticleCell,
+  ParticleGrid,
+  ParticleEmitter,
+  ThreatLevel,
+  RadarSegment
+} from './Particle';
+export {
+  DEFAULT_PARTICLE_CONFIG,
+  THREAT_THRESHOLDS,
+  createCellKey,
+  parseCellKey,
+  worldToGridCoord,
+  gridToWorldCoord,
+  getThreatLevelFromDistance,
+  getThreatLevelColor,
+  isAngleInSegment
+} from './Particle';

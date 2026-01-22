@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
-import { useGameStore, useShipStore, useNavigationStore, useSensorStore } from '@/stores';
+import { useGameStore, useShipStore, useNavigationStore, useSensorStore, useParticleStore } from '@/stores';
 import { useGameLoop } from '@/core/game-loop';
 import { KESTREL_REACH, KESTREL_REACH_SPAWN } from '@/data';
 import { LcarsTabBar } from '@/components/ui';
@@ -9,6 +9,7 @@ const gameStore = useGameStore();
 const shipStore = useShipStore();
 const navStore = useNavigationStore();
 const sensorStore = useSensorStore();
+const particleStore = useParticleStore();
 const { start, stop, subscribe } = useGameLoop();
 
 onMounted(() => {
@@ -19,13 +20,21 @@ onMounted(() => {
   
   // Initial sensor refresh
   sensorStore.refreshContacts();
-  
+
+  // Register player ship as particle emitter
+  particleStore.registerEmitter(
+    'player-ship',
+    () => shipStore.position,
+    () => shipStore.targetSpeed / shipStore.engines.maxSpeed
+  );
+
   // Subscribe stores to game loop
   const unsubscribe = subscribe((gameTime) => {
     gameStore.update(gameTime);
     shipStore.update(gameTime);
     navStore.update(gameTime);
     sensorStore.update(gameTime);
+    particleStore.update(gameTime);
   });
 
   // Start the game loop
@@ -42,7 +51,7 @@ onMounted(() => {
   <div class="app">
     <header class="app__header">
       <div class="app__title">
-        <span class="app__title-text">SPACE FREIGHTER SIM</span>
+        <span class="app__title-text">TAKE THE SKY</span>
       </div>
       <LcarsTabBar />
     </header>

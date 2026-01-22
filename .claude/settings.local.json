@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test:*)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(node node_modules/typescript/bin/tsc:*)"
+    ]
+  }
+}

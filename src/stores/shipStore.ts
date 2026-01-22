@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { Vector2 } from '@/models';
-import { vec2, normalizeAngle, clamp } from '@/models';
+import type { Vector2, ShipEngines, ShipSensors } from '@/models';
+import { vec2, normalizeAngle, clamp, DEFAULT_ENGINES, DEFAULT_SENSORS } from '@/models';
 import { updateMovement } from '@/core/physics';
 import type { GameTime } from '@/core/game-loop';
 
@@ -16,20 +16,23 @@ export const useShipStore = defineStore('ship', () => {
   const speed = ref(0);
   const targetSpeed = ref(0);
 
-  // Ship properties
-  const maxSpeed = ref(100);
-  const turnRate = ref(45); // degrees per second
-  const acceleration = ref(20); // units per second squared
+  // Ship subsystems
+  const engines = ref<ShipEngines>({ ...DEFAULT_ENGINES });
+  const sensors = ref<ShipSensors>({ ...DEFAULT_SENSORS });
+
+  // Derived limits
+  const minSpeed = computed(() => -engines.value.maxSpeed * 0.25); // Reverse speed limit (25% of max)
 
   // Docking state
   const isDocked = ref(false);
   const dockedAtId = ref<string | null>(null);
 
   // Computed
-  const isMoving = computed(() => speed.value > 0);
+  const isMoving = computed(() => speed.value !== 0);
+  const isReversing = computed(() => speed.value < 0 || targetSpeed.value < 0);
   const isTurning = computed(() => heading.value !== targetHeading.value);
   const isAccelerating = computed(() => speed.value !== targetSpeed.value);
-  const speedPercent = computed(() => (speed.value / maxSpeed.value) * 100);
+  const speedPercent = computed(() => (speed.value / engines.value.maxSpeed) * 100);
 
   const headingFormatted = computed(() => {
     return normalizeAngle(heading.value).toFixed(0).padStart(3, '0') + '°';
@@ -47,7 +50,7 @@ export const useShipStore = defineStore('ship', () => {
 
   function setTargetSpeed(newSpeed: number) {
     if (isDocked.value) return;
-    targetSpeed.value = clamp(newSpeed, 0, maxSpeed.value);
+    targetSpeed.value = clamp(newSpeed, minSpeed.value, engines.value.maxSpeed);
   }
 
   function allStop() {
@@ -56,7 +59,7 @@ export const useShipStore = defineStore('ship', () => {
 
   function fullSpeed() {
     if (isDocked.value) return;
-    targetSpeed.value = maxSpeed.value;
+    targetSpeed.value = engines.value.maxSpeed;
   }
 
   function adjustSpeed(delta: number) {
@@ -93,9 +96,9 @@ export const useShipStore = defineStore('ship', () => {
       targetHeading: targetHeading.value,
       speed: speed.value,
       targetSpeed: targetSpeed.value,
-      maxSpeed: maxSpeed.value,
-      turnRate: turnRate.value,
-      acceleration: acceleration.value,
+      maxSpeed: engines.value.maxSpeed,
+      turnRate: engines.value.turnRate,
+      acceleration: engines.value.acceleration,
     }, gameTime.deltaTime);
 
     position.value = result.position;
@@ -124,13 +127,14 @@ export const useShipStore = defineStore('ship', () => {
     targetHeading,
     speed,
     targetSpeed,
-    maxSpeed,
-    turnRate,
-    acceleration,
+    engines,
+    sensors,
     isDocked,
     dockedAtId,
     // Computed
+    minSpeed,
     isMoving,
+    isReversing,
     isTurning,
     isAccelerating,
     speedPercent,

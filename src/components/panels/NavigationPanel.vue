@@ -44,7 +44,7 @@ const selectedObject = computed(() => {
         <LcarsDisplay label="Position X" :value="shipStore.position.x.toFixed(0)" unit="u" />
         <LcarsDisplay label="Position Y" :value="shipStore.position.y.toFixed(0)" unit="u" />
         <LcarsDisplay label="Velocity" :value="shipStore.speed.toFixed(1)" unit="u/s" />
-        <LcarsDisplay label="Max Speed" :value="shipStore.maxSpeed.toFixed(0)" unit="u/s" />
+        <LcarsDisplay label="Max Speed" :value="shipStore.engines.maxSpeed.toFixed(0)" unit="u/s" />
       </div>
 
       <!-- Divider -->

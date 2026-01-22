@@ -177,13 +177,20 @@ export function drawCourseProjection(
   headingDeg: number,
   speed: number,
   camera: CameraState,
-  projectionTime = 20 // seconds into the future
+  projectionTime = 20, // seconds into the future
+  isReversing = false
 ): void {
-  if (speed <= 0) return;
+  if (speed === 0) return;
   
-  const headingRad = headingDegToCanvasRad(headingDeg);
-  const distance = speed * projectionTime;
+  // When reversing, draw in opposite direction with purple color
+  const effectiveHeading = speed < 0 ? headingDeg + 180 : headingDeg;
+  const effectiveSpeed = Math.abs(speed);
+  const headingRad = headingDegToCanvasRad(effectiveHeading);
+  const distance = effectiveSpeed * projectionTime;
   const screenDistance = distance * camera.zoom;
+  
+  // Color based on direction
+  const color = isReversing ? 'rgba(153, 102, 255, 0.5)' : MAP_COLORS.courseProjection;
   
   // Calculate end point using the same rotation as drawHeadingLine
   // After rotating by headingRad, the point (0, -distance) becomes:
@@ -191,7 +198,7 @@ export function drawCourseProjection(
   const endY = screenPos.y - screenDistance * Math.cos(headingRad);
 
   // Draw dashed projection line
-  ctx.strokeStyle = MAP_COLORS.courseProjection;
+  ctx.strokeStyle = color;
   ctx.lineWidth = 2;
   ctx.setLineDash([10, 5]);
   ctx.beginPath();
@@ -205,11 +212,11 @@ export function drawCourseProjection(
   const tickCount = Math.floor(projectionTime / tickInterval);
   
   for (let i = 1; i <= tickCount; i++) {
-    const tickDist = (speed * tickInterval * i) * camera.zoom;
+    const tickDist = (effectiveSpeed * tickInterval * i) * camera.zoom;
     const tickX = screenPos.x + tickDist * Math.sin(headingRad);
     const tickY = screenPos.y - tickDist * Math.cos(headingRad);
     
-    ctx.fillStyle = MAP_COLORS.courseProjection;
+    ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc(tickX, tickY, 3, 0, Math.PI * 2);
     ctx.fill();

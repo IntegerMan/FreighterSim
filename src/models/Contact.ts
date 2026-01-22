@@ -3,7 +3,12 @@ import type { Vector2 } from './math';
 /**
  * Types of sensor contacts
  */
-export type ContactType = 'station' | 'planet' | 'ship' | 'jump-gate' | 'unknown';
+export type ContactType = 'station' | 'planet' | 'ship' | 'jump-gate' | 'star' | 'unknown';
+
+/**
+ * Default radius for contacts without explicit size
+ */
+export const DEFAULT_CONTACT_RADIUS = 10;
 
 /**
  * A sensor contact representing a detected object
@@ -13,6 +18,7 @@ export interface Contact {
   type: ContactType;
   name: string;
   position: Vector2;
+  radius: number;
   distance: number;
   bearing: number;
   isSelected: boolean;
@@ -27,6 +33,7 @@ export function createContact(config: {
   name: string;
   position: Vector2;
   shipPosition: Vector2;
+  radius?: number;
 }): Contact {
   const dx = config.position.x - config.shipPosition.x;
   const dy = config.position.y - config.shipPosition.y;
@@ -40,6 +47,7 @@ export function createContact(config: {
     type: config.type,
     name: config.name,
     position: config.position,
+    radius: config.radius ?? DEFAULT_CONTACT_RADIUS,
     distance,
     bearing,
     isSelected: false,

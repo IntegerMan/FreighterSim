@@ -17,10 +17,10 @@ const emit = defineEmits<{
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 
-// Canvas drawing
-const radius = 80;
-const centerX = radius + 20;
-const centerY = radius + 20;
+// Canvas drawing - compact size
+const radius = 60;
+const centerX = radius + 10;
+const centerY = radius + 10;
 
 function normalizeAngle(angle: number): number {
   return ((angle % 360) + 360) % 360;
@@ -61,21 +61,21 @@ function drawGauge() {
   ];
 
   ctx.fillStyle = '#D4AF37';
-  ctx.font = 'bold 14px monospace';
+  ctx.font = 'bold 11px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
   cardinalDirections.forEach(({ angle, label }) => {
     const rad = (angle * Math.PI) / 180;
-    const x = centerX + Math.cos(rad) * (radius - 15);
-    const y = centerY + Math.sin(rad) * (radius - 15);
+    const x = centerX + Math.cos(rad) * (radius - 12);
+    const y = centerY + Math.sin(rad) * (radius - 12);
     ctx.fillText(label, x, y);
   });
 
   // Draw degree markers
   ctx.strokeStyle = '#888888';
   ctx.fillStyle = '#888888';
-  ctx.font = '10px monospace';
+  ctx.font = '8px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
@@ -85,22 +85,16 @@ function drawGauge() {
     const y1 = centerY + Math.sin(rad) * radius;
 
     if (i % 30 === 0) {
-      const x0 = centerX + Math.cos(rad) * (radius - 8);
-      const y0 = centerY + Math.sin(rad) * (radius - 8);
+      const x0 = centerX + Math.cos(rad) * (radius - 6);
+      const y0 = centerY + Math.sin(rad) * (radius - 6);
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(x0, y0);
       ctx.lineTo(x1, y1);
       ctx.stroke();
-
-      if (i % 90 !== 0) {
-        const labelX = centerX + Math.cos(rad) * (radius - 25);
-        const labelY = centerY + Math.sin(rad) * (radius - 25);
-        ctx.fillText(i.toString(), labelX, labelY);
-      }
     } else {
-      const x0 = centerX + Math.cos(rad) * (radius - 4);
-      const y0 = centerY + Math.sin(rad) * (radius - 4);
+      const x0 = centerX + Math.cos(rad) * (radius - 3);
+      const y0 = centerY + Math.sin(rad) * (radius - 3);
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(x0, y0);
@@ -109,16 +103,9 @@ function drawGauge() {
     }
   }
 
-  // Draw target heading arc (light)
-  const targetRad = (normalizeAngle(props.targetHeading) * Math.PI) / 180;
-  ctx.strokeStyle = 'rgba(212, 175, 55, 0.3)';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, radius - 10, 0, Math.PI * 2);
-  ctx.stroke();
-
   // Draw target heading indicator (thin line)
-  ctx.strokeStyle = 'rgba(212, 175, 55, 0.6)';
+  const targetRad = (normalizeAngle(props.targetHeading) * Math.PI) / 180;
+  ctx.strokeStyle = 'rgba(212, 175, 55, 0.5)';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(centerX, centerY);
@@ -138,11 +125,26 @@ function drawGauge() {
   ctx.lineTo(currentX, currentY);
   ctx.stroke();
 
-  // Draw center dot
-  ctx.fillStyle = '#D4AF37';
+  // Draw center with current/target values
+  ctx.fillStyle = '#000000';
   ctx.beginPath();
-  ctx.arc(centerX, centerY, 4, 0, Math.PI * 2);
+  ctx.arc(centerX, centerY, 22, 0, Math.PI * 2);
   ctx.fill();
+  ctx.strokeStyle = '#D4AF37';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Current heading value (larger, top)
+  ctx.fillStyle = '#D4AF37';
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(normalizeAngle(props.currentHeading).toFixed(0).padStart(3, '0') + '°', centerX, centerY - 6);
+
+  // Target heading value (smaller, bottom)
+  ctx.fillStyle = 'rgba(212, 175, 55, 0.6)';
+  ctx.font = '9px monospace';
+  ctx.fillText(normalizeAngle(props.targetHeading).toFixed(0).padStart(3, '0') + '°', centerX, centerY + 8);
 }
 
 function handleCanvasClick(event: MouseEvent) {
@@ -180,22 +182,13 @@ watch([() => props.currentHeading, () => props.targetHeading], () => {
 
 <template>
   <div class="heading-gauge" :class="{ 'heading-gauge--disabled': disabled }">
-    <div class="heading-gauge__label">Heading</div>
     <canvas
       ref="canvasRef"
       class="heading-gauge__canvas"
-      width="200"
-      height="200"
+      width="140"
+      height="140"
       @click="handleCanvasClick"
     />
-    <div class="heading-gauge__info">
-      <div class="heading-gauge__current">
-        Current: <span class="heading-gauge__value">{{ normalizeAngle(currentHeading).toFixed(0).padStart(3, '0') }}°</span>
-      </div>
-      <div class="heading-gauge__target">
-        Target: <span class="heading-gauge__value">{{ normalizeAngle(targetHeading).toFixed(0).padStart(3, '0') }}°</span>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -206,58 +199,21 @@ watch([() => props.currentHeading, () => props.targetHeading], () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: $space-md;
-  padding: $space-md;
-  background-color: rgba($color-black, 0.5);
-  border-radius: $radius-sm;
-  border: 1px solid $color-gold;
 
   &--disabled {
     opacity: 0.5;
     pointer-events: none;
   }
 
-  &__label {
-    font-family: $font-display;
-    font-size: $font-size-sm;
-    font-weight: $font-weight-medium;
-    color: $color-gold;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-  }
-
   &__canvas {
-    width: 200px;
-    height: 200px;
+    width: 140px;
+    height: 140px;
     cursor: pointer;
     transition: filter 0.2s ease;
 
     &:hover:not([disabled]) {
       filter: brightness(1.1);
     }
-  }
-
-  &__info {
-    display: flex;
-    flex-direction: column;
-    gap: $space-xs;
-    width: 100%;
-    font-family: $font-mono;
-    font-size: $font-size-xs;
-    color: $color-gray;
-    text-align: center;
-  }
-
-  &__current,
-  &__target {
-    display: flex;
-    justify-content: center;
-    gap: $space-xs;
-  }
-
-  &__value {
-    color: $color-white;
-    font-weight: bold;
   }
 }
 </style>

@@ -1,5 +1,4 @@
 import { createPinia, setActivePinia } from 'pinia';
-import type { App } from 'vue';
 
 /**
  * Creates a fresh Pinia instance and sets it as active.

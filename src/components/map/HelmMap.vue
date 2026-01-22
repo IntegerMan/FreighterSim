@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue';
-import { useShipStore, useNavigationStore, useSensorStore } from '@/stores';
+import { useShipStore, useNavigationStore, useSensorStore, useSettingsStore } from '@/stores';
 import { useGameLoop } from '@/core/game-loop';
 import { 
   MAP_COLORS, 
   worldToScreen, 
   screenToWorld, 
   drawGrid, 
-  drawHeadingLine,
   drawShipIcon,
   drawCourseProjection,
   type CameraState 
 } from '@/core/rendering';
 import type { Vector2, Station, Planet, JumpGate } from '@/models';
+import { getThreatLevelColor } from '@/models';
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const containerRef = ref<HTMLDivElement | null>(null);
@@ -20,12 +20,13 @@ const containerRef = ref<HTMLDivElement | null>(null);
 const shipStore = useShipStore();
 const navStore = useNavigationStore();
 const sensorStore = useSensorStore();
+const settingsStore = useSettingsStore();
 const { subscribe } = useGameLoop();
 
 // Canvas state - higher default zoom for helm, ship-centric
 const canvasWidth = ref(800);
 const canvasHeight = ref(600);
-const zoom = ref(1); // Higher default zoom than SystemMap
+const zoom = ref(1.8); // Higher default zoom for close navigation
 const panOffset = ref<Vector2>({ x: 0, y: 0 });
 const isDragging = ref(false);
 const dragStart = ref<Vector2>({ x: 0, y: 0 });
@@ -59,6 +60,11 @@ function render() {
   // Draw grid
   drawGrid(ctx, camera.value);
 
+  // Draw radar overlay if enabled
+  if (settingsStore.showRadarOverlay) {
+    drawRadarOverlay(ctx);
+  }
+
   // Draw star (if visible)
   if (navStore.currentSystem?.star) {
     drawStar(ctx);
@@ -84,12 +90,44 @@ function render() {
     drawJumpGate(ctx, gate);
   }
 
-  // Draw course projection (helm-specific)
+  // Draw course projection (helm-specific) - color changes with reverse
   const shipScreenPos = worldToScreen(shipStore.position, camera.value);
-  drawCourseProjection(ctx, shipScreenPos, shipStore.heading, shipStore.speed, camera.value);
+  const isReversing = shipStore.speed < 0 || shipStore.targetSpeed < 0;
+  drawCourseProjection(ctx, shipScreenPos, shipStore.heading, shipStore.speed, camera.value, 20, isReversing);
 
-  // Draw ship with extended heading line
+  // Draw ship
   drawShip(ctx);
+}
+
+function drawRadarOverlay(ctx: CanvasRenderingContext2D) {
+  const shipScreenPos = worldToScreen(shipStore.position, camera.value);
+  const displayRange = sensorStore.proximityDisplayRange;
+  const screenRange = displayRange * zoom.value;
+
+  for (const segment of sensorStore.radarSegments) {
+    if (segment.threatLevel === 'none' || !segment.nearestContact) continue;
+
+    const startRad = (segment.startAngle * Math.PI) / 180;
+    const endRad = (segment.endAngle * Math.PI) / 180;
+    const distanceRatio = Math.min(segment.nearestContact.distance / displayRange, 1);
+    const segmentRadius = screenRange * distanceRatio;
+
+    ctx.fillStyle = getThreatLevelColor(segment.threatLevel);
+    ctx.globalAlpha = 0.2;
+    ctx.beginPath();
+    ctx.moveTo(shipScreenPos.x, shipScreenPos.y);
+    ctx.arc(shipScreenPos.x, shipScreenPos.y, segmentRadius, startRad, endRad);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Draw faint range circle at proximity display range
+  ctx.strokeStyle = 'rgba(153, 102, 255, 0.15)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(shipScreenPos.x, shipScreenPos.y, screenRange, 0, Math.PI * 2);
+  ctx.stroke();
 }
 
 function drawStar(ctx: CanvasRenderingContext2D) {
@@ -238,12 +276,11 @@ function drawJumpGate(ctx: CanvasRenderingContext2D, gate: JumpGate) {
 
 function drawShip(ctx: CanvasRenderingContext2D) {
   const screenPos = worldToScreen(shipStore.position, camera.value);
+  const isReversing = shipStore.speed < 0 || shipStore.targetSpeed < 0;
 
-  // Extended heading indicator line (longer than SystemMap)
-  drawHeadingLine(ctx, screenPos, shipStore.heading, 80);
-
-  // Ship icon
-  drawShipIcon(ctx, screenPos, shipStore.heading);
+  // Ship icon - purple when reversing
+  const shipColor = isReversing ? '#9966FF' : MAP_COLORS.ship;
+  drawShipIcon(ctx, screenPos, shipStore.heading, 8, shipColor);
 }
 
 // Event handlers
@@ -381,6 +418,21 @@ onMounted(() => {
         <span class="helm-map__zoom">{{ (zoom * 100).toFixed(0) }}%</span>
       </div>
     </div>
+    <div class="helm-map__controls">
+      <button 
+        class="helm-map__toggle"
+        :class="{ 'helm-map__toggle--active': settingsStore.showRadarOverlay }"
+        @click="settingsStore.toggleRadarOverlay()"
+        title="Toggle Radar Overlay"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+          <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1"/>
+          <circle cx="12" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1"/>
+          <line x1="12" y1="2" x2="12" y2="8" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -428,6 +480,41 @@ onMounted(() => {
     font-family: $font-mono;
     font-size: $font-size-xs;
     color: $color-gray;
+  }
+
+  &__controls {
+    position: absolute;
+    top: $space-sm;
+    right: $space-sm;
+    display: flex;
+    gap: $space-xs;
+  }
+
+  &__toggle {
+    width: 32px;
+    height: 32px;
+    padding: 4px;
+    border: 1px solid $color-purple-dim;
+    border-radius: $radius-sm;
+    background-color: rgba($color-black, 0.8);
+    color: $color-purple-dim;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover {
+      border-color: $color-purple;
+      color: $color-purple;
+      background-color: rgba($color-purple, 0.1);
+    }
+
+    &--active {
+      border-color: $color-purple;
+      color: $color-purple;
+      background-color: rgba($color-purple, 0.2);
+    }
   }
 }
 </style>

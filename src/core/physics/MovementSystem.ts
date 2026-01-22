@@ -39,14 +39,16 @@ export function updateMovement(state: MovementState, deltaTime: number): Movemen
     state.turnRate * deltaTime
   );
 
-  // Update speed towards target
+  // Update speed towards target (allow negative for reverse)
+  const clampedTarget = Math.max(-state.maxSpeed * 0.25, Math.min(state.targetSpeed, state.maxSpeed));
   const newSpeed = moveTowards(
     state.speed,
-    Math.min(state.targetSpeed, state.maxSpeed),
+    clampedTarget,
     state.acceleration * deltaTime
   );
 
   // Calculate velocity vector from heading and speed
+  // When speed is negative, ship moves in opposite direction
   const velocity = vec2FromAngle(newHeading, newSpeed);
 
   // Update position

@@ -62,13 +62,13 @@ describe('shipStore', () => {
     it('should clamp to max speed', () => {
       const store = useShipStore();
       store.setTargetSpeed(200);
-      expect(store.targetSpeed).toBe(store.maxSpeed);
+      expect(store.targetSpeed).toBe(store.engines.maxSpeed);
     });
 
-    it('should not go below 0', () => {
+    it('should not go below min speed', () => {
       const store = useShipStore();
-      store.setTargetSpeed(-10);
-      expect(store.targetSpeed).toBe(0);
+      store.setTargetSpeed(-50);
+      expect(store.targetSpeed).toBe(store.minSpeed);
     });
 
     it('should not change speed when docked', () => {
@@ -92,7 +92,7 @@ describe('shipStore', () => {
     it('should set target speed to max', () => {
       const store = useShipStore();
       store.fullSpeed();
-      expect(store.targetSpeed).toBe(store.maxSpeed);
+      expect(store.targetSpeed).toBe(store.engines.maxSpeed);
     });
   });
 
