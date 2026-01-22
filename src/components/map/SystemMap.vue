@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useShipStore, useNavigationStore, useSensorStore } from '@/stores';
 import { useGameLoop } from '@/core/game-loop';
+import { headingDegToCanvasRad } from '@/core/rendering';
 import type { Vector2, Station, Planet, JumpGate } from '@/models';
 
 // Colors matching our design system
