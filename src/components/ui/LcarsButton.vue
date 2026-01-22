@@ -51,6 +51,7 @@ function handleClick(event: MouseEvent) {
 
 <style scoped lang="scss">
 @use '@/assets/styles/variables' as *;
+@use 'sass:color';
 
 .lcars-button {
   font-family: $font-display;
@@ -120,7 +121,7 @@ function handleClick(event: MouseEvent) {
     color: $color-black;
 
     &:hover:not(:disabled) {
-      background-color: lighten($color-danger, 10%);
+      background-color: color.scale($color-danger, $lightness: 10%);
     }
 
     &:active:not(:disabled),
@@ -134,7 +135,7 @@ function handleClick(event: MouseEvent) {
     color: $color-black;
 
     &:hover:not(:disabled) {
-      background-color: lighten($color-success, 10%);
+      background-color: color.scale($color-success, $lightness: 10%);
     }
 
     &:active:not(:disabled),
@@ -148,7 +149,7 @@ function handleClick(event: MouseEvent) {
     color: $color-black;
 
     &:hover:not(:disabled) {
-      background-color: lighten($color-warning, 10%);
+      background-color: color.scale($color-warning, $lightness: 10%);
     }
 
     &:active:not(:disabled),
