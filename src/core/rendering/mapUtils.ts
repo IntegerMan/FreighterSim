@@ -167,17 +167,18 @@ export function drawCourseProjection(
   headingDeg: number,
   speed: number,
   camera: CameraState,
-  projectionTime = 60 // seconds into the future
+  projectionTime = 20 // seconds into the future
 ): void {
   if (speed <= 0) return;
   
-  const headingRad = (headingDeg - 90) * (Math.PI / 180);
+  const headingRad = -(headingDeg - 90) * (Math.PI / 180);
   const distance = speed * projectionTime;
   const screenDistance = distance * camera.zoom;
   
-  // Calculate end point
-  const endX = screenPos.x + Math.cos(headingRad) * screenDistance;
-  const endY = screenPos.y - Math.sin(headingRad) * screenDistance;
+  // Calculate end point using the same rotation as drawHeadingLine
+  // After rotating by headingRad, the point (0, -distance) becomes:
+  const endX = screenPos.x + screenDistance * Math.sin(headingRad);
+  const endY = screenPos.y - screenDistance * Math.cos(headingRad);
 
   // Draw dashed projection line
   ctx.strokeStyle = MAP_COLORS.courseProjection;
@@ -195,8 +196,8 @@ export function drawCourseProjection(
   
   for (let i = 1; i <= tickCount; i++) {
     const tickDist = (speed * tickInterval * i) * camera.zoom;
-    const tickX = screenPos.x + Math.cos(headingRad) * tickDist;
-    const tickY = screenPos.y - Math.sin(headingRad) * tickDist;
+    const tickX = screenPos.x + tickDist * Math.sin(headingRad);
+    const tickY = screenPos.y - tickDist * Math.cos(headingRad);
     
     ctx.fillStyle = MAP_COLORS.courseProjection;
     ctx.beginPath();

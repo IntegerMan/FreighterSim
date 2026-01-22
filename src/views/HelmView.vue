@@ -93,13 +93,6 @@ function setSpeedPreset(percent: number) {
                   <LcarsButton label="75%" size="sm" :disabled="shipStore.isDocked" @click="setSpeedPreset(75)" />
                   <LcarsButton label="100%" size="sm" :disabled="shipStore.isDocked" @click="setSpeedPreset(100)" />
                 </div>
-
-                <div class="helm-controls__speed-buttons">
-                  <LcarsButton label="-10" size="sm" color="gold" :disabled="shipStore.isDocked" @click="adjustSpeed(-10)" />
-                  <LcarsButton label="-5" size="sm" color="gold" :disabled="shipStore.isDocked" @click="adjustSpeed(-5)" />
-                  <LcarsButton label="+5" size="sm" color="gold" :disabled="shipStore.isDocked" @click="adjustSpeed(5)" />
-                  <LcarsButton label="+10" size="sm" color="gold" :disabled="shipStore.isDocked" @click="adjustSpeed(10)" />
-                </div>
               </div>
 
               <!-- Emergency Controls -->
