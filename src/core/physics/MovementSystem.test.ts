@@ -36,9 +36,8 @@ describe('MovementSystem', () => {
       expect(result.position.y).toBeCloseTo(0, 1);
     });
 
-    it('should move south when heading is 90 degrees (canvas coordinates)', () => {
-      // In canvas/screen coordinates, Y increases downward
-      // 90° points down (+Y direction)
+    it('should move south when heading is 90 degrees (world Y up)', () => {
+      // World coordinates use +Y up; heading 90° must move down (negative Y)
       const state = createDefaultState({
         heading: 90,
         targetHeading: 90, // Must match to prevent turning
@@ -48,7 +47,7 @@ describe('MovementSystem', () => {
       const result = updateMovement(state, 1);
 
       expect(result.position.x).toBeCloseTo(0, 1);
-      expect(result.position.y).toBeCloseTo(100, 1);
+      expect(result.position.y).toBeCloseTo(-100, 1);
     });
 
     it('should accelerate towards target speed', () => {

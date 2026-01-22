@@ -64,7 +64,8 @@ export function vec2FromAngle(degrees: number, length: number = 1): Vector2 {
   const radians = degreesToRadians(degrees);
   return {
     x: Math.cos(radians) * length,
-    y: Math.sin(radians) * length,
+    // World coordinates use +Y as up; flip the sine so 90° points down on screen
+    y: -Math.sin(radians) * length,
   };
 }
 
