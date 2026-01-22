@@ -110,7 +110,7 @@ function drawGauge() {
   }
 
   // Draw target heading arc (light)
-  const targetRad = (normalizeAngle(-props.targetHeading) * Math.PI) / 180;
+  const targetRad = (normalizeAngle(props.targetHeading) * Math.PI) / 180;
   ctx.strokeStyle = 'rgba(212, 175, 55, 0.3)';
   ctx.lineWidth = 3;
   ctx.beginPath();
@@ -128,7 +128,7 @@ function drawGauge() {
   ctx.stroke();
 
   // Draw current heading needle
-  const currentRad = (normalizeAngle(-props.currentHeading) * Math.PI) / 180;
+  const currentRad = (normalizeAngle(props.currentHeading) * Math.PI) / 180;
   ctx.strokeStyle = '#D4AF37';
   ctx.lineWidth = 3;
   ctx.beginPath();
@@ -163,7 +163,7 @@ function handleCanvasClick(event: MouseEvent) {
   const deltaY = canvasY - centerY;
 
   let angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
-  angle = normalizeAngle(-angle);
+  angle = normalizeAngle(angle);
 
   emit('setHeading', angle);
 }

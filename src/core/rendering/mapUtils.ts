@@ -18,6 +18,16 @@ export const MAP_COLORS = {
   headingArc: 'rgba(255, 204, 0, 0.3)',
 };
 
+const DEG_TO_RAD = Math.PI / 180;
+
+/**
+ * Convert a game heading (0°=east, 90°=south) to canvas radians
+ * where positive rotation is clockwise on screen (Y increases downward).
+ */
+export function headingDegToCanvasRad(headingDeg: number): number {
+  return (headingDeg + 90) * DEG_TO_RAD;
+}
+
 export interface CameraState {
   zoom: number;
   panOffset: Vector2;
@@ -115,7 +125,7 @@ export function drawHeadingLine(
   length: number,
   color = MAP_COLORS.shipHeading
 ): void {
-  const headingRad = -(headingDeg - 90) * (Math.PI / 180);
+  const headingRad = headingDegToCanvasRad(headingDeg);
   
   ctx.save();
   ctx.translate(screenPos.x, screenPos.y);
@@ -141,7 +151,7 @@ export function drawShipIcon(
   size = 8,
   color = MAP_COLORS.ship
 ): void {
-  const headingRad = -(headingDeg - 90) * (Math.PI / 180);
+  const headingRad = headingDegToCanvasRad(headingDeg);
   
   ctx.save();
   ctx.translate(screenPos.x, screenPos.y);
@@ -171,7 +181,7 @@ export function drawCourseProjection(
 ): void {
   if (speed <= 0) return;
   
-  const headingRad = -(headingDeg - 90) * (Math.PI / 180);
+  const headingRad = headingDegToCanvasRad(headingDeg);
   const distance = speed * projectionTime;
   const screenDistance = distance * camera.zoom;
   

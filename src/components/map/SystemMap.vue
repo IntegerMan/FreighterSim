@@ -284,7 +284,7 @@ function drawJumpGate(ctx: CanvasRenderingContext2D, gate: JumpGate) {
 
 function drawShip(ctx: CanvasRenderingContext2D) {
   const screenPos = worldToScreen(shipStore.position);
-  const headingRad = -(shipStore.heading - 90) * (Math.PI / 180); // Convert to screen coords
+  const headingRad = headingDegToCanvasRad(shipStore.heading); // Convert to screen coords
 
   ctx.save();
   ctx.translate(screenPos.x, screenPos.y);
