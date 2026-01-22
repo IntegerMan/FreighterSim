@@ -6,10 +6,12 @@ interface Props {
   targetHeading: number;
   waypointHeading: number | null;
   disabled?: boolean;
+  readonly?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   disabled: false,
+  readonly: false,
 });
 
 const emit = defineEmits<{
@@ -170,7 +172,7 @@ function drawGauge() {
 }
 
 function handleCanvasClick(event: MouseEvent) {
-  if (props.disabled) return;
+  if (props.disabled || props.readonly) return;
 
   const canvas = canvasRef.value;
   if (!canvas) return;

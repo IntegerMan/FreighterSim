@@ -1,6 +1,18 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import { useShipStore, useNavigationStore } from '@/stores';
 import { SystemMap } from '@/components/map';
 import { NavigationPanel, SensorPanel } from '@/components/panels';
+import { LcarsFrame, HeadingGauge, SpeedSlider } from '@/components/ui';
+
+const shipStore = useShipStore();
+const navStore = useNavigationStore();
+
+// Waypoint heading for compass display
+const waypointHeading = computed(() => {
+  if (!navStore.currentWaypoint) return null;
+  return navStore.getHeadingToWaypoint(shipStore.position, navStore.currentWaypoint.position);
+});
 </script>
 
 <template>
@@ -19,6 +31,39 @@ import { NavigationPanel, SensorPanel } from '@/components/panels';
 
     <!-- Right Panel Column -->
     <div class="bridge-view__right-panels">
+      <!-- Helm Status Panel -->
+      <LcarsFrame title="Helm Status" color="gold">
+        <div class="bridge-view__helm-status">
+          <!-- Heading Gauge (read-only) -->
+          <div class="bridge-view__gauge-section">
+            <div class="bridge-view__section-header">Heading</div>
+            <HeadingGauge
+              :current-heading="shipStore.heading"
+              :target-heading="shipStore.targetHeading"
+              :waypoint-heading="waypointHeading"
+              readonly
+            />
+          </div>
+
+          <!-- Speed Slider (read-only) -->
+          <div class="bridge-view__gauge-section">
+            <div class="bridge-view__section-header">Speed</div>
+            <SpeedSlider
+              :current-speed="shipStore.speed"
+              :target-speed="shipStore.targetSpeed"
+              :max-speed="shipStore.engines.maxSpeed"
+              :min-speed="shipStore.minSpeed"
+              readonly
+            />
+          </div>
+
+          <!-- Autopilot Indicator -->
+          <div v-if="navStore.autopilotEnabled" class="bridge-view__autopilot-indicator">
+            AUTOPILOT ACTIVE
+          </div>
+        </div>
+      </LcarsFrame>
+
       <div class="bridge-view__panel bridge-view__panel--grow">
         <SensorPanel />
       </div>
@@ -26,6 +71,7 @@ import { NavigationPanel, SensorPanel } from '@/components/panels';
 
     <!-- Station Title -->
     <div class="bridge-view__title">
+      <span v-if="navStore.autopilotEnabled" class="bridge-view__autopilot-badge">AUTOPILOT</span>
       <span class="bridge-view__title-text">TACTICAL OVERVIEW</span>
     </div>
   </div>
@@ -97,6 +143,67 @@ import { NavigationPanel, SensorPanel } from '@/components/panels';
       flex: 1;
       min-height: 200px;
     }
+  }
+
+  &__helm-status {
+    display: flex;
+    flex-direction: column;
+    gap: $space-md;
+  }
+
+  &__gauge-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: $space-xs;
+  }
+
+  &__section-header {
+    width: 100%;
+    font-family: $font-display;
+    font-size: $font-size-xs;
+    font-weight: $font-weight-medium;
+    color: $color-gold;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    text-align: center;
+  }
+
+  &__autopilot-indicator {
+    padding: $space-sm;
+    background-color: rgba($color-success, 0.2);
+    border: 1px solid $color-success;
+    border-radius: $radius-sm;
+    color: $color-success;
+    font-family: $font-display;
+    font-size: $font-size-xs;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  &__autopilot-badge {
+    padding: $space-xs $space-sm;
+    background-color: $color-success;
+    color: $color-black;
+    font-family: $font-display;
+    font-size: $font-size-xs;
+    font-weight: $font-weight-bold;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-radius: $radius-sm;
+    margin-right: $space-md;
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
   }
 }
 

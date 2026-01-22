@@ -51,13 +51,13 @@ describe('navigationStore', () => {
             expect(store.waypoints).toHaveLength(0);
         });
 
-        it('should disable autopilot when no more waypoints remain', () => {
+        it('should NOT disable autopilot when no more waypoints remain', () => {
             const store = useNavigationStore();
             store.addWaypoint(vec2(100, 100));
             store.autopilotEnabled = true;
 
             store.checkWaypointReached(vec2(100, 100));
-            expect(store.autopilotEnabled).toBe(false);
+            expect(store.autopilotEnabled).toBe(true);
         });
     });
 
@@ -76,15 +76,16 @@ describe('navigationStore', () => {
             expect(store.getHeadingToWaypoint(shipPos, vec2(-100, 0))).toBeCloseTo(270);
         });
 
-        it('should only allow enabling autopilot if waypoints exist', () => {
+        it('should allow enabling autopilot even if no waypoints exist', () => {
             const store = useNavigationStore();
 
-            store.toggleAutopilot();
-            expect(store.autopilotEnabled).toBe(false);
-
-            store.addWaypoint(vec2(100, 100));
+            // Toggle on without waypoints
             store.toggleAutopilot();
             expect(store.autopilotEnabled).toBe(true);
+
+            // Toggle off
+            store.toggleAutopilot();
+            expect(store.autopilotEnabled).toBe(false);
         });
     });
 

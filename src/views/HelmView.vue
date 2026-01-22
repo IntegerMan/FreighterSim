@@ -158,12 +158,11 @@ function handleRadarSelect(contactId: string) {
             />
           </template>
 
-          <!-- Autopilot Toggle -->
           <LcarsButton 
             :label="navStore.autopilotEnabled ? 'AUTOPILOT ON' : 'AUTOPILOT OFF'" 
             :color="navStore.autopilotEnabled ? 'success' : 'purple'" 
             full-width 
-            :disabled="shipStore.isDocked || !navStore.currentWaypoint"
+            :disabled="shipStore.isDocked"
             @click="navStore.toggleAutopilot()" 
           />
         </div>
@@ -201,6 +200,7 @@ function handleRadarSelect(contactId: string) {
 
     <!-- Station Title -->
     <div class="helm-view__title">
+      <span v-if="navStore.autopilotEnabled" class="helm-view__autopilot-badge">AUTOPILOT</span>
       <span class="helm-view__title-text">HELM CONTROL</span>
     </div>
   </div>
@@ -237,6 +237,20 @@ function handleRadarSelect(contactId: string) {
     color: $color-black;
     text-transform: uppercase;
     letter-spacing: 0.15em;
+  }
+
+  &__autopilot-badge {
+    padding: $space-xs $space-sm;
+    background-color: $color-success;
+    color: $color-black;
+    font-family: $font-display;
+    font-size: $font-size-xs;
+    font-weight: $font-weight-bold;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-radius: $radius-sm;
+    margin-right: $space-md;
+    animation: helm-pulse-glow 2s ease-in-out infinite;
   }
 
   &__map {
@@ -409,6 +423,15 @@ function handleRadarSelect(contactId: string) {
       grid-row: 3;
       max-height: 300px;
     }
+  }
+}
+
+@keyframes helm-pulse-glow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
   }
 }
 </style>

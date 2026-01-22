@@ -7,11 +7,13 @@ interface Props {
   maxSpeed: number;
   minSpeed?: number;
   disabled?: boolean;
+  readonly?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   minSpeed: -25,
   disabled: false,
+  readonly: false,
 });
 
 const emit = defineEmits<{
@@ -60,19 +62,19 @@ function getSpeedFromPosition(clientX: number) {
 }
 
 function handleClick(event: MouseEvent) {
-  if (props.disabled) return;
+  if (props.disabled || props.readonly) return;
   const speed = getSpeedFromPosition(event.clientX);
   emit('setSpeed', speed);
 }
 
 function handleMouseDown(event: MouseEvent) {
-  if (props.disabled) return;
+  if (props.disabled || props.readonly) return;
   isDragging.value = true;
   handleClick(event);
 }
 
 function handleMouseMove(event: MouseEvent) {
-  if (!isDragging.value || props.disabled) return;
+  if (!isDragging.value || props.disabled || props.readonly) return;
   const speed = getSpeedFromPosition(event.clientX);
   emit('setSpeed', speed);
 }
@@ -93,7 +95,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="speed-slider" :class="{ 'speed-slider--disabled': disabled, 'speed-slider--reversing': isReversing }">
+  <div class="speed-slider" :class="{ 'speed-slider--disabled': disabled, 'speed-slider--readonly': readonly, 'speed-slider--reversing': isReversing }">
     <!-- Speed value display -->
     <div class="speed-slider__value">
       <span class="speed-slider__current" :style="{ color: speedColor }">
@@ -193,6 +195,14 @@ onUnmounted(() => {
 
     &:hover {
       background-color: #4a4a4a;
+    }
+  }
+
+  &--readonly &__track {
+    cursor: default;
+
+    &:hover {
+      background-color: $color-gray-dark;
     }
   }
 

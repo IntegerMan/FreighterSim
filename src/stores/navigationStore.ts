@@ -118,7 +118,7 @@ export const useNavigationStore = defineStore('navigation', () => {
   function clearWaypoints() {
     waypoints.value = [];
     waypointCounter.value = 0;
-    autopilotEnabled.value = false;
+    // Note: Don't disable autopilot here - if user sets a new course, autopilot should follow it
   }
 
   function checkWaypointReached(shipPosition: Vector2) {
@@ -130,11 +130,6 @@ export const useNavigationStore = defineStore('navigation', () => {
       if (distance <= WAYPOINT_REACHED_DISTANCE) {
         // Remove the reached waypoint
         removeWaypoint(currentWaypoint.value.id);
-
-        // Disable autopilot if no more waypoints
-        if (waypoints.value.length === 0) {
-          autopilotEnabled.value = false;
-        }
       }
     }
   }
@@ -154,12 +149,7 @@ export const useNavigationStore = defineStore('navigation', () => {
 
   // Autopilot
   function toggleAutopilot() {
-    // Can only enable if there's a waypoint
-    if (!autopilotEnabled.value && currentWaypoint.value) {
-      autopilotEnabled.value = true;
-    } else {
-      autopilotEnabled.value = false;
-    }
+    autopilotEnabled.value = !autopilotEnabled.value;
   }
 
   function disableAutopilot() {

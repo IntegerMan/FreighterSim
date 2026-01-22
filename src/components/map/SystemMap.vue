@@ -341,17 +341,15 @@ function handleWheel(event: WheelEvent) {
 }
 
 function handleMouseDown(event: MouseEvent) {
-  if (event.button === 0) { // Left click
-    const rect = canvasRef.value!.getBoundingClientRect();
-    const clickPos = {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
-    };
-    
-    // Check for object selection
-    const worldPos = screenToWorld(clickPos);
-    const clickRadius = 20 / zoom.value;
+  const rect = canvasRef.value!.getBoundingClientRect();
+  const clickPos = {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top,
+  };
+  const worldPos = screenToWorld(clickPos);
+  const clickRadius = 20 / zoom.value;
 
+  if (event.button === 0) { // Left click
     // Check stations
     for (const station of navStore.stations) {
       const dx = station.position.x - worldPos.x;
@@ -385,11 +383,26 @@ function handleMouseDown(event: MouseEvent) {
       }
     }
 
-    // No object clicked - add waypoint at clicked position
+    // No object clicked - handle waypoint creation
+    // Shift+click: add to queue, otherwise clear all and create new
+    if (!event.shiftKey) {
+      navStore.clearWaypoints();
+    }
     navStore.addWaypoint(worldPos);
     navStore.clearSelection();
     sensorStore.clearSelection();
-  } else if (event.button === 2) { // Right click - start panning
+  } else if (event.button === 2) { // Right click
+    // Check if clicking on a waypoint to delete it
+    for (const waypoint of navStore.waypoints) {
+      const dx = waypoint.position.x - worldPos.x;
+      const dy = waypoint.position.y - worldPos.y;
+      if (Math.sqrt(dx * dx + dy * dy) < clickRadius) {
+        navStore.removeWaypoint(waypoint.id);
+        return;
+      }
+    }
+
+    // Not on a waypoint - start panning
     isDragging.value = true;
     dragStart.value = { x: event.clientX, y: event.clientY };
   }
