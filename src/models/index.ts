@@ -18,6 +18,9 @@ export { createContact, updateContactRelative, getContactSymbol, formatBearing, 
 export type { Ship, SystemStatus, ShipEngines, ShipSensors } from './Ship';
 export { createShip, DEFAULT_SHIP, DEFAULT_ENGINES, DEFAULT_SENSORS } from './Ship';
 
+export type { Waypoint } from './Waypoint';
+
+
 export type {
   ParticleGridConfig,
   ParticleCell,

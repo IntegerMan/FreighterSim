@@ -2,7 +2,13 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useShipStore, useNavigationStore, useSensorStore } from '@/stores';
 import { useGameLoop } from '@/core/game-loop';
-import { headingDegToCanvasRad } from '@/core/rendering';
+import { 
+  headingDegToCanvasRad, 
+  drawCourseProjection, 
+  drawShipIcon,
+  drawWaypoint,
+  drawWaypointPath,
+} from '@/core/rendering';
 import type { Vector2, Station, Planet, JumpGate } from '@/models';
 
 // Colors matching our design system
@@ -104,8 +110,34 @@ function render() {
     drawJumpGate(ctx, gate);
   }
 
-  // Draw ship
+  // Draw waypoint paths
+  const waypoints = navStore.waypoints;
+  if (waypoints.length > 0) {
+    // Line from ship to first waypoint
+    const shipScreenPos = worldToScreen(shipStore.position);
+    const firstWaypointScreenPos = worldToScreen(waypoints[0].position);
+    drawWaypointPath(ctx, shipScreenPos, firstWaypointScreenPos);
+
+    // Lines between waypoints
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const fromScreenPos = worldToScreen(waypoints[i].position);
+      const toScreenPos = worldToScreen(waypoints[i + 1].position);
+      drawWaypointPath(ctx, fromScreenPos, toScreenPos);
+    }
+  }
+
+  // Draw waypoints
+  for (let i = 0; i < waypoints.length; i++) {
+    const waypoint = waypoints[i];
+    const screenPos = worldToScreen(waypoint.position);
+    drawWaypoint(ctx, screenPos, waypoint.name, i === 0);
+  }
+
+  // Draw ship with velocity line
   drawShip(ctx);
+
+  // Check if waypoint reached
+  navStore.checkWaypointReached(shipStore.position);
 }
 
 function drawGrid(ctx: CanvasRenderingContext2D) {
@@ -285,31 +317,20 @@ function drawJumpGate(ctx: CanvasRenderingContext2D, gate: JumpGate) {
 
 function drawShip(ctx: CanvasRenderingContext2D) {
   const screenPos = worldToScreen(shipStore.position);
-  const headingRad = headingDegToCanvasRad(shipStore.heading); // Convert to screen coords
+  const isReversing = shipStore.speed < 0 || shipStore.targetSpeed < 0;
 
-  ctx.save();
-  ctx.translate(screenPos.x, screenPos.y);
-  ctx.rotate(headingRad);
+  // Draw velocity projection line (same as helm screen)
+  drawCourseProjection(ctx, screenPos, shipStore.heading, shipStore.speed, {
+    zoom: zoom.value,
+    panOffset: panOffset.value,
+    centerX: cameraCenter.value.x,
+    centerY: cameraCenter.value.y,
+    canvasWidth: canvasWidth.value,
+    canvasHeight: canvasHeight.value,
+  }, 20, isReversing);
 
-  // Heading indicator line
-  ctx.strokeStyle = COLORS.shipHeading;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(0, -30);
-  ctx.stroke();
-
-  // Ship triangle
-  const shipSize = 8;
-  ctx.fillStyle = COLORS.ship;
-  ctx.beginPath();
-  ctx.moveTo(0, -shipSize);
-  ctx.lineTo(shipSize * 0.7, shipSize);
-  ctx.lineTo(-shipSize * 0.7, shipSize);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.restore();
+  // Ship icon
+  drawShipIcon(ctx, screenPos, shipStore.heading, 8, COLORS.ship);
 }
 
 // Event handlers
@@ -364,7 +385,8 @@ function handleMouseDown(event: MouseEvent) {
       }
     }
 
-    // No object clicked - clear selection
+    // No object clicked - add waypoint at clicked position
+    navStore.addWaypoint(worldPos);
     navStore.clearSelection();
     sensorStore.clearSelection();
   } else if (event.button === 2) { // Right click - start panning

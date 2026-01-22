@@ -31,6 +31,16 @@ onMounted(() => {
   // Subscribe stores to game loop
   const unsubscribe = subscribe((gameTime) => {
     gameStore.update(gameTime);
+    
+    // Apply autopilot steering if enabled
+    if (navStore.autopilotEnabled && navStore.currentWaypoint && !shipStore.isDocked) {
+      const targetHeading = navStore.getHeadingToWaypoint(
+        shipStore.position, 
+        navStore.currentWaypoint.position
+      );
+      shipStore.setTargetHeading(targetHeading);
+    }
+    
     shipStore.update(gameTime);
     navStore.update(gameTime);
     sensorStore.update(gameTime);

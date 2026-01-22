@@ -4,6 +4,7 @@ import { ref, onMounted, watch } from 'vue';
 interface Props {
   currentHeading: number;
   targetHeading: number;
+  waypointHeading: number | null;
   disabled?: boolean;
 }
 
@@ -54,10 +55,10 @@ function drawGauge() {
 
   // Draw cardinal directions
   const cardinalDirections = [
-    { angle: 0, label: 'E' },
-    { angle: 90, label: 'S' },
-    { angle: 180, label: 'W' },
-    { angle: 270, label: 'N' },
+    { angle: 0, label: 'N' },
+    { angle: 90, label: 'E' },
+    { angle: 180, label: 'S' },
+    { angle: 270, label: 'W' },
   ];
 
   ctx.fillStyle = '#D4AF37';
@@ -66,7 +67,7 @@ function drawGauge() {
   ctx.textBaseline = 'middle';
 
   cardinalDirections.forEach(({ angle, label }) => {
-    const rad = (angle * Math.PI) / 180;
+    const rad = ((angle - 90) * Math.PI) / 180;
     const x = centerX + Math.cos(rad) * (radius - 12);
     const y = centerY + Math.sin(rad) * (radius - 12);
     ctx.fillText(label, x, y);
@@ -80,7 +81,7 @@ function drawGauge() {
   ctx.textBaseline = 'middle';
 
   for (let i = 0; i < 360; i += 10) {
-    const rad = (i * Math.PI) / 180;
+    const rad = ((i - 90) * Math.PI) / 180;
     const x1 = centerX + Math.cos(rad) * radius;
     const y1 = centerY + Math.sin(rad) * radius;
 
@@ -104,7 +105,7 @@ function drawGauge() {
   }
 
   // Draw target heading indicator (thin line)
-  const targetRad = (normalizeAngle(props.targetHeading) * Math.PI) / 180;
+  const targetRad = ((normalizeAngle(props.targetHeading) - 90) * Math.PI) / 180;
   ctx.strokeStyle = 'rgba(212, 175, 55, 0.5)';
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -115,7 +116,7 @@ function drawGauge() {
   ctx.stroke();
 
   // Draw current heading needle
-  const currentRad = (normalizeAngle(props.currentHeading) * Math.PI) / 180;
+  const currentRad = ((normalizeAngle(props.currentHeading) - 90) * Math.PI) / 180;
   ctx.strokeStyle = '#D4AF37';
   ctx.lineWidth = 3;
   ctx.beginPath();
@@ -145,6 +146,27 @@ function drawGauge() {
   ctx.fillStyle = 'rgba(212, 175, 55, 0.6)';
   ctx.font = '9px monospace';
   ctx.fillText(normalizeAngle(props.targetHeading).toFixed(0).padStart(3, '0') + '°', centerX, centerY + 8);
+
+  // Draw waypoint heading indicator (purple triangle at edge)
+  if (props.waypointHeading !== null) {
+    const waypointRad = ((normalizeAngle(props.waypointHeading) - 90) * Math.PI) / 180;
+    const triangleSize = 8;
+    const dist = radius + 2; // Slightly outside the main circle
+    
+    ctx.save();
+    ctx.translate(centerX + Math.cos(waypointRad) * dist, centerY + Math.sin(waypointRad) * dist);
+    ctx.rotate(waypointRad);
+    
+    ctx.fillStyle = '#9966FF'; // Purple color for waypoints
+    ctx.beginPath();
+    ctx.moveTo(0, 0); // Point of the triangle
+    ctx.lineTo(-triangleSize, -triangleSize / 2);
+    ctx.lineTo(-triangleSize, triangleSize / 2);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.restore();
+  }
 }
 
 function handleCanvasClick(event: MouseEvent) {
@@ -164,7 +186,9 @@ function handleCanvasClick(event: MouseEvent) {
   const deltaX = canvasX - centerX;
   const deltaY = canvasY - centerY;
 
-  let angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+  // atan2(y, x) gives angle from Easterly axis.
+  // We want Northerly axis (0), so we adjust by +90 degrees.
+  let angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI) + 90;
   angle = normalizeAngle(angle);
 
   emit('setHeading', angle);
@@ -175,7 +199,7 @@ onMounted(() => {
   drawGauge();
 });
 
-watch([() => props.currentHeading, () => props.targetHeading], () => {
+watch([() => props.currentHeading, () => props.targetHeading, () => props.waypointHeading], () => {
   drawGauge();
 });
 </script>

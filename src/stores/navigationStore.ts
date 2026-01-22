@@ -1,8 +1,11 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { StarSystem } from '@/models';
+import type { StarSystem, Waypoint, Vector2 } from '@/models';
 import { updatePlanetOrbit } from '@/models';
 import type { GameTime } from '@/core/game-loop';
+
+// Distance threshold for waypoint reached detection (world units)
+const WAYPOINT_REACHED_DISTANCE = 50;
 
 /**
  * Navigation store - manages the current star system and celestial objects
@@ -20,9 +23,16 @@ export const useNavigationStore = defineStore('navigation', () => {
   const mapCenterX = ref(0);
   const mapCenterY = ref(0);
 
+  // Waypoint navigation
+  const waypoints = ref<Waypoint[]>([]);
+  const waypointCounter = ref(0);
+
+  // Autopilot
+  const autopilotEnabled = ref(false);
+
   // Computed
   const systemName = computed(() => currentSystem.value?.name ?? 'Unknown System');
-  
+
   const stations = computed(() => currentSystem.value?.stations ?? []);
   const planets = computed(() => currentSystem.value?.planets ?? []);
   const jumpGates = computed(() => currentSystem.value?.jumpGates ?? []);
@@ -35,6 +45,10 @@ export const useNavigationStore = defineStore('navigation', () => {
   const selectedPlanet = computed(() => {
     if (selectedObjectType.value !== 'planet' || !selectedObjectId.value) return null;
     return planets.value.find(p => p.id === selectedObjectId.value) ?? null;
+  });
+
+  const currentWaypoint = computed(() => {
+    return waypoints.value.length > 0 ? waypoints.value[0] : null;
   });
 
   // Actions
@@ -83,11 +97,80 @@ export const useNavigationStore = defineStore('navigation', () => {
     mapCenterY.value = 0;
   }
 
+  // Waypoint management
+  function addWaypoint(position: Vector2) {
+    waypointCounter.value++;
+    const waypoint: Waypoint = {
+      id: `waypoint-${Date.now()}-${waypointCounter.value}`,
+      position: { ...position },
+      name: `Waypoint ${waypointCounter.value}`,
+    };
+    waypoints.value.push(waypoint);
+  }
+
+  function removeWaypoint(id: string) {
+    const index = waypoints.value.findIndex(w => w.id === id);
+    if (index !== -1) {
+      waypoints.value.splice(index, 1);
+    }
+  }
+
+  function clearWaypoints() {
+    waypoints.value = [];
+    waypointCounter.value = 0;
+    autopilotEnabled.value = false;
+  }
+
+  function checkWaypointReached(shipPosition: Vector2) {
+    if (currentWaypoint.value) {
+      const dx = currentWaypoint.value.position.x - shipPosition.x;
+      const dy = currentWaypoint.value.position.y - shipPosition.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance <= WAYPOINT_REACHED_DISTANCE) {
+        // Remove the reached waypoint
+        removeWaypoint(currentWaypoint.value.id);
+
+        // Disable autopilot if no more waypoints
+        if (waypoints.value.length === 0) {
+          autopilotEnabled.value = false;
+        }
+      }
+    }
+  }
+
+  function getHeadingToWaypoint(shipPosition: Vector2, waypointPosition: Vector2): number {
+    const dx = waypointPosition.x - shipPosition.x;
+    const dy = waypointPosition.y - shipPosition.y;
+
+    // Use standard 0=North (Up), 90=East (Right) system
+    // Math.atan2(dx, dy) starts from 0 at North and goes clockwise
+    const angleRad = Math.atan2(dx, dy);
+    const angleDeg = (angleRad * 180) / Math.PI;
+
+    // Normalize to 0-360
+    return (angleDeg + 360) % 360;
+  }
+
+  // Autopilot
+  function toggleAutopilot() {
+    // Can only enable if there's a waypoint
+    if (!autopilotEnabled.value && currentWaypoint.value) {
+      autopilotEnabled.value = true;
+    } else {
+      autopilotEnabled.value = false;
+    }
+  }
+
+  function disableAutopilot() {
+    autopilotEnabled.value = false;
+  }
+
   function update(gameTime: GameTime) {
     if (!currentSystem.value || gameTime.paused) return;
 
     // Update planet orbits
-    currentSystem.value.planets = currentSystem.value.planets.map(planet => 
+    currentSystem.value.planets = currentSystem.value.planets.map(planet =>
       updatePlanetOrbit(planet, gameTime.deltaTime)
     );
   }
@@ -96,6 +179,7 @@ export const useNavigationStore = defineStore('navigation', () => {
     currentSystem.value = null;
     clearSelection();
     resetMapView();
+    clearWaypoints();
   }
 
   return {
@@ -106,6 +190,8 @@ export const useNavigationStore = defineStore('navigation', () => {
     mapZoom,
     mapCenterX,
     mapCenterY,
+    waypoints,
+    autopilotEnabled,
     // Computed
     systemName,
     stations,
@@ -113,6 +199,7 @@ export const useNavigationStore = defineStore('navigation', () => {
     jumpGates,
     selectedStation,
     selectedPlanet,
+    currentWaypoint,
     // Actions
     loadSystem,
     selectStation,
@@ -123,6 +210,13 @@ export const useNavigationStore = defineStore('navigation', () => {
     adjustMapZoom,
     setMapCenter,
     resetMapView,
+    addWaypoint,
+    removeWaypoint,
+    clearWaypoints,
+    checkWaypointReached,
+    getHeadingToWaypoint,
+    toggleAutopilot,
+    disableAutopilot,
     update,
     reset,
   };

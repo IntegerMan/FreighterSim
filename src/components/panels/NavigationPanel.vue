@@ -62,14 +62,7 @@ const selectedObject = computed(() => {
         </div>
       </div>
 
-      <!-- Helm Link -->
-      <div class="nav-panel__divider"></div>
-      
-      <div class="nav-panel__link-section">
-        <router-link to="/helm" class="nav-panel__helm-link">
-          OPEN HELM CONTROLS →
-        </router-link>
-      </div>
+
 
       <!-- Docked indicator -->
       <div v-if="shipStore.isDocked" class="nav-panel__docked-notice">

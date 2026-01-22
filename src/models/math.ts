@@ -63,9 +63,8 @@ export function vec2Normalize(v: Vector2): Vector2 {
 export function vec2FromAngle(degrees: number, length: number = 1): Vector2 {
   const radians = degreesToRadians(degrees);
   return {
-    x: Math.cos(radians) * length,
-    // World coordinates use +Y as up; flip the sine so 90° points down on screen
-    y: -Math.sin(radians) * length,
+    x: Math.sin(radians) * length,
+    y: Math.cos(radians) * length,
   };
 }
 
@@ -73,7 +72,7 @@ export function vec2FromAngle(degrees: number, length: number = 1): Vector2 {
  * Get the angle (in degrees) of a vector
  */
 export function vec2ToAngle(v: Vector2): number {
-  return radiansToDegrees(Math.atan2(v.y, v.x));
+  return normalizeAngle(radiansToDegrees(Math.atan2(v.x, v.y)));
 }
 
 /**

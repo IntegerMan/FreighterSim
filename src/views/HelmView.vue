@@ -10,6 +10,12 @@ const shipStore = useShipStore();
 const sensorStore = useSensorStore();
 const navStore = useNavigationStore();
 
+// Waypoint heading for compass display
+const waypointHeading = computed(() => {
+  if (!navStore.currentWaypoint) return null;
+  return navStore.getHeadingToWaypoint(shipStore.position, navStore.currentWaypoint.position);
+});
+
 // Docking logic (moved from DockingPanel)
 const nearestStation = computed(() => {
   const stationContacts = sensorStore.stationContacts;
@@ -56,6 +62,8 @@ function handleUndock() {
 }
 
 function setHeading(heading: number) {
+  // Manual heading adjustment - disable autopilot
+  navStore.disableAutopilot();
   shipStore.setTargetHeading(heading);
 }
 
@@ -85,6 +93,7 @@ function handleRadarSelect(contactId: string) {
           <HeadingGauge
             :current-heading="shipStore.heading"
             :target-heading="shipStore.targetHeading"
+            :waypoint-heading="waypointHeading"
             :disabled="shipStore.isDocked"
             @set-heading="setHeading"
           />
@@ -148,6 +157,15 @@ function handleRadarSelect(contactId: string) {
               disabled
             />
           </template>
+
+          <!-- Autopilot Toggle -->
+          <LcarsButton 
+            :label="navStore.autopilotEnabled ? 'AUTOPILOT ON' : 'AUTOPILOT OFF'" 
+            :color="navStore.autopilotEnabled ? 'success' : 'purple'" 
+            full-width 
+            :disabled="shipStore.isDocked || !navStore.currentWaypoint"
+            @click="navStore.toggleAutopilot()" 
+          />
         </div>
 
         <!-- Divider -->

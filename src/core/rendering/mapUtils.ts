@@ -25,7 +25,7 @@ const DEG_TO_RAD = Math.PI / 180;
  * where positive rotation is clockwise on screen (Y increases downward).
  */
 export function headingDegToCanvasRad(headingDeg: number): number {
-  return (headingDeg + 90) * DEG_TO_RAD;
+  return headingDeg * DEG_TO_RAD;
 }
 
 export interface CameraState {
@@ -46,7 +46,7 @@ export function worldToScreen(
 ): Vector2 {
   const screenCenterX = camera.canvasWidth / 2;
   const screenCenterY = camera.canvasHeight / 2;
-  
+
   return {
     x: screenCenterX + (worldPos.x - camera.centerX) * camera.zoom,
     y: screenCenterY - (worldPos.y - camera.centerY) * camera.zoom, // Flip Y for screen coords
@@ -62,7 +62,7 @@ export function screenToWorld(
 ): Vector2 {
   const screenCenterX = camera.canvasWidth / 2;
   const screenCenterY = camera.canvasHeight / 2;
-  
+
   return {
     x: camera.centerX + (screenPos.x - screenCenterX) / camera.zoom,
     y: camera.centerY - (screenPos.y - screenCenterY) / camera.zoom,
@@ -78,7 +78,7 @@ export function drawGrid(
   gridSize = 100
 ): void {
   const screenGridSize = gridSize * camera.zoom;
-  
+
   if (screenGridSize < 20) return; // Don't draw if too zoomed out
 
   ctx.strokeStyle = MAP_COLORS.grid;
@@ -126,7 +126,7 @@ export function drawHeadingLine(
   color = MAP_COLORS.shipHeading
 ): void {
   const headingRad = headingDegToCanvasRad(headingDeg);
-  
+
   ctx.save();
   ctx.translate(screenPos.x, screenPos.y);
   ctx.rotate(headingRad);
@@ -152,7 +152,7 @@ export function drawShipIcon(
   color = MAP_COLORS.ship
 ): void {
   const headingRad = headingDegToCanvasRad(headingDeg);
-  
+
   ctx.save();
   ctx.translate(screenPos.x, screenPos.y);
   ctx.rotate(headingRad);
@@ -181,17 +181,17 @@ export function drawCourseProjection(
   isReversing = false
 ): void {
   if (speed === 0) return;
-  
+
   // When reversing, draw in opposite direction with purple color
   const effectiveHeading = speed < 0 ? headingDeg + 180 : headingDeg;
   const effectiveSpeed = Math.abs(speed);
   const headingRad = headingDegToCanvasRad(effectiveHeading);
   const distance = effectiveSpeed * projectionTime;
   const screenDistance = distance * camera.zoom;
-  
+
   // Color based on direction
   const color = isReversing ? 'rgba(153, 102, 255, 0.5)' : MAP_COLORS.courseProjection;
-  
+
   // Calculate end point using the same rotation as drawHeadingLine
   // After rotating by headingRad, the point (0, -distance) becomes:
   const endX = screenPos.x + screenDistance * Math.sin(headingRad);
@@ -206,19 +206,67 @@ export function drawCourseProjection(
   ctx.lineTo(endX, endY);
   ctx.stroke();
   ctx.setLineDash([]);
-  
+
   // Draw tick marks every 10 seconds
   const tickInterval = 10;
   const tickCount = Math.floor(projectionTime / tickInterval);
-  
+
   for (let i = 1; i <= tickCount; i++) {
     const tickDist = (effectiveSpeed * tickInterval * i) * camera.zoom;
     const tickX = screenPos.x + tickDist * Math.sin(headingRad);
     const tickY = screenPos.y - tickDist * Math.cos(headingRad);
-    
+
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc(tickX, tickY, 3, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+/**
+ * Draw a waypoint marker
+ */
+export function drawWaypoint(
+  ctx: CanvasRenderingContext2D,
+  screenPos: Vector2,
+  name: string,
+  isActive: boolean
+): void {
+  const size = 8;
+  const color = isActive ? '#9966FF' : '#FFCC00';
+  const labelColor = isActive ? '#9966FF' : '#FFCC00';
+
+  // Draw box
+  ctx.strokeStyle = color;
+  ctx.fillStyle = isActive ? 'rgba(153, 102, 255, 0.2)' : 'rgba(255, 204, 0, 0.1)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.rect(screenPos.x - size, screenPos.y - size, size * 2, size * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // Draw label below
+  ctx.fillStyle = labelColor;
+  ctx.font = '10px "Share Tech Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(name, screenPos.x, screenPos.y + size + 14);
+}
+
+/**
+ * Draw dashed line connecting waypoints or ship to waypoint
+ */
+export function drawWaypointPath(
+  ctx: CanvasRenderingContext2D,
+  fromPos: Vector2,
+  toPos: Vector2,
+  color = 'rgba(153, 102, 255, 0.6)'
+): void {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 4]);
+  ctx.beginPath();
+  ctx.moveTo(fromPos.x, fromPos.y);
+  ctx.lineTo(toPos.x, toPos.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
 }

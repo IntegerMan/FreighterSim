@@ -9,6 +9,8 @@ import {
   drawGrid, 
   drawShipIcon,
   drawCourseProjection,
+  drawWaypoint,
+  drawWaypointPath,
   type CameraState 
 } from '@/core/rendering';
 import type { Vector2, Station, Planet, JumpGate } from '@/models';
@@ -95,8 +97,33 @@ function render() {
   const isReversing = shipStore.speed < 0 || shipStore.targetSpeed < 0;
   drawCourseProjection(ctx, shipScreenPos, shipStore.heading, shipStore.speed, camera.value, 20, isReversing);
 
+  // Draw waypoint paths
+  const waypoints = navStore.waypoints;
+  if (waypoints.length > 0) {
+    // Line from ship to first waypoint
+    const firstWaypointScreenPos = worldToScreen(waypoints[0].position, camera.value);
+    drawWaypointPath(ctx, shipScreenPos, firstWaypointScreenPos);
+
+    // Lines between waypoints
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const fromScreenPos = worldToScreen(waypoints[i].position, camera.value);
+      const toScreenPos = worldToScreen(waypoints[i + 1].position, camera.value);
+      drawWaypointPath(ctx, fromScreenPos, toScreenPos);
+    }
+  }
+
+  // Draw waypoints
+  for (let i = 0; i < waypoints.length; i++) {
+    const waypoint = waypoints[i];
+    const screenPos = worldToScreen(waypoint.position, camera.value);
+    drawWaypoint(ctx, screenPos, waypoint.name, i === 0);
+  }
+
   // Draw ship
   drawShip(ctx);
+
+  // Check if waypoint reached
+  navStore.checkWaypointReached(shipStore.position);
 }
 
 function drawRadarOverlay(ctx: CanvasRenderingContext2D) {
@@ -335,7 +362,10 @@ function handleMouseDown(event: MouseEvent) {
       }
     }
 
-    // No object clicked - clear selection
+    // No object clicked - steer toward clicked position
+    const targetHeading = navStore.getHeadingToWaypoint(shipStore.position, worldPos);
+    navStore.disableAutopilot();
+    shipStore.setTargetHeading(targetHeading);
     navStore.clearSelection();
     sensorStore.clearSelection();
   } else if (event.button === 2) { // Right click - start panning
