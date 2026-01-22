@@ -3,21 +3,13 @@ import { computed, ref } from 'vue';
 import { useShipStore } from '@/stores';
 import { HelmMap } from '@/components/map';
 import { DockingPanel } from '@/components/panels';
-import { LcarsFrame, LcarsButton, LcarsDisplay } from '@/components/ui';
+import { LcarsButton, LcarsDisplay, HeadingGauge } from '@/components/ui';
 
 const shipStore = useShipStore();
 const expandedPanel = ref<'helm' | 'docking'>('helm');
 
-const headingDisplay = computed(() => shipStore.headingFormatted);
-const targetHeadingDisplay = computed(() => {
-  return shipStore.targetHeading.toFixed(0).padStart(3, '0') + '°';
-});
 const speedDisplay = computed(() => shipStore.speed.toFixed(0));
 const targetSpeedDisplay = computed(() => shipStore.targetSpeed.toFixed(0));
-
-function adjustHeading(delta: number) {
-  shipStore.adjustHeading(delta);
-}
 
 function adjustSpeed(delta: number) {
   shipStore.adjustSpeed(delta);
@@ -25,6 +17,10 @@ function adjustSpeed(delta: number) {
 
 function setSpeedPreset(percent: number) {
   shipStore.setTargetSpeed(shipStore.maxSpeed * (percent / 100));
+}
+
+function setHeading(heading: number) {
+  shipStore.setTargetHeading(heading);
 }
 </script>
 
@@ -50,21 +46,14 @@ function setSpeedPreset(percent: number) {
         </div>
         <div v-show="expandedPanel === 'helm'" class="helm-view__panel-content">
           <div class="helm-controls">
-              <!-- Heading Section -->
+              <!-- Heading Gauge Section -->
               <div class="helm-controls__section">
-                <div class="helm-controls__heading-display">
-                  <LcarsDisplay label="Heading" :value="headingDisplay" size="lg" />
-                  <span class="helm-controls__target">
-                    Target: {{ targetHeadingDisplay }}
-                  </span>
-                </div>
-                
-                <div class="helm-controls__heading-buttons">
-                  <LcarsButton label="◀◀" size="sm" color="gold" :disabled="shipStore.isDocked" @click="adjustHeading(-15)" />
-                  <LcarsButton label="◀" size="sm" color="gold" :disabled="shipStore.isDocked" @click="adjustHeading(-5)" />
-                  <LcarsButton label="▶" size="sm" color="gold" :disabled="shipStore.isDocked" @click="adjustHeading(5)" />
-                  <LcarsButton label="▶▶" size="sm" color="gold" :disabled="shipStore.isDocked" @click="adjustHeading(15)" />
-                </div>
+                <HeadingGauge
+                  :current-heading="shipStore.heading"
+                  :target-heading="shipStore.targetHeading"
+                  :disabled="shipStore.isDocked"
+                  @set-heading="setHeading"
+                />
               </div>
 
               <!-- Divider -->
