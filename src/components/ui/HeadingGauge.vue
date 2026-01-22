@@ -54,10 +54,10 @@ function drawGauge() {
 
   // Draw cardinal directions
   const cardinalDirections = [
-    { angle: 0, label: 'N' },
-    { angle: 90, label: 'E' },
-    { angle: 180, label: 'S' },
-    { angle: 270, label: 'W' },
+    { angle: 0, label: 'E' },
+    { angle: 90, label: 'S' },
+    { angle: 180, label: 'W' },
+    { angle: 270, label: 'N' },
   ];
 
   ctx.fillStyle = '#D4AF37';
@@ -66,7 +66,7 @@ function drawGauge() {
   ctx.textBaseline = 'middle';
 
   cardinalDirections.forEach(({ angle, label }) => {
-    const rad = ((angle - 90) * Math.PI) / 180;
+    const rad = (angle * Math.PI) / 180;
     const x = centerX + Math.cos(rad) * (radius - 15);
     const y = centerY + Math.sin(rad) * (radius - 15);
     ctx.fillText(label, x, y);
@@ -80,7 +80,7 @@ function drawGauge() {
   ctx.textBaseline = 'middle';
 
   for (let i = 0; i < 360; i += 10) {
-    const rad = ((i - 90) * Math.PI) / 180;
+    const rad = (i * Math.PI) / 180;
     const x1 = centerX + Math.cos(rad) * radius;
     const y1 = centerY + Math.sin(rad) * radius;
 
@@ -110,7 +110,7 @@ function drawGauge() {
   }
 
   // Draw target heading arc (light)
-  const targetRad = ((normalizeAngle(props.targetHeading) - 90) * Math.PI) / 180;
+  const targetRad = (normalizeAngle(-props.targetHeading) * Math.PI) / 180;
   ctx.strokeStyle = 'rgba(212, 175, 55, 0.3)';
   ctx.lineWidth = 3;
   ctx.beginPath();
@@ -128,7 +128,7 @@ function drawGauge() {
   ctx.stroke();
 
   // Draw current heading needle
-  const currentRad = ((normalizeAngle(props.currentHeading) - 90) * Math.PI) / 180;
+  const currentRad = (normalizeAngle(-props.currentHeading) * Math.PI) / 180;
   ctx.strokeStyle = '#D4AF37';
   ctx.lineWidth = 3;
   ctx.beginPath();
@@ -163,8 +163,7 @@ function handleCanvasClick(event: MouseEvent) {
   const deltaY = canvasY - centerY;
 
   let angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
-  angle = angle + 90; // Convert from math convention (0° east) to compass convention (0° north)
-  angle = normalizeAngle(angle);
+  angle = normalizeAngle(-angle);
 
   emit('setHeading', angle);
 }
