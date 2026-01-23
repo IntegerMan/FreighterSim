@@ -114,11 +114,13 @@ As a player at the sensors station, I want the sensor system to use raytracing a
 
 ### Key Entities
 
-- **Shape**: A 2D polygon definition consisting of vertices that define the outline of a ship or station. May contain multiple sub-shapes for complex objects.
+- **Shape**: A 2D polygon definition consisting of vertices in local normalized coordinates (-1 to 1) centered at origin. Scaled at runtime by a size factor. Ship shapes use 16-32 vertices for moderate complexity.
+- **StationModule**: A reusable shape component for station construction. Module types include: docking ring, connector, habitation, solar array, heat emissions, cargo, and command. Each module has connection points for attaching to other modules.
+- **Engine**: A component on a ship representing a propulsion unit with a position, direction, and emission properties. Ships can have multiple Engine components. Each active engine generates particle traces via the particleStore.
 - **EngineMount**: A position and direction on a ship shape where engines are located and where particle traces should originate.
-- **DockingPort**: A position, orientation, and size on a station shape where ships can dock. Includes approach vector and alignment requirements.
+- **DockingPort**: A position, orientation, and size on a station shape (specifically on docking ring modules) where ships can dock. Includes approach vector and alignment requirements.
 - **ShipTemplate**: A reusable definition combining a shape with engine mounts, used to instantiate ship objects.
-- **StationTemplate**: A reusable definition combining a shape with docking ports and other station-specific features.
+- **StationTemplate**: A reusable definition combining multiple StationModules with connection topology and docking ports.
 
 ## Success Criteria *(mandatory)*
 
@@ -139,3 +141,15 @@ As a player at the sensors station, I want the sensor system to use raytracing a
 - All ships of the same type share the same shape (no individual ship customization)
 - Docking is a binary state (docked/undocked) without intermediate docking animations
 - Raytracing is 2D and does not account for vertical (z-axis) considerations
+- All ships (player and NPC) rotate to match their heading; stations have initial rotation but remain stationary after placement
+- Ship types focus on industrial/civilian vessels (freighters, cutters, cruisers, destroyers, passenger transports) rather than small fighters to maintain a "space is big and dangerous" atmosphere
+
+## Clarifications
+
+### Session 2026-01-23
+
+- Q: How complex should ship and station polygon shapes be in terms of maximum vertex count? → A: Variable by object type - ships use moderate complexity (16-32 vertices), stations use detailed modular composition with reusable module types
+- Q: Should ships and stations rotate to display their actual orientation? → A: All ships (player and NPC) rotate to reflect heading; stations have initial rotation but remain stationary after placement
+- Q: Which initial ship types should be included beyond the player's ship? → A: Industrial/civilian focus with 4-5 types: freighters, patrol vessels (cutters), larger military (cruisers, destroyers), passenger transports (cruise ship style). Avoid fighter-sized ships; maintain "space is big and dangerous" vibe
+- Q: How should engine particle traces integrate with the existing particle system? → A: Extend existing particleStore with custom origin points; particles associated with Engine components on ships, supporting multiple engines per ship
+- Q: What coordinate system should shape vertices use? → A: Local normalized coordinates (-1 to 1), shapes centered at origin, scaled at runtime by size factor
