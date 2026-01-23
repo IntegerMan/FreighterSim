@@ -1,3 +1,8 @@
 {
-  "recommendations": []
+  "recommendations": [
+    "github.vscode-github-actions",
+    "vue.volar",
+    "dbaeumer.vscode-eslint",
+    "davidanson.vscode-markdownlint"
+  ]
 }

@@ -16,15 +16,15 @@ describe('navigationStore', () => {
             store.addWaypoint(vec2(300, 400));
 
             expect(store.waypoints).toHaveLength(2);
-            expect(store.waypoints[0].name).toBe('Waypoint 1');
-            expect(store.waypoints[0].position).toEqual(vec2(100, 200));
-            expect(store.waypoints[1].name).toBe('Waypoint 2');
+            expect(store.waypoints[0]!.name).toBe('Waypoint 1');
+            expect(store.waypoints[0]!.position).toEqual(vec2(100, 200));
+            expect(store.waypoints[1]!.name).toBe('Waypoint 2');
         });
 
         it('should remove waypoints by ID', () => {
             const store = useNavigationStore();
             store.addWaypoint(vec2(0, 0));
-            const id = store.waypoints[0].id;
+            const id = store.waypoints[0]!.id;
 
             store.removeWaypoint(id);
             expect(store.waypoints).toHaveLength(0);

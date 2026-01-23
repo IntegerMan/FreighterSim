@@ -115,20 +115,20 @@ function render() {
   if (waypoints.length > 0) {
     // Line from ship to first waypoint
     const shipScreenPos = worldToScreen(shipStore.position);
-    const firstWaypointScreenPos = worldToScreen(waypoints[0].position);
+    const firstWaypointScreenPos = worldToScreen(waypoints[0]!.position);
     drawWaypointPath(ctx, shipScreenPos, firstWaypointScreenPos);
 
     // Lines between waypoints
     for (let i = 0; i < waypoints.length - 1; i++) {
-      const fromScreenPos = worldToScreen(waypoints[i].position);
-      const toScreenPos = worldToScreen(waypoints[i + 1].position);
+      const fromScreenPos = worldToScreen(waypoints[i]!.position);
+      const toScreenPos = worldToScreen(waypoints[i + 1]!.position);
       drawWaypointPath(ctx, fromScreenPos, toScreenPos);
     }
   }
 
   // Draw waypoints
   for (let i = 0; i < waypoints.length; i++) {
-    const waypoint = waypoints[i];
+    const waypoint = waypoints[i]!;
     const screenPos = worldToScreen(waypoint.position);
     drawWaypoint(ctx, screenPos, waypoint.name, i === 0);
   }
