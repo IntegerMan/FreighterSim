@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
-import { useGameStore, useShipStore, useNavigationStore, useSensorStore, useParticleStore } from '@/stores';
+import { useGameStore, useShipStore, useNavigationStore, useSensorStore, useParticleStore, usePlayerShipEngines } from '@/stores';
 import { useGameLoop } from '@/core/game-loop';
 import { KESTREL_REACH, KESTREL_REACH_SPAWN } from '@/data';
 import { LcarsTabBar } from '@/components/ui';
@@ -21,12 +21,8 @@ onMounted(() => {
   // Initial sensor refresh
   sensorStore.refreshContacts();
 
-  // Register player ship as particle emitter
-  particleStore.registerEmitter(
-    'player-ship',
-    () => shipStore.position,
-    () => shipStore.targetSpeed / shipStore.engines.maxSpeed
-  );
+  // Register player ship engines for multi-point particle emission
+  const unregisterEngines = usePlayerShipEngines();
 
   // Subscribe stores to game loop
   const unsubscribe = subscribe((gameTime) => {
@@ -52,6 +48,7 @@ onMounted(() => {
 
   onUnmounted(() => {
     unsubscribe();
+    unregisterEngines();
     stop();
   });
 });

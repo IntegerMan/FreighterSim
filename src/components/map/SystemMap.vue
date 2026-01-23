@@ -8,8 +8,13 @@ import {
   drawWaypoint,
   drawWaypointPath,
   type CameraState,
+  renderShapeWithLOD,
+  renderEngineMounts,
+  getShapeScreenSize,
+  renderStationWithLOD,
 } from '@/core/rendering';
 import { Starfield, createDefaultStarfieldConfig } from '@/core/starfield';
+import { getShipTemplate, getStationTemplateById } from '@/data/shapes';
 import type { Vector2, Station, Planet, JumpGate } from '@/models';
 
 // Colors matching our design system
@@ -278,8 +283,9 @@ function drawPlanet(ctx: CanvasRenderingContext2D, planet: Planet) {
 
 function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   const screenPos = worldToScreen(station.position);
-  const size = 10;
   const isSelected = navStore.selectedObjectId === station.id;
+  const camera = { x: cameraCenter.value.x, y: cameraCenter.value.y };
+  const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
 
   // Docking range circle
   const screenDockingRange = station.dockingRange * zoom.value;
@@ -288,30 +294,68 @@ function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   ctx.arc(screenPos.x, screenPos.y, screenDockingRange, 0, Math.PI * 2);
   ctx.fill();
 
-  // Selection highlight
-  if (isSelected) {
-    ctx.strokeStyle = COLORS.selected;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(screenPos.x, screenPos.y, size + 8, 0, Math.PI * 2);
-    ctx.stroke();
-  }
+  // Get station template for shape rendering
+  const templateId = station.templateId ?? station.type;
+  const template = getStationTemplateById(templateId);
+  
+  // Calculate station render size (use docking range as a guide, or default scale)
+  const stationScale = station.dockingRange * 0.3; // Station visual size is ~30% of docking range
+  const stationRotation = station.rotation ?? 0;
 
-  // Station icon (diamond shape)
-  ctx.fillStyle = COLORS.station;
-  ctx.beginPath();
-  ctx.moveTo(screenPos.x, screenPos.y - size);
-  ctx.lineTo(screenPos.x + size, screenPos.y);
-  ctx.lineTo(screenPos.x, screenPos.y + size);
-  ctx.lineTo(screenPos.x - size, screenPos.y);
-  ctx.closePath();
-  ctx.fill();
+  if (template) {
+    // Selection highlight
+    if (isSelected) {
+      const selectionRadius = template.boundingRadius * stationScale * zoom.value + 6;
+      ctx.strokeStyle = COLORS.selected;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(screenPos.x, screenPos.y, selectionRadius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Render station shape with LOD
+    renderStationWithLOD(
+      ctx,
+      template,
+      station.position,
+      stationRotation,
+      stationScale,
+      camera,
+      screenCenter,
+      zoom.value,
+      COLORS.station,   // fillColor
+      '#CC9900',        // strokeColor (darker gold outline)
+      8                 // minSize for LOD fallback
+    );
+  } else {
+    // Fallback to simple diamond if template not found
+    const size = 10;
+    
+    // Selection highlight
+    if (isSelected) {
+      ctx.strokeStyle = COLORS.selected;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(screenPos.x, screenPos.y, size + 8, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Station icon (diamond shape)
+    ctx.fillStyle = COLORS.station;
+    ctx.beginPath();
+    ctx.moveTo(screenPos.x, screenPos.y - size);
+    ctx.lineTo(screenPos.x + size, screenPos.y);
+    ctx.lineTo(screenPos.x, screenPos.y + size);
+    ctx.lineTo(screenPos.x - size, screenPos.y);
+    ctx.closePath();
+    ctx.fill();
+  }
 
   // Label
   ctx.fillStyle = COLORS.station;
   ctx.font = '11px "Share Tech Mono", monospace';
   ctx.textAlign = 'center';
-  ctx.fillText(station.name, screenPos.x, screenPos.y + size + 14);
+  ctx.fillText(station.name, screenPos.x, screenPos.y + (template ? template.boundingRadius * stationScale * zoom.value : 10) + 14);
 }
 
 function drawJumpGate(ctx: CanvasRenderingContext2D, gate: JumpGate) {
@@ -362,8 +406,48 @@ function drawShip(ctx: CanvasRenderingContext2D) {
     canvasHeight: canvasHeight.value,
   }, 20, isReversing);
 
-  // Ship icon
-  drawShipIcon(ctx, screenPos, shipStore.heading, 8, COLORS.ship);
+  // Get ship template for shape rendering
+  const template = getShipTemplate(shipStore.templateId);
+  
+  if (template) {
+    const camera = { x: cameraCenter.value.x, y: cameraCenter.value.y };
+    const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
+    
+    // Render ship shape with LOD (falls back to point when zoomed out)
+    renderShapeWithLOD(
+      ctx,
+      template.shape,
+      shipStore.position,
+      shipStore.heading,
+      shipStore.size,
+      camera,
+      screenCenter,
+      zoom.value,
+      COLORS.ship,      // fillColor
+      COLORS.shipHeading, // strokeColor
+      1,                // lineWidth
+      6                 // minSize for LOD fallback
+    );
+
+    // Show engine mounts when zoomed in enough
+    const screenSize = getShapeScreenSize(template.shape, shipStore.size, zoom.value);
+    if (screenSize > 30 && template.engineMounts.length > 0) {
+      renderEngineMounts(
+        ctx,
+        template.engineMounts,
+        shipStore.position,
+        shipStore.heading,
+        shipStore.size,
+        camera,
+        screenCenter,
+        zoom.value,
+        '#FF6600'
+      );
+    }
+  } else {
+    // Fallback to simple icon if template not found
+    drawShipIcon(ctx, screenPos, shipStore.heading, 8, COLORS.ship);
+  }
 }
 
 // Event handlers

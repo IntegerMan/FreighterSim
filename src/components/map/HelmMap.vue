@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
-import { useShipStore, useNavigationStore, useSensorStore, useSettingsStore } from '@/stores';
+import { useShipStore, useNavigationStore, useSensorStore, useSettingsStore, useShipCollision, type CollisionWarningLevel } from '@/stores';
 import { useGameLoop } from '@/core/game-loop';
 import {
   MAP_COLORS,
@@ -11,9 +11,22 @@ import {
   drawCourseProjection,
   drawWaypoint,
   drawWaypointPath,
-  type CameraState
+  renderShapeWithLOD,
+  renderEngineMounts,
+  getShapeScreenSize,
+  renderStationWithLOD,
+  northUpToCanvasArcRad,
+  findModuleAtScreenPosition,
+  STATION_VISUAL_MULTIPLIER,
+  getVisualDockingRange,
+  drawDockingPorts as drawDockingPortsShared,
+  drawRunwayLightsForPort,
+  getDockingRange,
+  RUNWAY_LENGTH_FACTOR,
+  type CameraState,
 } from '@/core/rendering';
 import { Starfield, createDefaultStarfieldConfig } from '@/core/starfield';
+import { getShipTemplate, getStationTemplateById } from '@/data/shapes';
 import type { Vector2, Station, Planet, JumpGate } from '@/models';
 import { getThreatLevelColor } from '@/models';
 
@@ -24,6 +37,7 @@ const shipStore = useShipStore();
 const navStore = useNavigationStore();
 const sensorStore = useSensorStore();
 const settingsStore = useSettingsStore();
+const collision = useShipCollision();
 const { subscribe } = useGameLoop();
 
 // Starfield background
@@ -65,6 +79,14 @@ const camera = computed<CameraState>(() => ({
   canvasWidth: canvasWidth.value,
   canvasHeight: canvasHeight.value,
 }));
+
+// Collision warning colors
+const COLLISION_COLORS: Record<CollisionWarningLevel, string> = {
+  none: 'transparent',
+  caution: '#FFCC00',    // Yellow
+  warning: '#FF6600',    // Orange
+  danger: '#FF0000',     // Red
+};
 
 function render() {
   const canvas = canvasRef.value;
@@ -144,6 +166,10 @@ function render() {
 
   // Draw ship
   drawShip(ctx);
+
+  // Update and draw collision warnings
+  collision.updateCollisionWarnings();
+  drawCollisionWarnings(ctx);
 
   // Check if waypoint reached
   navStore.checkWaypointReached(shipStore.position);
@@ -254,8 +280,9 @@ function drawPlanet(ctx: CanvasRenderingContext2D, planet: Planet) {
 
 function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   const screenPos = worldToScreen(station.position, camera.value);
-  const size = 10;
   const isSelected = navStore.selectedObjectId === station.id;
+  const cameraVec = { x: cameraCenter.value.x, y: cameraCenter.value.y };
+  const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
 
   // Docking range circle
   const screenDockingRange = station.dockingRange * zoom.value;
@@ -264,30 +291,68 @@ function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   ctx.arc(screenPos.x, screenPos.y, screenDockingRange, 0, Math.PI * 2);
   ctx.fill();
 
-  // Selection highlight
-  if (isSelected) {
-    ctx.strokeStyle = MAP_COLORS.selected;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(screenPos.x, screenPos.y, size + 8, 0, Math.PI * 2);
-    ctx.stroke();
-  }
+  // Get station template for shape rendering
+  const templateId = station.templateId ?? station.type;
+  const template = getStationTemplateById(templateId);
+  
+  // Calculate station render size (use docking range as a guide, or default scale)
+  const stationScale = station.dockingRange * 0.3; // Station visual size is ~30% of docking range
+  const stationRotation = station.rotation ?? 0;
 
-  // Station icon (diamond shape)
-  ctx.fillStyle = MAP_COLORS.station;
-  ctx.beginPath();
-  ctx.moveTo(screenPos.x, screenPos.y - size);
-  ctx.lineTo(screenPos.x + size, screenPos.y);
-  ctx.lineTo(screenPos.x, screenPos.y + size);
-  ctx.lineTo(screenPos.x - size, screenPos.y);
-  ctx.closePath();
-  ctx.fill();
+  if (template) {
+    // Selection highlight
+    if (isSelected) {
+      ctx.strokeStyle = MAP_COLORS.selected;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(screenPos.x, screenPos.y, stationScale * zoom.value + 8, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Render station shape with LOD
+    renderStationWithLOD(
+      ctx,
+      template,
+      station.position,
+      stationRotation,
+      stationScale,
+      cameraVec,
+      screenCenter,
+      zoom.value,
+      MAP_COLORS.station,   // fillColor
+      '#CC9900',            // strokeColor (darker gold outline)
+      8                     // minSize for LOD fallback
+    );
+  } else {
+    // Fallback to simple diamond if template not found
+    const size = 10;
+    
+    // Selection highlight
+    if (isSelected) {
+      ctx.strokeStyle = MAP_COLORS.selected;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(screenPos.x, screenPos.y, size + 8, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Station icon (diamond shape)
+    ctx.fillStyle = MAP_COLORS.station;
+    ctx.beginPath();
+    ctx.moveTo(screenPos.x, screenPos.y - size);
+    ctx.lineTo(screenPos.x + size, screenPos.y);
+    ctx.lineTo(screenPos.x, screenPos.y + size);
+    ctx.lineTo(screenPos.x - size, screenPos.y);
+    ctx.closePath();
+    ctx.fill();
+  }
 
   // Label
   ctx.fillStyle = MAP_COLORS.station;
   ctx.font = '11px "Share Tech Mono", monospace';
   ctx.textAlign = 'center';
-  ctx.fillText(station.name, screenPos.x, screenPos.y + size + 14);
+  const labelOffset = template ? stationScale * zoom.value + 14 : 24;
+  ctx.fillText(station.name, screenPos.x, screenPos.y + labelOffset);
 }
 
 function drawJumpGate(ctx: CanvasRenderingContext2D, gate: JumpGate) {
@@ -326,11 +391,140 @@ function drawJumpGate(ctx: CanvasRenderingContext2D, gate: JumpGate) {
 
 function drawShip(ctx: CanvasRenderingContext2D) {
   const screenPos = worldToScreen(shipStore.position, camera.value);
-  const isReversing = shipStore.speed < 0 || shipStore.targetSpeed < 0;
 
-  // Ship icon - purple when reversing
-  const shipColor = isReversing ? '#9966FF' : MAP_COLORS.ship;
-  drawShipIcon(ctx, screenPos, shipStore.heading, 8, shipColor);
+  // Get ship template for shape rendering
+  const template = getShipTemplate(shipStore.templateId);
+  
+  if (template) {
+    const cameraVec = { x: cameraCenter.value.x, y: cameraCenter.value.y };
+    const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
+    
+    // Render ship shape with LOD (falls back to point when zoomed out)
+    renderShapeWithLOD(
+      ctx,
+      template.shape,
+      shipStore.position,
+      shipStore.heading,
+      shipStore.size,
+      cameraVec,
+      screenCenter,
+      zoom.value,
+      MAP_COLORS.ship,       // fillColor
+      MAP_COLORS.shipHeading, // strokeColor
+      1,                     // lineWidth
+      6                      // minSize for LOD fallback
+    );
+
+    // Show engine mounts when zoomed in enough
+    const screenSize = getShapeScreenSize(template.shape, shipStore.size, zoom.value);
+    if (screenSize > 30 && template.engineMounts.length > 0) {
+      renderEngineMounts(
+        ctx,
+        template.engineMounts,
+        shipStore.position,
+        shipStore.heading,
+        shipStore.size,
+        cameraVec,
+        screenCenter,
+        zoom.value,
+        '#FF6600'
+      );
+    }
+  } else {
+    // Fallback to simple icon if template not found
+    drawShipIcon(ctx, screenPos, shipStore.heading, 8, MAP_COLORS.ship);
+  }
+}
+
+/**
+ * Draw collision warnings around the ship
+ */
+function drawCollisionWarnings(ctx: CanvasRenderingContext2D) {
+  const shipScreenPos = worldToScreen(shipStore.position, camera.value);
+  const warningLevel = collision.highestWarningLevel.value;
+  
+  // Don't draw if no warnings
+  if (warningLevel === 'none') return;
+  
+  // Draw warning ring around ship
+  const ringColor = COLLISION_COLORS[warningLevel];
+  const ringRadius = Math.max(shipStore.size * zoom.value, 20) + 8;
+  const pulseIntensity = warningLevel === 'danger' ? 0.8 : (warningLevel === 'warning' ? 0.5 : 0.3);
+  
+  // Pulsing effect
+  const pulsePhase = (Date.now() % 1000) / 1000;
+  const pulseAlpha = 0.3 + pulseIntensity * Math.sin(pulsePhase * Math.PI * 2);
+  
+  ctx.strokeStyle = ringColor;
+  ctx.lineWidth = warningLevel === 'danger' ? 3 : 2;
+  ctx.globalAlpha = pulseAlpha;
+  ctx.beginPath();
+  ctx.arc(shipScreenPos.x, shipScreenPos.y, ringRadius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  
+  // Draw contact points for danger-level warnings
+  for (const warning of collision.warnings.value) {
+    if (warning.level === 'danger' && warning.collisionPoint) {
+      drawCollisionContactPoint(ctx, warning.collisionPoint, warning.normal);
+    }
+  }
+}
+
+/**
+ * Draw a collision contact point indicator
+ */
+function drawCollisionContactPoint(
+  ctx: CanvasRenderingContext2D,
+  contactPoint: Vector2,
+  normal?: Vector2
+) {
+  const screenPos = worldToScreen(contactPoint, camera.value);
+  
+  // Draw X marker at contact point
+  const size = 6;
+  ctx.strokeStyle = COLLISION_COLORS.danger;
+  ctx.lineWidth = 2;
+  
+  // X shape
+  ctx.beginPath();
+  ctx.moveTo(screenPos.x - size, screenPos.y - size);
+  ctx.lineTo(screenPos.x + size, screenPos.y + size);
+  ctx.moveTo(screenPos.x + size, screenPos.y - size);
+  ctx.lineTo(screenPos.x - size, screenPos.y + size);
+  ctx.stroke();
+  
+  // Draw normal direction arrow if available
+  if (normal) {
+    const arrowLength = 20;
+    const endPos = {
+      x: screenPos.x + normal.x * arrowLength,
+      y: screenPos.y - normal.y * arrowLength, // Screen Y is inverted
+    };
+    
+    ctx.strokeStyle = COLLISION_COLORS.warning;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(screenPos.x, screenPos.y);
+    ctx.lineTo(endPos.x, endPos.y);
+    ctx.stroke();
+    
+    // Arrow head
+    const headSize = 4;
+    const angle = Math.atan2(-normal.y, normal.x);
+    ctx.beginPath();
+    ctx.moveTo(endPos.x, endPos.y);
+    ctx.lineTo(
+      endPos.x - headSize * Math.cos(angle - Math.PI / 6),
+      endPos.y - headSize * Math.sin(angle - Math.PI / 6)
+    );
+    ctx.moveTo(endPos.x, endPos.y);
+    ctx.lineTo(
+      endPos.x - headSize * Math.cos(angle + Math.PI / 6),
+      endPos.y - headSize * Math.sin(angle + Math.PI / 6)
+    );
+    ctx.stroke();
+  }
 }
 
 // Event handlers
@@ -473,6 +667,20 @@ onMounted(() => {
         <span class="helm-map__system-name">{{ navStore.systemName }}</span>
         <span class="helm-map__zoom">{{ (zoom * 100).toFixed(0) }}%</span>
       </div>
+      <!-- Collision warning indicator -->
+      <div 
+        v-if="collision.highestWarningLevel.value !== 'none'"
+        class="helm-map__collision-warning"
+        :class="`helm-map__collision-warning--${collision.highestWarningLevel.value}`"
+      >
+        <span class="helm-map__collision-warning-icon">⚠</span>
+        <span class="helm-map__collision-warning-text">
+          {{ collision.highestWarningLevel.value.toUpperCase() }}
+        </span>
+        <span v-if="collision.warnings.value[0]" class="helm-map__collision-warning-object">
+          {{ collision.warnings.value[0].objectName }}
+        </span>
+      </div>
     </div>
     <div class="helm-map__controls">
       <button 
@@ -605,5 +813,61 @@ onMounted(() => {
       background-color: rgba($color-purple, 0.2);
     }
   }
+
+  &__collision-warning {
+    position: absolute;
+    top: $space-lg + $space-md;
+    left: $space-sm;
+    display: flex;
+    align-items: center;
+    gap: $space-xs;
+    padding: $space-xs $space-sm;
+    border-radius: $radius-sm;
+    font-family: $font-mono;
+    font-size: $font-size-sm;
+    animation: pulse-warning 1s infinite;
+
+    &--caution {
+      background-color: rgba(#FFCC00, 0.2);
+      border: 1px solid #FFCC00;
+      color: #FFCC00;
+    }
+
+    &--warning {
+      background-color: rgba(#FF6600, 0.2);
+      border: 1px solid #FF6600;
+      color: #FF6600;
+    }
+
+    &--danger {
+      background-color: rgba(#FF0000, 0.3);
+      border: 2px solid #FF0000;
+      color: #FF0000;
+      animation: pulse-danger 0.5s infinite;
+    }
+  }
+
+  &__collision-warning-icon {
+    font-size: $font-size-md;
+  }
+
+  &__collision-warning-text {
+    font-weight: bold;
+  }
+
+  &__collision-warning-object {
+    opacity: 0.8;
+    font-size: $font-size-xs;
+  }
+}
+
+@keyframes pulse-warning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes pulse-danger {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 </style>

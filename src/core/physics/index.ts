@@ -6,3 +6,38 @@ export {
   type MovementState, 
   type MovementResult 
 } from './MovementSystem';
+
+// Vector math utilities
+export {
+  vec2Sub,
+  vec2Normalize,
+  vec2Dot,
+  vec2Cross,
+  vec2Perpendicular,
+  rotatePoint,
+  rotatePointAround,
+  vec2Length,
+  vec2LengthSquared,
+  vec2Distance,
+  vec2Scale,
+  vec2Add,
+  vec2Lerp,
+  vec2ApproxEqual,
+  vec2Negate,
+  vec2Project,
+  vec2Reflect,
+} from './vectorMath';
+
+// Collision detection
+export {
+  getBoundingBox,
+  checkBoundingBoxOverlap,
+  projectPolygon,
+  checkPolygonCollision,
+  getPolygonCentroid,
+  getWorldVertices,
+  getShapeBoundingBox,
+  isPointInPolygon,
+  checkCirclePolygonCollision,
+  checkSweptCollision,
+} from './collision';

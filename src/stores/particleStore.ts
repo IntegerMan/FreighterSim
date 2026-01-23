@@ -1,8 +1,45 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { GameTime } from '@/core/game-loop';
-import type { Vector2, ParticleGrid, ParticleCell, ParticleGridConfig, ParticleEmitter } from '@/models';
+import type { Vector2, ParticleGrid, ParticleCell, ParticleGridConfig, ParticleEmitter, EngineMount } from '@/models';
 import { DEFAULT_PARTICLE_CONFIG, createCellKey, parseCellKey, worldToGridCoord } from '@/models';
+import { rotatePoint, vec2Add, vec2Scale } from '@/core/physics/vectorMath';
+
+/**
+ * Ship engine registration data for multi-engine particle emission
+ */
+export interface ShipEngineRegistration {
+  shipId: string;
+  getPosition: () => Vector2;
+  getHeading: () => number;
+  getScale: () => number;
+  getThrottle: () => number;
+  engineMounts: EngineMount[];
+}
+
+/**
+ * Transform an engine mount position from local ship space to world space
+ * 
+ * @param mount - Engine mount with local position
+ * @param shipPosition - Ship center in world coordinates
+ * @param shipHeading - Ship heading in degrees (navigation: 0=N, 90=E, clockwise)
+ * @param shipScale - Ship size/scale in world units
+ * @returns World position of the engine mount
+ */
+export function engineMountToWorld(
+  mount: EngineMount,
+  shipPosition: Vector2,
+  shipHeading: number,
+  shipScale: number
+): Vector2 {
+  // Scale the mount's local position
+  const scaled = vec2Scale(mount.position, shipScale);
+  // Rotate to match ship heading
+  // Negate rotation for navigation convention (clockwise positive)
+  const rotated = rotatePoint(scaled, -shipHeading);
+  // Translate to ship's world position
+  return vec2Add(shipPosition, rotated);
+}
 
 /**
  * Particle store - manages engine particle traces for all ships
@@ -14,8 +51,11 @@ export const useParticleStore = defineStore('particle', () => {
   // Particle grid (sparse Map for efficiency)
   const grid = ref<ParticleGrid>(new Map());
 
-  // Registered emitters (ships)
+  // Legacy single-point emitters (ships without engine mounts)
   const emitters = ref<Map<string, ParticleEmitter>>(new Map());
+
+  // New: ships with engine mount registration
+  const shipEngines = ref<Map<string, ShipEngineRegistration>>(new Map());
 
   // Computed: cells with density > threshold for rendering
   const activeCells = computed((): ParticleCell[] => {
@@ -32,7 +72,8 @@ export const useParticleStore = defineStore('particle', () => {
   const activeCellCount = computed(() => grid.value.size);
 
   /**
-   * Register a particle emitter (e.g., a ship)
+   * Register a particle emitter (e.g., a ship) - LEGACY single-point emission
+   * @deprecated Use registerShipEngines for multi-engine ships
    */
   function registerEmitter(
     id: string,
@@ -43,10 +84,33 @@ export const useParticleStore = defineStore('particle', () => {
   }
 
   /**
-   * Unregister an emitter (e.g., when ship is destroyed)
+   * Unregister an emitter (e.g., when ship is destroyed) - LEGACY
+   * @deprecated Use unregisterShipEngines for multi-engine ships
    */
   function unregisterEmitter(id: string): void {
     emitters.value.delete(id);
+  }
+
+  /**
+   * Register a ship's engine mounts for multi-point particle emission
+   * 
+   * @param registration - Ship engine registration data
+   */
+  function registerShipEngines(registration: ShipEngineRegistration): void {
+    // Remove any legacy single-point emitter
+    emitters.value.delete(registration.shipId);
+    // Register engine mounts
+    shipEngines.value.set(registration.shipId, registration);
+  }
+
+  /**
+   * Unregister a ship's engines
+   * 
+   * @param shipId - Ship ID to unregister
+   */
+  function unregisterShipEngines(shipId: string): void {
+    shipEngines.value.delete(shipId);
+    emitters.value.delete(shipId);
   }
 
   /**
@@ -83,9 +147,9 @@ export const useParticleStore = defineStore('particle', () => {
   }
 
   /**
-   * Process all emitters and emit particles based on their throttle
+   * Process legacy single-point emitters
    */
-  function processEmitters(dt: number): void {
+  function processLegacyEmitters(dt: number): void {
     for (const emitter of emitters.value.values()) {
       const throttle = emitter.getThrottle();
       if (throttle > 0) {
@@ -94,6 +158,41 @@ export const useParticleStore = defineStore('particle', () => {
         emitParticles(position, emissionAmount);
       }
     }
+  }
+
+  /**
+   * Process ships with engine mounts - emit from each engine position
+   */
+  function processShipEngines(dt: number): void {
+    for (const reg of shipEngines.value.values()) {
+      const throttle = reg.getThrottle();
+      if (throttle <= 0) continue;
+
+      const shipPosition = reg.getPosition();
+      const shipHeading = reg.getHeading();
+      const shipScale = reg.getScale();
+
+      // Emit from each engine mount
+      for (const mount of reg.engineMounts) {
+        // Calculate world position of this engine
+        const engineWorldPos = engineMountToWorld(mount, shipPosition, shipHeading, shipScale);
+        
+        // Emission amount scaled by mount's thrust multiplier
+        const emissionAmount = config.value.baseEmissionRate * throttle * mount.thrustMultiplier * dt;
+        emitParticles(engineWorldPos, emissionAmount);
+      }
+    }
+  }
+
+  /**
+   * Process all emitters and emit particles based on their throttle
+   */
+  function processEmitters(dt: number): void {
+    // Process legacy single-point emitters
+    processLegacyEmitters(dt);
+    
+    // Process ships with engine mount registration
+    processShipEngines(dt);
   }
 
   /**
@@ -181,12 +280,15 @@ export const useParticleStore = defineStore('particle', () => {
     // State
     config,
     grid,
+    shipEngines,
     // Computed
     activeCells,
     activeCellCount,
     // Actions
     registerEmitter,
     unregisterEmitter,
+    registerShipEngines,
+    unregisterShipEngines,
     getDensityAt,
     emitParticles,
     update,

@@ -22,6 +22,10 @@ export interface Station {
   dockingRange: number;
   description?: string;
   faction?: string;
+  /** Station template ID for 2D shape rendering (optional for backward compatibility) */
+  templateId?: string;
+  /** Station rotation in degrees (optional, defaults to 0) */
+  rotation?: number;
 }
 
 /**
@@ -36,6 +40,8 @@ export function createStation(config: {
   dockingRange?: number;
   description?: string;
   faction?: string;
+  templateId?: string;
+  rotation?: number;
 }): Station {
   const defaultServices = getDefaultServices(config.type);
   
@@ -48,6 +54,8 @@ export function createStation(config: {
     dockingRange: config.dockingRange ?? 50,
     description: config.description,
     faction: config.faction,
+    templateId: config.templateId ?? config.type, // Default templateId to station type
+    rotation: config.rotation ?? 0,
   };
 }
 

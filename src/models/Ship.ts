@@ -54,6 +54,10 @@ export interface Ship {
   engines: ShipEngines;
   sensors: ShipSensors;
   cargoBay: CargoBay;
+  /** Ship template ID for 2D shape rendering (optional for backward compatibility) */
+  templateId?: string;
+  /** Ship size in world units for rendering (optional, uses template default if not specified) */
+  size?: number;
 }
 
 /**
@@ -69,6 +73,8 @@ export const DEFAULT_SHIP: Ship = {
   engines: { ...DEFAULT_ENGINES },
   sensors: { ...DEFAULT_SENSORS },
   cargoBay: { ...DEFAULT_CARGO_BAY },
+  templateId: 'firefly', // Player ship uses Serenity-inspired template
+  size: 40, // Default player ship size in world units
 };
 
 /**

@@ -2,6 +2,13 @@
 export type { Vector2 } from './math';
 export * from './math';
 
+// Shape system (2D polygon rendering and collision)
+export type { Shape, EngineMount, ShipTemplate, ShipCategory, CollisionResult, BoundingBox } from './Shape';
+export type { DockingPort, DockingPortSize } from './DockingPort';
+export { DEFAULT_ALIGNMENT_TOLERANCE, DEFAULT_DOCKING_RANGE, getAlignmentTolerance, getDockingRange } from './DockingPort';
+export type { StationModule, StationModuleType, StationModulePlacement, StationTemplate } from './StationModule';
+export { DEFAULT_STATION_ROTATION, getDefaultRotation } from './StationModule';
+
 // Game entities
 export type { Planet, PlanetType } from './Planet';
 export { createPlanet, updatePlanetOrbit } from './Planet';

@@ -26,6 +26,10 @@ export const useShipStore = defineStore('ship', () => {
   const sensors = ref<ShipSensors>({ ...DEFAULT_SENSORS });
   const cargoBay = ref<CargoBay>({ ...DEFAULT_CARGO_BAY, items: [...DEFAULT_CARGO_ITEMS] });
 
+  // Ship template for 2D shape rendering
+  const templateId = ref<string>('firefly');
+  const size = ref<number>(40); // Ship size in world units
+
   // Derived limits
   const minSpeed = computed(() => -engines.value.maxSpeed * 0.25); // Reverse speed limit (25% of max)
 
@@ -139,6 +143,8 @@ export const useShipStore = defineStore('ship', () => {
     cargoBay,
     isDocked,
     dockedAtId,
+    templateId,
+    size,
     // Computed
     minSpeed,
     isMoving,

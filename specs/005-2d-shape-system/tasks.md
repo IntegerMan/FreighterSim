@@ -29,10 +29,10 @@
 
 **Purpose**: Create core shape model interfaces and type definitions
 
-- [ ] T001 Create shape model interfaces in src/models/Shape.ts (Shape, EngineMount, ShipTemplate, ShipCategory)
-- [ ] T002 [P] Create docking port interfaces in src/models/DockingPort.ts (DockingPort, DockingPortSize)
-- [ ] T003 [P] Create station module interfaces in src/models/StationModule.ts (StationModule, StationModuleType, StationModulePlacement, StationTemplate)
-- [ ] T004 Export all new shape models from src/models/index.ts
+- [X] T001 Create shape model interfaces in src/models/Shape.ts (Shape, EngineMount, ShipTemplate, ShipCategory)
+- [X] T002 [P] Create docking port interfaces in src/models/DockingPort.ts (DockingPort, DockingPortSize)
+- [X] T003 [P] Create station module interfaces in src/models/StationModule.ts (StationModule, StationModuleType, StationModulePlacement, StationTemplate)
+- [X] T004 Export all new shape models from src/models/index.ts
 
 ---
 
@@ -42,16 +42,16 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T005 Create shape rendering utilities in src/core/rendering/shapeRenderer.ts (transformVertex, renderShape functions)
-- [ ] T005a [P] Create unit tests for shapeRenderer.ts in src/core/rendering/shapeRenderer.test.ts (TEST-FIRST: vertex transforms at 0°, 90°, 180°, 270° rotations; scaling; world-to-screen mapping)
-- [ ] T006 [P] Create collision detection utilities in src/core/physics/collision.ts (projectPolygon, checkPolygonCollision, getBoundingBox functions)
-- [ ] T006a [P] Create unit tests for collision.ts in src/core/physics/collision.test.ts (TEST-FIRST: SAT algorithm correctness, AABB overlap, penetration depth, collision normals, non-colliding polygons)
-- [ ] T007 [P] Create vector math helpers in src/core/physics/vectorMath.ts (vec2Sub, vec2Normalize, vec2Dot, rotatePoint functions)
-- [ ] T007a [P] Create unit tests for vectorMath.ts in src/core/physics/vectorMath.test.ts (TEST-FIRST: rotatePoint at cardinal angles, normalize unit vectors, dot product edge cases)
-- [ ] T008 Export physics utilities from src/core/physics/index.ts
-- [ ] T009 Export rendering utilities from src/core/rendering/index.ts
-- [ ] T010 Extend Ship interface with templateId and size properties in src/models/Ship.ts
-- [ ] T011 [P] Extend Station interface with templateId and rotation properties in src/models/Station.ts
+- [X] T005 Create shape rendering utilities in src/core/rendering/shapeRenderer.ts (transformVertex, renderShape functions)
+- [X] T005a [P] Create unit tests for shapeRenderer.ts in src/core/rendering/shapeRenderer.test.ts (TEST-FIRST: vertex transforms at 0°, 90°, 180°, 270° rotations; scaling; world-to-screen mapping)
+- [X] T006 [P] Create collision detection utilities in src/core/physics/collision.ts (projectPolygon, checkPolygonCollision, getBoundingBox functions)
+- [X] T006a [P] Create unit tests for collision.ts in src/core/physics/collision.test.ts (TEST-FIRST: SAT algorithm correctness, AABB overlap, penetration depth, collision normals, non-colliding polygons)
+- [X] T007 [P] Create vector math helpers in src/core/physics/vectorMath.ts (vec2Sub, vec2Normalize, vec2Dot, rotatePoint functions)
+- [X] T007a [P] Create unit tests for vectorMath.ts in src/core/physics/vectorMath.test.ts (TEST-FIRST: rotatePoint at cardinal angles, normalize unit vectors, dot product edge cases)
+- [X] T008 Export physics utilities from src/core/physics/index.ts
+- [X] T009 Export rendering utilities from src/core/rendering/index.ts
+- [X] T010 Extend Ship interface with templateId and size properties in src/models/Ship.ts
+- [X] T011 [P] Extend Station interface with templateId and rotation properties in src/models/Station.ts
 
 **Checkpoint**: Foundation ready with test coverage - user story implementation can now begin in parallel
 
@@ -65,27 +65,27 @@
 
 ### Shape Data Definitions
 
-- [ ] T012 [P] [US1] Create player ship (Serenity) shape definition in src/data/shapes/playerShip.ts with 20-vertex polygon and 3 engine mounts
-- [ ] T013 [P] [US1] Create freighter ship shape definition in src/data/shapes/npcShips.ts (16-vertex boxy cargo hauler)
-- [ ] T014 [P] [US1] Create cutter ship shape definition in src/data/shapes/npcShips.ts (12-vertex sleek triangular patrol vessel)
-- [ ] T015 [P] [US1] Create cruiser ship shape definition in src/data/shapes/npcShips.ts (20-vertex elongated military vessel)
-- [ ] T016 [P] [US1] Create destroyer ship shape definition in src/data/shapes/npcShips.ts (24-vertex wedge-shaped military vessel)
-- [ ] T017 [P] [US1] Create liner ship shape definition in src/data/shapes/npcShips.ts (20-vertex rounded passenger transport)
-- [ ] T018 [P] [US1] Create station module shapes in src/data/shapes/stationModules.ts (core, docking-ring, habitat, cargo, solar-array, antenna, refinery, command)
-- [ ] T019 [US1] Create station templates in src/data/shapes/stations.ts (trading-hub, mining-outpost) using module composition
-- [ ] T020 [US1] Export all shape data from src/data/shapes/index.ts
+- [X] T012 [P] [US1] Create player ship (Serenity) shape definition in src/data/shapes/playerShip.ts with 20-vertex polygon and 3 engine mounts
+- [X] T013 [P] [US1] Create freighter ship shape definition in src/data/shapes/npcShips.ts (16-vertex boxy cargo hauler)
+- [X] T014 [P] [US1] Create cutter ship shape definition in src/data/shapes/npcShips.ts (12-vertex sleek triangular patrol vessel)
+- [X] T015 [P] [US1] Create cruiser ship shape definition in src/data/shapes/npcShips.ts (20-vertex elongated military vessel)
+- [X] T016 [P] [US1] Create destroyer ship shape definition in src/data/shapes/npcShips.ts (24-vertex wedge-shaped military vessel)
+- [X] T017 [P] [US1] Create liner ship shape definition in src/data/shapes/npcShips.ts (20-vertex rounded passenger transport)
+- [X] T018 [P] [US1] Create station module shapes in src/data/shapes/stationModules.ts (core, docking-ring, habitat, cargo, solar-array, antenna, refinery, command)
+- [X] T019 [US1] Create station templates in src/data/shapes/stations.ts (trading-hub, mining-outpost) using module composition
+- [X] T020 [US1] Export all shape data from src/data/shapes/index.ts
 
 ### Template Registries
 
-- [ ] T021 [US1] Create ship template registry with lookup functions in src/data/shapes/shipRegistry.ts
-- [ ] T022 [P] [US1] Create station template registry with lookup functions in src/data/shapes/stationRegistry.ts
+- [X] T021 [US1] Create ship template registry with lookup functions in src/data/shapes/shipRegistry.ts
+- [X] T022 [P] [US1] Create station template registry with lookup functions in src/data/shapes/stationRegistry.ts
 
 ### Map Rendering Integration
 
-- [ ] T023 [US1] Integrate shape renderer into SystemMap.vue for player ship rendering in src/components/map/SystemMap.vue
-- [ ] T024 [US1] Add NPC ship shape rendering to SystemMap.vue with fallback to circle for ships without templateId
-- [ ] T025 [US1] Add station shape rendering to SystemMap.vue with module composition support
-- [ ] T026 [US1] Implement LOD (level of detail) system - render as dot when shape is sub-pixel sized in src/core/rendering/shapeRenderer.ts
+- [X] T023 [US1] Integrate shape renderer into SystemMap.vue for player ship rendering in src/components/map/SystemMap.vue
+- [X] T024 [US1] Add NPC ship shape rendering to SystemMap.vue with fallback to circle for ships without templateId
+- [X] T025 [US1] Add station shape rendering to SystemMap.vue with module composition support
+- [X] T026 [US1] Implement LOD (level of detail) system - render as dot when shape is sub-pixel sized in src/core/rendering/shapeRenderer.ts
 
 **Checkpoint**: Player ship displays as Serenity silhouette, NPC ships have distinct shapes, stations have modular structure visible
 
@@ -99,17 +99,17 @@
 
 ### Particle System Extension
 
-- [ ] T027 [US2] Add registerShipEngines function to particleStore.ts in src/stores/particleStore.ts
-- [ ] T028 [US2] Add unregisterShipEngines function to particleStore.ts in src/stores/particleStore.ts
-- [ ] T029 [US2] Create localToWorld transform helper for engine mount positions in src/stores/particleStore.ts
-- [ ] T029a [US2] Create unit tests for engine particle emission in src/stores/particleStore.test.ts (TEST-FIRST: verify particles spawn at correct engine mount world positions for rotated ships, test 3 engines for player ship, test mount registration/unregistration)
+- [X] T027 [US2] Add registerShipEngines function to particleStore.ts in src/stores/particleStore.ts
+- [X] T028 [US2] Add unregisterShipEngines function to particleStore.ts in src/stores/particleStore.ts
+- [X] T029 [US2] Create localToWorld transform helper for engine mount positions in src/stores/particleStore.ts
+- [X] T029a [US2] Create unit tests for engine particle emission in src/stores/particleStore.test.ts (TEST-FIRST: verify particles spawn at correct engine mount world positions for rotated ships, test 3 engines for player ship, test mount registration/unregistration)
 
 ### Ship Engine Integration
 
-- [ ] T030 [US2] Update shipStore to register player ship engines on initialization in src/stores/shipStore.ts
-- [ ] T031 [US2] Update shipStore to register NPC ship engines when ships are added in src/stores/shipStore.ts
-- [ ] T032 [US2] Update shipStore to unregister ship engines when ships are removed in src/stores/shipStore.ts
-- [ ] T033 [US2] Remove legacy single-point particle emission for ships with templateId in src/stores/particleStore.ts
+- [X] T030 [US2] Update shipStore to register player ship engines on initialization in src/stores/shipStore.ts
+- [-] T031 [US2] Update shipStore to register NPC ship engines when ships are added in src/stores/shipStore.ts (DEFERRED: No NPC ship tracking system exists yet - useNPCShipEngines composable ready when needed)
+- [-] T032 [US2] Update shipStore to unregister ship engines when ships are removed in src/stores/shipStore.ts (DEFERRED: No NPC ship tracking system exists yet)
+- [X] T033 [US2] Remove legacy single-point particle emission for ships with templateId in src/stores/particleStore.ts
 
 **Checkpoint**: Engine particle traces originate from defined engine mount points on all ships with templates
 
@@ -123,24 +123,24 @@
 
 ### Collision System Implementation
 
-- [ ] T034 [US3] Create world-space vertex transformer for collision checks in src/core/physics/collision.ts
-- [ ] T035 [US3] Add AABB bounding box pre-check optimization in src/core/physics/collision.ts
-- [ ] T036 [US3] Implement getWorldVertices function to transform shape vertices to world coordinates in src/core/physics/collision.ts
-- [ ] T036a [US3] Create unit tests for world-space collision in src/core/physics/collision.test.ts (TEST-FIRST: verify getWorldVertices with rotation/translation, test collisions between rotated shapes at various positions, test near-miss scenarios)
+- [X] T034 [US3] Create world-space vertex transformer for collision checks in src/core/physics/collision.ts
+- [X] T035 [US3] Add AABB bounding box pre-check optimization in src/core/physics/collision.ts
+- [X] T036 [US3] Implement getWorldVertices function to transform shape vertices to world coordinates in src/core/physics/collision.ts
+- [X] T036a [US3] Create unit tests for world-space collision in src/core/physics/collision.test.ts (TEST-FIRST: verify getWorldVertices with rotation/translation, test collisions between rotated shapes at various positions, test near-miss scenarios)
 
 ### Navigation Store Integration
 
-- [ ] T037 [US3] Create shape-based collision check function in navigationStore in src/stores/navigationStore.ts
-- [ ] T038 [US3] Update proximity warning system to use shape collision instead of radius in src/stores/navigationStore.ts
-- [ ] T039 [US3] Add swept collision detection for high-speed movement in src/core/physics/collision.ts
-- [ ] T039a [US3] Create unit tests for swept collision in src/core/physics/collision.test.ts (TEST-FIRST: verify collision detection for fast-moving ships that would tunnel through obstacles, test movement vectors at various speeds)
-- [ ] T040 [US3] Implement collision response with penetration normal for push-out in src/stores/navigationStore.ts
-- [ ] T040a [US3] Create unit tests for navigationStore collision in src/stores/navigationStore.test.ts (TEST-FIRST: verify shape-based proximity warnings, test collision response push-out direction, test ship movement blocked by obstacles)
+- [X] T037 [US3] Create shape-based collision check function in navigationStore in src/stores/navigationStore.ts
+- [X] T038 [US3] Update proximity warning system to use shape collision instead of radius in src/stores/navigationStore.ts
+- [X] T039 [US3] Add swept collision detection for high-speed movement in src/core/physics/collision.ts
+- [X] T039a [US3] Create unit tests for swept collision in src/core/physics/collision.test.ts (TEST-FIRST: verify collision detection for fast-moving ships that would tunnel through obstacles, test movement vectors at various speeds)
+- [X] T040 [US3] Implement collision response with penetration normal for push-out in src/stores/useShipCollision.ts
+- [X] T040a [US3] Create unit tests for navigationStore collision in src/stores/navigationStore.test.ts (TEST-FIRST: verify shape-based proximity warnings, test collision response push-out direction, test ship movement blocked by obstacles)
 
 ### Helm Integration
 
-- [ ] T041 [US3] Update HelmMap.vue to display collision warnings based on shape proximity in src/components/map/HelmMap.vue
-- [ ] T042 [US3] Add visual indicator for collision contact points in src/components/map/HelmMap.vue
+- [X] T041 [US3] Update HelmMap.vue to display collision warnings based on shape proximity in src/components/map/HelmMap.vue
+- [X] T042 [US3] Add visual indicator for collision contact points in src/components/map/HelmMap.vue
 
 **Checkpoint**: Collision detection accurately reflects actual hull boundaries, not bounding circles
 
