@@ -23,6 +23,12 @@ const routes = [
     component: () => import('@/views/SensorsView.vue'),
     meta: { title: 'Sensors', order: 3 }
   },
+  { 
+    path: '/cargo', 
+    name: 'cargo', 
+    component: () => import('@/views/CargoView.vue'),
+    meta: { title: 'Cargo', order: 4 }
+  },
 ];
 
 export const router = createRouter({

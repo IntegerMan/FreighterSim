@@ -3,6 +3,7 @@
     "github.vscode-github-actions",
     "vue.volar",
     "dbaeumer.vscode-eslint",
-    "davidanson.vscode-markdownlint"
+    "davidanson.vscode-markdownlint",
+    "vitest.explorer"
   ]
 }

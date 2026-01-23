@@ -20,6 +20,12 @@ export { createShip, DEFAULT_SHIP, DEFAULT_ENGINES, DEFAULT_SENSORS } from './Sh
 
 export type { Waypoint } from './Waypoint';
 
+export type { CargoItem, CargoType } from './CargoItem';
+export { CARGO_TYPE_COLORS } from './CargoItem';
+
+export type { CargoBay } from './CargoBay';
+export { DEFAULT_CARGO_BAY } from './CargoBay';
+
 
 export type {
   ParticleGridConfig,

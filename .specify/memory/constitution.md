@@ -19,7 +19,7 @@ All UI components use LCARS-inspired design with strict color palette: Purple (#
 
 ## Development Workflow
 
-- **Branching**: Feature branches from `main` with descriptive names based on issue identifiers (`SKY-2-docking-mechanics`, `SKY-3-radar-display`)
+- **Branching**: Feature branches from `main` with descriptive names based on tasks (`feat/docking-mechanics`, `fix/radar-display`).
 - **Code Review**: All PRs require review; constitution principles MUST be verified in review checklist
 - **Commit Messages**: Format: `type(scope): description` (e.g., `feat(navigation): add waypoint autopilot`)
 - **Architecture Decisions**: Non-trivial decisions recorded in ADRs in `/docs/adr/`
