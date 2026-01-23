@@ -117,7 +117,7 @@ function drawGrid() {
         lines = [item.name];
       } else if (words.length >= 2) {
         // Try to split at word boundary
-        let line1 = words[0];
+        let line1 = words[0] || '';
         let line2 = words.slice(1).join(' ');
         
         // If first word is too long, truncate it
