@@ -6,13 +6,9 @@ import { updateMovement } from '@/core/physics';
 import type { GameTime } from '@/core/game-loop';
 
 /**
- * Default cargo items for testing (2x Gold Ore, 1x Medical Supplies)
+ * Default cargo items (empty - cargo must be loaded during gameplay)
  */
-const DEFAULT_CARGO_ITEMS: CargoItem[] = [
-  { id: 'cargo-default-1', name: 'Gold Ore', type: 'mineral' },
-  { id: 'cargo-default-2', name: 'Gold Ore', type: 'mineral' },
-  { id: 'cargo-default-3', name: 'Medical Supplies', type: 'supply' },
-];
+const DEFAULT_CARGO_ITEMS: CargoItem[] = [];
 
 /**
  * Ship state store - manages the player's ship state and movement
@@ -84,7 +80,7 @@ export const useShipStore = defineStore('ship', () => {
 
   function dock(stationId: string) {
     if (speed.value > 5) return false; // Can't dock at high speed
-    
+
     isDocked.value = true;
     dockedAtId.value = stationId;
     targetSpeed.value = 0;

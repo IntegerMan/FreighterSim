@@ -42,9 +42,9 @@ function getTypeName(type: CargoType): string {
     color="gold"
   >
     <div class="cargo-panel">
-      <!-- Capacity Header -->
+      <!-- Bay Status Header -->
       <div class="cargo-panel__header">
-        <span class="cargo-panel__label">CAPACITY</span>
+        <span class="cargo-panel__label">BAY STATUS</span>
         <span 
           class="cargo-panel__status"
           :class="`cargo-panel__status--${capacityStatus}`"
@@ -53,23 +53,10 @@ function getTypeName(type: CargoType): string {
         </span>
       </div>
 
-      <!-- Capacity Gauge -->
-      <div class="cargo-panel__gauge">
-        <LcarsGauge
-          label="Bay Usage"
-          :value="capacityPercent"
-          :max="100"
-          :min="0"
-          :warning-threshold="80"
-          :danger-threshold="95"
-          unit="%"
-        />
-      </div>
-
       <!-- Capacity Stats -->
       <div class="cargo-panel__stats">
         <div class="cargo-panel__stat">
-          <span class="cargo-panel__stat-label">TOTAL</span>
+          <span class="cargo-panel__stat-label">BAY SLOTS</span>
           <span class="cargo-panel__stat-value">{{ totalSlots }}</span>
         </div>
         <div class="cargo-panel__stat">
@@ -85,6 +72,19 @@ function getTypeName(type: CargoType): string {
             {{ availableSlots }}
           </span>
         </div>
+      </div>
+
+      <!-- Capacity Gauge -->
+      <div class="cargo-panel__gauge">
+        <LcarsGauge
+          label="Bay Usage"
+          :value="capacityPercent"
+          :max="100"
+          :min="0"
+          :warning-threshold="80"
+          :danger-threshold="95"
+          unit="%"
+        />
       </div>
 
       <!-- Cargo Type Breakdown -->

@@ -10,8 +10,8 @@ const props = defineProps<{
   loading?: boolean;
 }>();
 
-const slotSize = computed(() => props.slotSize ?? 48);
-const padding = computed(() => props.padding ?? 4);
+const slotSize = computed(() => props.slotSize ?? 72);
+const padding = computed(() => props.padding ?? 6);
 
 const cargoStore = useCargoStore();
 const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -36,6 +36,20 @@ const canvasHeight = computed(() => depth.value * slotSize.value + (depth.value 
  */
 function getCargoColor(type: CargoType): string {
   return CARGO_TYPE_COLORS[type] ?? '#ffffff';
+}
+
+/**
+ * Get icon for cargo type
+ */
+function getCargoIcon(type: CargoType): string {
+  const icons: Record<CargoType, string> = {
+    mineral: '⛏️',
+    supply: '📦',
+    hazmat: '☢',
+    equipment: '🔧',
+    luxury: '💎',
+  };
+  return icons[type] ?? '📦';
 }
 
 /**
@@ -74,23 +88,91 @@ function drawGrid() {
       ctx.fillStyle = getCargoColor(item.type);
       ctx.fillRect(pos.x, pos.y, slotSize.value, slotSize.value);
 
-      // Draw item name in the center (dark text on light backgrounds)
-      ctx.fillStyle = '#000000';
-      ctx.font = `bold ${Math.max(10, slotSize.value * 0.2)}px sans-serif`;
+      // Draw icon (fixed position in upper portion)
+      const iconSize = Math.max(24, slotSize.value * 0.4);
+      ctx.font = `${iconSize}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(
+        getCargoIcon(item.type),
+        pos.x + slotSize.value / 2,
+        pos.y + slotSize.value * 0.32
+      );
+
+      // Draw item name (supports two lines below icon)
+      const fontSize = Math.max(9, slotSize.value * 0.13);
+      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
-      // Truncate name if too long
-      const maxChars = Math.floor(slotSize.value / 8);
-      const displayName = item.name.length > maxChars 
-        ? item.name.substring(0, maxChars - 1) + '…' 
-        : item.name;
+      // Calculate max chars per line based on box width
+      const maxCharsPerLine = Math.floor(slotSize.value / 5.5);
       
-      ctx.fillText(
-        displayName,
-        pos.x + slotSize.value / 2,
-        pos.y + slotSize.value / 2
-      );
+      // Split text into lines
+      let lines: string[] = [];
+      const words = item.name.split(' ');
+      
+      if (item.name.length <= maxCharsPerLine) {
+        // Fits on one line
+        lines = [item.name];
+      } else if (words.length >= 2) {
+        // Try to split at word boundary
+        let line1 = words[0];
+        let line2 = words.slice(1).join(' ');
+        
+        // If first word is too long, truncate it
+        if (line1.length > maxCharsPerLine) {
+          line1 = line1.substring(0, maxCharsPerLine - 1) + '…';
+          line2 = '';
+        }
+        // If second line is too long, truncate it
+        if (line2.length > maxCharsPerLine) {
+          line2 = line2.substring(0, maxCharsPerLine - 1) + '…';
+        }
+        
+        lines = line2 ? [line1, line2] : [line1];
+      } else {
+        // Single long word - split in middle
+        const mid = Math.floor(item.name.length / 2);
+        let line1 = item.name.substring(0, mid);
+        let line2 = item.name.substring(mid);
+        
+        if (line1.length > maxCharsPerLine) {
+          line1 = line1.substring(0, maxCharsPerLine - 1) + '…';
+        }
+        if (line2.length > maxCharsPerLine) {
+          line2 = line2.substring(0, maxCharsPerLine - 1) + '…';
+        }
+        
+        lines = [line1, line2];
+      }
+      
+      // Calculate line positions (centered in lower portion)
+      const lineHeight = fontSize * 1.2;
+      const textAreaTop = pos.y + slotSize.value * 0.62;
+      const totalTextHeight = lines.length * lineHeight;
+      const startY = textAreaTop + (slotSize.value * 0.35 - totalTextHeight) / 2;
+      
+      // Draw each line with shadow
+      lines.forEach((line, index) => {
+        const lineY = startY + index * lineHeight;
+        
+        // Draw text shadow for better readability
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fillText(
+          line,
+          pos.x + slotSize.value / 2 + 1,
+          lineY + 1
+        );
+        
+        // Draw main text
+        ctx.fillStyle = '#000000';
+        ctx.fillText(
+          line,
+          pos.x + slotSize.value / 2,
+          lineY
+        );
+      });
 
       // Draw highlight if hovered
       if (hoveredItem.value?.id === item.id) {
