@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { SensorPanel } from '@/components/panels';
-import { LcarsFrame } from '@/components/ui';
+import { LcarsFrame, LcarsButton } from '@/components/ui';
 import { RadarDisplay, TraceParticlesDisplay } from '@/components/sensors';
 import { useSensorStore, useShipStore, useParticleStore } from '@/stores';
 
@@ -9,8 +9,12 @@ const sensorStore = useSensorStore();
 const shipStore = useShipStore();
 const particleStore = useParticleStore();
 
+// Debug toggle state
+const showDebugRays = ref(false);
+
 // Computed props for displays
 const radarSegments = computed(() => sensorStore.radarSegments);
+const contacts = computed(() => sensorStore.contacts);
 const sensorRange = computed(() => sensorStore.sensorRange);
 const proximityDisplayRange = computed(() => sensorStore.proximityDisplayRange);
 const shipHeading = computed(() => shipStore.heading);
@@ -22,6 +26,11 @@ const particleMaxDensity = computed(() => particleStore.config.maxDensity);
 // Handle contact selection from radar
 function handleSelectContact(contactId: string) {
   sensorStore.selectContact(contactId);
+}
+
+// Toggle debug visualization
+function toggleDebugRays() {
+  showDebugRays.value = !showDebugRays.value;
 }
 </script>
 
@@ -43,9 +52,11 @@ function handleSelectContact(contactId: string) {
       >
         <RadarDisplay
           :segments="radarSegments"
+          :contacts="contacts"
           :range="sensorRange"
           :display-range="proximityDisplayRange"
           :ship-heading="shipHeading"
+          :show-occlusion-rays="showDebugRays"
           @select-contact="handleSelectContact"
         />
       </LcarsFrame>
@@ -72,6 +83,16 @@ function handleSelectContact(contactId: string) {
     <!-- Station Title -->
     <div class="sensors-view__title">
       <span class="sensors-view__title-text">SENSOR STATION</span>
+      <div class="sensors-view__debug-controls">
+        <LcarsButton
+          size="sm"
+          :color="showDebugRays ? 'gold' : 'purple'"
+          :active="showDebugRays"
+          @click="toggleDebugRays"
+        >
+          {{ showDebugRays ? 'RAYS ON' : 'RAYS OFF' }}
+        </LcarsButton>
+      </div>
     </div>
   </div>
 </template>
@@ -98,6 +119,7 @@ function handleSelectContact(contactId: string) {
     padding: $space-xs $space-md;
     background-color: $color-info-dim;
     border-radius: $radius-md;
+    gap: $space-md;
   }
 
   &__title-text {
@@ -107,6 +129,12 @@ function handleSelectContact(contactId: string) {
     color: $color-white;
     text-transform: uppercase;
     letter-spacing: 0.15em;
+  }
+
+  &__debug-controls {
+    display: flex;
+    gap: $space-sm;
+    margin-left: auto;
   }
 
   &__display {

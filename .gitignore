@@ -27,3 +27,5 @@ lint-output.txt
 test-output.txt
 test-results/*
 playwright-report/index.html
+
+nul

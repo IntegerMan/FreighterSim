@@ -4,7 +4,7 @@ import { useShipStore, useSensorStore, useNavigationStore } from '@/stores';
 import { HelmMap } from '@/components/map';
 import { LcarsButton, HeadingGauge, SpeedSlider } from '@/components/ui';
 import { CompactRadar } from '@/components/sensors';
-import { formatDistance } from '@/models';
+import { formatDistance, getDockingRange, getAlignmentTolerance } from '@/models';
 
 const shipStore = useShipStore();
 const sensorStore = useSensorStore();
@@ -51,8 +51,67 @@ const dockedStation = computed(() => {
   return navStore.stations.find(s => s.id === shipStore.dockedAtId);
 });
 
+// T049: Docking port status for selected station
+const selectedStationDockingStatus = computed(() => {
+  const station = navStore.selectedStation;
+  if (!station) return null;
+  
+  return navStore.checkDockingPortAvailability(
+    station,
+    shipStore.position,
+    shipStore.heading
+  );
+});
+
+// Determine if docking should use new port-based system
+const useDockingPorts = computed(() => {
+  return selectedStationDockingStatus.value?.port !== null;
+});
+
+// Updated canDock that considers port alignment (T050)
+const canDockAtPort = computed(() => {
+  if (shipStore.isDocked) return false;
+  if (Math.abs(shipStore.speed) > 5) return false;
+  if (!selectedStationDockingStatus.value) return false;
+  return selectedStationDockingStatus.value.available;
+});
+
+// Enhanced docking status message
+const dockingStatusMessage = computed(() => {
+  if (shipStore.isDocked) return 'DOCKED';
+  
+  const status = selectedStationDockingStatus.value;
+  if (!status) return dockingStatus.value === 'no-station' ? 'NO STATION' : 'SELECT STATION';
+  
+  if (status.available) return 'READY TO DOCK';
+  if (status.reason) return status.reason.toUpperCase();
+  return 'ALIGNING...';
+});
+
+// Docking port info for display
+const dockingPortInfo = computed(() => {
+  const status = selectedStationDockingStatus.value;
+  if (!status || !status.port) return null;
+  
+  return {
+    portId: status.port.id,
+    distance: status.distance,
+    range: getDockingRange(status.port),
+    alignmentAngle: status.alignmentAngle,
+    tolerance: getAlignmentTolerance(status.port),
+    inRange: status.inRange,
+    headingAligned: status.headingAligned,
+    approachAligned: status.approachAligned,
+    available: status.available,
+  };
+});
+
 function handleDock() {
-  if (canDock.value && nearestStation.value) {
+  // T050: Use port-based docking if available
+  if (canDockAtPort.value && navStore.selectedStation) {
+    shipStore.dock(navStore.selectedStation.id);
+  } else if (canDock.value && nearestStation.value) {
+    // Fallback to legacy docking
     shipStore.dock(nearestStation.value.id);
   }
 }
@@ -182,6 +241,7 @@ function handleRadarSelect(contactId: string) {
           <div class="helm-view__radar-container">
             <CompactRadar
               :segments="sensorStore.radarSegments"
+              :contacts="sensorStore.contacts"
               :range="sensorStore.sensorRange"
               :display-range="sensorStore.proximityDisplayRange"
               :ship-heading="shipStore.heading"
@@ -200,6 +260,69 @@ function handleRadarSelect(contactId: string) {
             >
               {{ formatDistance(nearestStation.distance) }}
             </span>
+          </div>
+        </div>
+
+        <!-- T049: Docking Status Indicator -->
+        <div
+          v-if="navStore.selectedStation && !shipStore.isDocked"
+          class="helm-view__section"
+        >
+          <div class="helm-view__section-header">
+            Docking Status
+          </div>
+          <div class="helm-view__docking-status">
+            <div class="helm-view__docking-station">
+              {{ navStore.selectedStation.name }}
+            </div>
+            <div
+              class="helm-view__docking-message"
+              :class="{
+                'helm-view__docking-message--ready': dockingPortInfo?.available,
+                'helm-view__docking-message--warning': !dockingPortInfo?.available && dockingPortInfo
+              }"
+            >
+              {{ dockingStatusMessage }}
+            </div>
+            <div
+              v-if="dockingPortInfo"
+              class="helm-view__docking-details"
+            >
+              <div class="helm-view__docking-row">
+                <span class="helm-view__docking-label">Distance:</span>
+                <span
+                  class="helm-view__docking-value"
+                  :class="{ 'helm-view__docking-value--ok': dockingPortInfo.inRange }"
+                >
+                  {{ Math.round(dockingPortInfo.distance) }} / {{ dockingPortInfo.range }}
+                </span>
+              </div>
+              <div class="helm-view__docking-row">
+                <span class="helm-view__docking-label">Alignment:</span>
+                <span
+                  class="helm-view__docking-value"
+                  :class="{ 'helm-view__docking-value--ok': dockingPortInfo.headingAligned }"
+                >
+                  {{ Math.round(dockingPortInfo.alignmentAngle) }}° / {{ dockingPortInfo.tolerance }}°
+                </span>
+              </div>
+              <div class="helm-view__docking-row">
+                <span class="helm-view__docking-label">Approach:</span>
+                <span
+                  class="helm-view__docking-value"
+                  :class="{ 'helm-view__docking-value--ok': dockingPortInfo.approachAligned }"
+                >
+                  {{ dockingPortInfo.approachAligned ? 'OK' : 'ADJUST' }}
+                </span>
+              </div>
+            </div>
+            <LcarsButton
+              v-if="canDockAtPort"
+              label="DOCK"
+              color="success"
+              full-width
+              @click="handleDock"
+            />
           </div>
         </div>
 
@@ -401,6 +524,76 @@ function handleRadarSelect(contactId: string) {
     color: $color-warning;
 
     &--in-range {
+      color: $color-success;
+    }
+  }
+
+  // T049: Docking Status Indicator styles
+  &__docking-status {
+    display: flex;
+    flex-direction: column;
+    gap: $space-xs;
+  }
+
+  &__docking-station {
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $color-gold;
+    text-align: center;
+    padding-bottom: $space-xs;
+    border-bottom: 1px solid rgba($color-gold, 0.3);
+  }
+
+  &__docking-message {
+    font-family: $font-display;
+    font-size: 10px;
+    text-align: center;
+    padding: $space-xs;
+    border-radius: $radius-sm;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background-color: rgba($color-purple, 0.2);
+    color: $color-purple;
+
+    &--ready {
+      background-color: rgba($color-success, 0.2);
+      color: $color-success;
+    }
+
+    &--warning {
+      background-color: rgba($color-warning, 0.2);
+      color: $color-warning;
+    }
+  }
+
+  &__docking-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: $space-xs;
+    background-color: rgba($color-black, 0.3);
+    border-radius: $radius-sm;
+  }
+
+  &__docking-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  &__docking-label {
+    font-family: $font-display;
+    font-size: 9px;
+    color: $color-gray;
+    text-transform: uppercase;
+  }
+
+  &__docking-value {
+    font-family: $font-mono;
+    font-size: 10px;
+    color: $color-warning;
+
+    &--ok {
       color: $color-success;
     }
   }

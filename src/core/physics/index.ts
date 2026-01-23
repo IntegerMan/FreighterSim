@@ -41,3 +41,19 @@ export {
   checkCirclePolygonCollision,
   checkSweptCollision,
 } from './collision';
+
+// T053: Raycasting utilities
+export {
+  rayPolygonIntersection,
+  raySegmentIntersection,
+  rayShapeIntersection,
+  raycast,
+  raycastAll,
+  createRay,
+  hasLineOfSight,
+  calculateVisibility,
+  getWorldVertices as getRaycastWorldVertices, // Alias to avoid conflict with collision.ts
+  type Ray,
+  type RayHit,
+  type RaycastTarget,
+} from './raycasting';

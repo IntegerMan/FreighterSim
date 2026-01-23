@@ -26,9 +26,9 @@ import {
   type CameraState,
 } from '@/core/rendering';
 import { Starfield, createDefaultStarfieldConfig } from '@/core/starfield';
-import { getShipTemplate, getStationTemplateById } from '@/data/shapes';
+import { getShipTemplate, getStationTemplateById, getStationModule } from '@/data/shapes';
 import type { Vector2, Station, Planet, JumpGate } from '@/models';
-import { getThreatLevelColor } from '@/models';
+import { getThreatLevelColor, getDockingRange, getAlignmentTolerance } from '@/models';
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const containerRef = ref<HTMLDivElement | null>(null);
@@ -86,6 +86,15 @@ const COLLISION_COLORS: Record<CollisionWarningLevel, string> = {
   caution: '#FFCC00',    // Yellow
   warning: '#FF6600',    // Orange
   danger: '#FF0000',     // Red
+};
+
+// Docking guidance colors (T048)
+const DOCKING_COLORS = {
+  portAvailable: '#00FF99',      // Green - port is available
+  portUnavailable: '#FF6666',    // Red - alignment issues
+  approachLine: '#00FF99',       // Green approach guide line
+  alignmentArc: '#00CCFF',       // Blue alignment indicator
+  rangeCircle: 'rgba(0, 255, 153, 0.3)', // Green range indicator
 };
 
 function render() {
@@ -171,6 +180,9 @@ function render() {
   collision.updateCollisionWarnings();
   drawCollisionWarnings(ctx);
 
+  // Draw docking approach guidance (T048)
+  drawDockingApproachGuidance(ctx);
+
   // Check if waypoint reached
   navStore.checkWaypointReached(shipStore.position);
 }
@@ -183,8 +195,9 @@ function drawRadarOverlay(ctx: CanvasRenderingContext2D) {
   for (const segment of sensorStore.radarSegments) {
     if (segment.threatLevel === 'none' || !segment.nearestContact) continue;
 
-    const startRad = (segment.startAngle * Math.PI) / 180;
-    const endRad = (segment.endAngle * Math.PI) / 180;
+    // Convert from North-Up (0°=N) to canvas arc (0°=E) per ADR-0011
+    const startRad = northUpToCanvasArcRad(segment.startAngle);
+    const endRad = northUpToCanvasArcRad(segment.endAngle);
     const distanceRatio = Math.min(segment.nearestContact.distance / displayRange, 1);
     const segmentRadius = screenRange * distanceRatio;
 
@@ -353,6 +366,137 @@ function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   ctx.textAlign = 'center';
   const labelOffset = template ? stationScale * zoom.value + 14 : 24;
   ctx.fillText(station.name, screenPos.x, screenPos.y + labelOffset);
+}
+
+/**
+ * T048: Draw docking approach guidance overlay
+ * Shows approach guide lines and alignment indicators when near a station
+ */
+function drawDockingApproachGuidance(ctx: CanvasRenderingContext2D) {
+  // Only show guidance when a station is selected
+  const selectedStation = navStore.selectedStation;
+  if (!selectedStation) return;
+
+  // Check docking port availability
+  const dockingStatus = navStore.checkDockingPortAvailability(
+    selectedStation,
+    shipStore.position,
+    shipStore.heading
+  );
+
+  if (!dockingStatus.port || !dockingStatus.portWorldPosition) return;
+
+  // Only show guidance when reasonably close (within 3x docking range)
+  const portRange = getDockingRange(dockingStatus.port);
+  if (dockingStatus.distance > portRange * 3) return;
+
+  const shipScreenPos = worldToScreen(shipStore.position, camera.value);
+  const portScreenPos = worldToScreen(dockingStatus.portWorldPosition, camera.value);
+
+  // Get station template to calculate approach vector in world space
+  const templateId = selectedStation.templateId ?? selectedStation.type;
+  const template = getStationTemplateById(templateId);
+  if (!template) return;
+
+  // Find the docking port's world approach vector
+  const stationRotationRad = ((selectedStation.rotation ?? 0) * Math.PI) / 180;
+  let worldApproachVector = { x: 0, y: 0 };
+
+  for (const modulePlacement of template.modules) {
+    const module = getStationModule(modulePlacement.moduleType);
+    if (!module?.dockingPorts) continue;
+
+    const moduleRotationRad = (modulePlacement.rotation * Math.PI) / 180;
+    const totalRotation = stationRotationRad + moduleRotationRad;
+
+    for (const port of module.dockingPorts) {
+      if (port.id === dockingStatus.port.id) {
+        worldApproachVector = {
+          x: port.approachVector.x * Math.cos(totalRotation) - port.approachVector.y * Math.sin(totalRotation),
+          y: port.approachVector.x * Math.sin(totalRotation) + port.approachVector.y * Math.cos(totalRotation),
+        };
+        break;
+      }
+    }
+  }
+
+  // Draw docking range circle around port
+  const screenRange = portRange * zoom.value;
+  ctx.strokeStyle = dockingStatus.inRange ? DOCKING_COLORS.portAvailable : DOCKING_COLORS.portUnavailable;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.arc(portScreenPos.x, portScreenPos.y, screenRange, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Draw approach guide line (from far away toward the port)
+  const guideLineLength = portRange * 2 * zoom.value;
+  const approachStartX = portScreenPos.x + worldApproachVector.x * guideLineLength;
+  const approachStartY = portScreenPos.y - worldApproachVector.y * guideLineLength; // Flip Y
+
+  ctx.strokeStyle = dockingStatus.approachAligned ? DOCKING_COLORS.approachLine : 'rgba(255, 102, 102, 0.5)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 5]);
+  ctx.beginPath();
+  ctx.moveTo(approachStartX, approachStartY);
+  ctx.lineTo(portScreenPos.x, portScreenPos.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Draw alignment indicator arc showing acceptable heading range
+  const tolerance = getAlignmentTolerance(dockingStatus.port);
+  const indicatorRadius = Math.min(40, screenRange * 0.8);
+  
+  // Calculate the required heading (ship should face opposite to approach vector)
+  const requiredHeadingRad = Math.atan2(-worldApproachVector.x, -worldApproachVector.y);
+  const toleranceRad = (tolerance * Math.PI) / 180;
+
+  // Draw acceptable heading arc at ship position
+  ctx.strokeStyle = dockingStatus.headingAligned ? DOCKING_COLORS.alignmentArc : DOCKING_COLORS.portUnavailable;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  // Arc centered on ship, showing acceptable heading range
+  // Convert from heading (0 = north) to canvas angle (0 = east, counterclockwise)
+  const canvasAngle = -requiredHeadingRad + Math.PI / 2;
+  ctx.arc(
+    shipScreenPos.x,
+    shipScreenPos.y,
+    indicatorRadius,
+    canvasAngle - toleranceRad,
+    canvasAngle + toleranceRad
+  );
+  ctx.stroke();
+
+  // Draw current heading indicator
+  const headingRad = (shipStore.heading * Math.PI) / 180;
+  const headingCanvasAngle = -Math.atan2(Math.sin(headingRad), Math.cos(headingRad)) + Math.PI / 2;
+  const headingIndicatorX = shipScreenPos.x + Math.cos(-headingRad + Math.PI / 2) * indicatorRadius;
+  const headingIndicatorY = shipScreenPos.y + Math.sin(-headingRad + Math.PI / 2) * indicatorRadius;
+
+  ctx.fillStyle = dockingStatus.headingAligned ? DOCKING_COLORS.portAvailable : DOCKING_COLORS.portUnavailable;
+  ctx.beginPath();
+  ctx.arc(headingIndicatorX, headingIndicatorY, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Draw port marker
+  ctx.fillStyle = dockingStatus.available ? DOCKING_COLORS.portAvailable : DOCKING_COLORS.portUnavailable;
+  ctx.beginPath();
+  ctx.arc(portScreenPos.x, portScreenPos.y, 6, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Draw status text
+  if (dockingStatus.reason) {
+    ctx.fillStyle = DOCKING_COLORS.portUnavailable;
+    ctx.font = '10px "Share Tech Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(dockingStatus.reason, portScreenPos.x, portScreenPos.y - screenRange - 10);
+  } else if (dockingStatus.available) {
+    ctx.fillStyle = DOCKING_COLORS.portAvailable;
+    ctx.font = '10px "Share Tech Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('DOCKING AVAILABLE', portScreenPos.x, portScreenPos.y - screenRange - 10);
+  }
 }
 
 function drawJumpGate(ctx: CanvasRenderingContext2D, gate: JumpGate) {

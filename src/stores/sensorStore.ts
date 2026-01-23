@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { Contact, RadarSegment, Vector2 } from '@/models';
+import type { Contact, RadarSegment, Vector2, Shape } from '@/models';
 import { createContact, updateContactRelative, getThreatLevelFromDistance } from '@/models';
 import { useShipStore } from './shipStore';
 import { useNavigationStore } from './navigationStore';
 import { useSettingsStore } from './settingsStore';
 import type { GameTime } from '@/core/game-loop';
+import { hasLineOfSight } from '@/core/physics/raycasting';
+import type { RaycastTarget } from '@/core/physics/raycasting';
 
 /**
  * Angular extent of an object as seen from the ship
@@ -29,8 +31,9 @@ function getObjectAngularExtent(
   const dy = contactPosition.y - shipPosition.y;
   const centerDistance = Math.sqrt(dx * dx + dy * dy);
   
-  // Bearing to center
-  let centerBearing = Math.atan2(dy, dx) * (180 / Math.PI);
+  // Bearing to center - use atan2(dx, dy) for North-Up coordinate system per ADR-0011
+  // 0° = North (+Y), 90° = East (+X), 180° = South, 270° = West
+  let centerBearing = Math.atan2(dx, dy) * (180 / Math.PI);
   if (centerBearing < 0) centerBearing += 360;
   
   // Angular half-width based on apparent size
@@ -80,6 +83,114 @@ function extentOverlapsSegment(
 }
 
 /**
+ * Generate vertices for a regular polygon approximating a circle (normalized coords)
+ */
+function generateCircleVertices(sides: number): Vector2[] {
+  const vertices: Vector2[] = [];
+  for (let i = 0; i < sides; i++) {
+    const angle = (i / sides) * Math.PI * 2;
+    vertices.push({
+      x: Math.cos(angle),
+      y: Math.sin(angle),
+    });
+  }
+  return vertices;
+}
+
+/**
+ * Create a circular Shape for occlusion calculations
+ */
+function createCircleShape(id: string, sides: number = 8): Shape {
+  return {
+    id,
+    name: `Circle-${id}`,
+    vertices: generateCircleVertices(sides),
+    boundingRadius: 1,
+  };
+}
+
+/**
+ * Convert a Contact to a RaycastTarget for occlusion calculation
+ */
+function contactToRaycastTarget(contact: Contact): RaycastTarget {
+  return {
+    id: contact.id,
+    position: contact.position,
+    rotation: 0,
+    scale: contact.radius,
+    shape: createCircleShape(contact.id),
+  };
+}
+
+/**
+ * Calculate visibility for a contact considering occlusion from other objects
+ * Returns { visibility: number, occludedBy?: string }
+ */
+function calculateContactVisibility(
+  contact: Contact,
+  shipPosition: Vector2,
+  allContacts: Contact[]
+): { visibility: number; occludedBy?: string } {
+  // Build blocking targets (all contacts except this one)
+  const blockingTargets = allContacts
+    .filter(c => c.id !== contact.id)
+    .map(contactToRaycastTarget);
+  
+  if (blockingTargets.length === 0) {
+    return { visibility: 1 };
+  }
+  
+  // Sample multiple points around the contact to determine visibility
+  const sampleCount = 5;
+  const sampleRadius = contact.radius * 0.8;
+  let visibleCount = 0;
+  let occluder: string | undefined;
+  
+  // Check center point
+  if (hasLineOfSight(shipPosition, contact.position, blockingTargets)) {
+    visibleCount++;
+  }
+  
+  // Check sample points around the edge
+  for (let i = 0; i < sampleCount; i++) {
+    const angle = (i / sampleCount) * Math.PI * 2;
+    const samplePoint: Vector2 = {
+      x: contact.position.x + Math.cos(angle) * sampleRadius,
+      y: contact.position.y + Math.sin(angle) * sampleRadius,
+    };
+    
+    if (hasLineOfSight(shipPosition, samplePoint, blockingTargets)) {
+      visibleCount++;
+    }
+  }
+  
+  const visibility = visibleCount / (sampleCount + 1);
+  
+  // Find which object is blocking (if any) - check if center ray is blocked
+  if (visibility < 1) {
+    const targetDistance = Math.hypot(
+      contact.position.x - shipPosition.x,
+      contact.position.y - shipPosition.y
+    );
+    
+    // Find which target blocks the ray (closest one between ship and contact)
+    for (const target of blockingTargets) {
+      const toTarget = Math.hypot(
+        target.position.x - shipPosition.x,
+        target.position.y - shipPosition.y
+      );
+      // If this target is closer than the contact, it might be blocking
+      if (toTarget < targetDistance) {
+        occluder = target.id;
+        break;
+      }
+    }
+  }
+  
+  return { visibility, occludedBy: occluder };
+}
+
+/**
  * Sensor store - manages sensor contacts and detection
  */
 export const useSensorStore = defineStore('sensor', () => {
@@ -115,6 +226,27 @@ export const useSensorStore = defineStore('sensor', () => {
 
   const planetContacts = computed(() => {
     return contacts.value.filter(c => c.type === 'planet');
+  });
+
+  /**
+   * Contacts that are fully or mostly visible (visibility >= 0.5)
+   */
+  const visibleContacts = computed(() => {
+    return contacts.value.filter(c => c.visibility >= 0.5);
+  });
+
+  /**
+   * Contacts that are partially or fully occluded (visibility < 1)
+   */
+  const occludedContacts = computed(() => {
+    return contacts.value.filter(c => c.visibility < 1);
+  });
+
+  /**
+   * Contacts that are fully occluded (visibility === 0)
+   */
+  const fullyOccludedContacts = computed(() => {
+    return contacts.value.filter(c => c.visibility === 0);
   });
 
   const selectedContact = computed(() => {
@@ -305,6 +437,18 @@ export const useSensorStore = defineStore('sensor', () => {
       newContacts.push(contact);
     }
 
+    // Calculate occlusion for each contact using raycasting
+    // Calculate visibility for each contact
+    for (const contact of newContacts) {
+      const { visibility, occludedBy } = calculateContactVisibility(
+        contact,
+        shipPosition,
+        newContacts
+      );
+      contact.visibility = visibility;
+      contact.occludedBy = occludedBy;
+    }
+
     contacts.value = newContacts;
   }
 
@@ -347,6 +491,9 @@ export const useSensorStore = defineStore('sensor', () => {
     nearestContact,
     stationContacts,
     planetContacts,
+    visibleContacts,
+    occludedContacts,
+    fullyOccludedContacts,
     selectedContact,
     radarSegments,
     proximityDisplayRange,

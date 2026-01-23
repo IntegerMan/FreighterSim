@@ -1,4 +1,5 @@
 export * from './mapUtils';
+export * from './radarUtils';
 
 // Shape rendering utilities
 export {

@@ -14,8 +14,9 @@ import {
   renderStationWithLOD,
 } from '@/core/rendering';
 import { Starfield, createDefaultStarfieldConfig } from '@/core/starfield';
-import { getShipTemplate, getStationTemplateById } from '@/data/shapes';
+import { getShipTemplate, getStationTemplateById, getStationModule } from '@/data/shapes';
 import type { Vector2, Station, Planet, JumpGate } from '@/models';
+import { getDockingRange } from '@/models';
 
 // Colors matching our design system
 const COLORS = {
@@ -31,6 +32,8 @@ const COLORS = {
   orbit: '#333333',
   selected: '#9966FF',
   dockingRange: 'rgba(153, 102, 255, 0.2)',
+  dockingPort: '#00FF99',           // Green for available docking ports
+  dockingPortApproach: '#00FF99',   // Arrow showing approach direction
 };
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -356,6 +359,95 @@ function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   ctx.font = '11px "Share Tech Mono", monospace';
   ctx.textAlign = 'center';
   ctx.fillText(station.name, screenPos.x, screenPos.y + (template ? template.boundingRadius * stationScale * zoom.value : 10) + 14);
+
+  // Draw docking port indicators (T047)
+  if (template && isSelected) {
+    drawDockingPorts(ctx, station, stationScale, stationRotation);
+  }
+}
+
+/**
+ * T047: Draw visual docking port indicators on station
+ * Shows port locations and approach vectors when station is selected
+ */
+function drawDockingPorts(
+  ctx: CanvasRenderingContext2D,
+  station: Station,
+  stationScale: number,
+  stationRotation: number
+) {
+  const templateId = station.templateId ?? station.type;
+  const template = getStationTemplateById(templateId);
+  if (!template) return;
+
+  const stationRotationRad = (stationRotation * Math.PI) / 180;
+
+  // Find docking modules in the template
+  for (const modulePlacement of template.modules) {
+    const module = getStationModule(modulePlacement.moduleType);
+    if (!module?.dockingPorts) continue;
+
+    const moduleRotationRad = (modulePlacement.rotation * Math.PI) / 180;
+    const totalRotation = stationRotationRad + moduleRotationRad;
+
+    for (const port of module.dockingPorts) {
+      // Transform port position from module local → station local → world
+      const moduleLocalX = port.position.x * Math.cos(moduleRotationRad) - port.position.y * Math.sin(moduleRotationRad);
+      const moduleLocalY = port.position.x * Math.sin(moduleRotationRad) + port.position.y * Math.cos(moduleRotationRad);
+      
+      // Add module offset (module scale = 40 world units per normalized unit)
+      const stationLocalX = moduleLocalX * 40 + modulePlacement.position.x;
+      const stationLocalY = moduleLocalY * 40 + modulePlacement.position.y;
+      
+      // Rotate by station rotation and add station position
+      const worldX = stationLocalX * Math.cos(stationRotationRad) - stationLocalY * Math.sin(stationRotationRad) + station.position.x;
+      const worldY = stationLocalX * Math.sin(stationRotationRad) + stationLocalY * Math.cos(stationRotationRad) + station.position.y;
+
+      // Transform approach vector
+      const approachX = port.approachVector.x * Math.cos(totalRotation) - port.approachVector.y * Math.sin(totalRotation);
+      const approachY = port.approachVector.x * Math.sin(totalRotation) + port.approachVector.y * Math.cos(totalRotation);
+
+      // Convert to screen coordinates
+      const screenPos = worldToScreen({ x: worldX, y: worldY });
+      
+      // Draw port marker (small circle)
+      const portSize = Math.max(4, 6 * zoom.value);
+      ctx.fillStyle = COLORS.dockingPort;
+      ctx.beginPath();
+      ctx.arc(screenPos.x, screenPos.y, portSize, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw approach direction arrow
+      const dockingRange = getDockingRange(port);
+      const arrowLength = Math.min(30, dockingRange * zoom.value * 0.5);
+      const arrowEndX = screenPos.x + approachX * arrowLength;
+      const arrowEndY = screenPos.y - approachY * arrowLength; // Flip Y for screen coords
+
+      ctx.strokeStyle = COLORS.dockingPortApproach;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(screenPos.x, screenPos.y);
+      ctx.lineTo(arrowEndX, arrowEndY);
+      ctx.stroke();
+
+      // Draw arrowhead
+      const arrowHeadSize = 6;
+      const angle = Math.atan2(-approachY, approachX); // Note: -Y for screen coords
+      ctx.beginPath();
+      ctx.moveTo(arrowEndX, arrowEndY);
+      ctx.lineTo(
+        arrowEndX - arrowHeadSize * Math.cos(angle - Math.PI / 6),
+        arrowEndY - arrowHeadSize * Math.sin(angle - Math.PI / 6)
+      );
+      ctx.lineTo(
+        arrowEndX - arrowHeadSize * Math.cos(angle + Math.PI / 6),
+        arrowEndY - arrowHeadSize * Math.sin(angle + Math.PI / 6)
+      );
+      ctx.closePath();
+      ctx.fillStyle = COLORS.dockingPortApproach;
+      ctx.fill();
+    }
+  }
 }
 
 function drawJumpGate(ctx: CanvasRenderingContext2D, gate: JumpGate) {

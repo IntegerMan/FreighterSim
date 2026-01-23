@@ -154,17 +154,17 @@
 
 ### Docking Port System
 
-- [ ] T043 [US4] Create docking port availability check function in src/stores/navigationStore.ts
-- [ ] T044 [US4] Implement approach vector alignment validation in src/stores/navigationStore.ts
-- [ ] T045 [US4] Implement heading alignment tolerance check in src/stores/navigationStore.ts
-- [ ] T046 [US4] Implement docking range distance check in src/stores/navigationStore.ts
+- [X] T043 [US4] Create docking port availability check function in src/stores/navigationStore.ts
+- [X] T044 [US4] Implement approach vector alignment validation in src/stores/navigationStore.ts
+- [X] T045 [US4] Implement heading alignment tolerance check in src/stores/navigationStore.ts
+- [X] T046 [US4] Implement docking range distance check in src/stores/navigationStore.ts
 
 ### Docking UI Integration
 
-- [ ] T047 [US4] Add visual docking port indicators to station rendering in src/components/map/SystemMap.vue
-- [ ] T048 [US4] Create docking approach guidance overlay in src/components/map/HelmMap.vue
-- [ ] T049 [US4] Add docking status indicator to HelmView showing alignment/distance in src/views/HelmView.vue
-- [ ] T050 [US4] Update docking action to validate port alignment before allowing dock in src/stores/navigationStore.ts
+- [X] T047 [US4] Add visual docking port indicators to station rendering in src/components/map/SystemMap.vue
+- [X] T048 [US4] Create docking approach guidance overlay in src/components/map/HelmMap.vue
+- [X] T049 [US4] Add docking status indicator to HelmView showing alignment/distance in src/views/HelmView.vue
+- [X] T050 [US4] Update docking action to validate port alignment before allowing dock in src/stores/navigationStore.ts
 
 **Checkpoint**: Docking only succeeds when properly aligned with a designated docking port
 
@@ -178,24 +178,24 @@
 
 ### Raycasting Implementation
 
-- [ ] T051 [US5] Create ray-polygon intersection function in src/core/physics/raycasting.ts
-- [ ] T051a [US5] Create unit tests for ray-polygon intersection in src/core/physics/raycasting.test.ts (TEST-FIRST: ray hits polygon, ray misses polygon, ray origin inside polygon, ray tangent to edge, ray parallel to edge)
-- [ ] T052 [US5] Create raycast against all objects function with nearest-hit detection in src/core/physics/raycasting.ts
-- [ ] T052a [US5] Create unit tests for multi-object raycast in src/core/physics/raycasting.test.ts (TEST-FIRST: nearest hit returned, multiple hits ordered by distance, no hits returns null)
-- [ ] T053 [US5] Export raycasting utilities from src/core/physics/index.ts
+- [X] T051 [US5] Create ray-polygon intersection function in src/core/physics/raycasting.ts
+- [X] T051a [US5] Create unit tests for ray-polygon intersection in src/core/physics/raycasting.test.ts (TEST-FIRST: ray hits polygon, ray misses polygon, ray origin inside polygon, ray tangent to edge, ray parallel to edge)
+- [X] T052 [US5] Create raycast against all objects function with nearest-hit detection in src/core/physics/raycasting.ts
+- [X] T052a [US5] Create unit tests for multi-object raycast in src/core/physics/raycasting.test.ts (TEST-FIRST: nearest hit returned, multiple hits ordered by distance, no hits returns null)
+- [X] T053 [US5] Export raycasting utilities from src/core/physics/index.ts
 
 ### Sensor Integration
 
-- [ ] T054 [US5] Update sensorStore to use raytracing for contact detection in src/stores/sensorStore.ts
-- [ ] T055 [US5] Implement sensor occlusion calculation based on blocking objects in src/stores/sensorStore.ts
-- [ ] T056 [US5] Add partial occlusion detection for partially visible contacts in src/stores/sensorStore.ts
-- [ ] T056a [US5] Create unit tests for sensor occlusion in src/stores/sensorStore.test.ts (TEST-FIRST: verify full occlusion when object blocks sensor ray, partial occlusion for large objects, no occlusion for clear line of sight, verify sensors perceive ship shapes correctly at different orientations)
+- [X] T054 [US5] Update sensorStore to use raytracing for contact detection in src/stores/sensorStore.ts
+- [X] T055 [US5] Implement sensor occlusion calculation based on blocking objects in src/stores/sensorStore.ts
+- [X] T056 [US5] Add partial occlusion detection for partially visible contacts in src/stores/sensorStore.ts
+- [X] T056a [US5] Create unit tests for sensor occlusion in src/stores/sensorStore.test.ts (TEST-FIRST: verify full occlusion when object blocks sensor ray, partial occlusion for large objects, no occlusion for clear line of sight, verify sensors perceive ship shapes correctly at different orientations)
 
 ### Sensor Display Integration
 
-- [ ] T057 [US5] Update RadarDisplay.vue to show occluded contacts differently in src/components/sensors/RadarDisplay.vue
-- [ ] T058 [US5] Add sensor ray visualization option for debugging in src/components/sensors/RadarDisplay.vue
-- [ ] T059 [US5] Update contact shape rendering to reflect orientation-based profile in src/components/sensors/RadarDisplay.vue
+- [X] T057 [US5] Update RadarDisplay.vue to show occluded contacts differently in src/components/sensors/RadarDisplay.vue
+- [X] T058 [US5] Add sensor ray visualization option for debugging in src/components/sensors/RadarDisplay.vue
+- [X] T059 [US5] Update contact shape rendering to reflect orientation-based profile in src/components/sensors/RadarDisplay.vue
 
 **Checkpoint**: Sensor contacts are affected by occlusion from intervening objects
 
