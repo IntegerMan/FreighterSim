@@ -23,14 +23,14 @@ test.describe('Cargo Screen', () => {
   });
 
   test('should display capacity stats', async ({ page }) => {
-    await expect(page.locator('text=TOTAL')).toBeVisible();
+    await expect(page.locator('text=BAY SLOTS')).toBeVisible();
     await expect(page.locator('text=OCCUPIED')).toBeVisible();
     await expect(page.locator('text=AVAILABLE')).toBeVisible();
   });
 
   test('should show total capacity of 24 slots', async ({ page }) => {
     // Default cargo bay is 4x6 = 24 slots
-    const totalStat = page.locator('.cargo-panel__stat').filter({ hasText: 'TOTAL' });
+    const totalStat = page.locator('.cargo-panel__stat').filter({ hasText: 'BAY SLOTS' });
     await expect(totalStat.locator('.cargo-panel__stat-value')).toContainText('24');
   });
 

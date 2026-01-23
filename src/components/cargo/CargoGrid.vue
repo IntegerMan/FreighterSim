@@ -205,7 +205,7 @@ function handleMouseMove(event: MouseEvent) {
   const y = event.clientY - rect.top;
 
   // Find which slot is hovered
-  for (let i = 0; i < items.value.length; i++) {
+  for (let i = 0; i < totalSlots.value; i++) {
     const pos = getSlotPosition(i);
     if (
       x >= pos.x &&
@@ -213,8 +213,8 @@ function handleMouseMove(event: MouseEvent) {
       y >= pos.y &&
       y <= pos.y + slotSize.value
     ) {
-      const item = items.value[i];
-      if (item) {
+      const item = items.value[i] || null;
+      if (hoveredItem.value?.id !== item?.id) {
         hoveredItem.value = item;
         drawGrid();
       }
