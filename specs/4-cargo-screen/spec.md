@@ -116,7 +116,7 @@ As a ship captain, I want to see a visual representation of cargo capacity (such
 3. **User Awareness**: Players can determine what cargo they're carrying and remaining capacity within 5 seconds of viewing the cargo screen
 4. **Visual Consistency**: Cargo screen follows the established LCARS design system and matches the visual style of existing bridge panels (DockingPanel, SensorPanel, NavigationPanel)
 5. **Real-time Updates**: Cargo display updates within 100ms of cargo being loaded or unloaded
-6. **Responsive Design**: Cargo screen remains readable and functional across different viewport sizes and ship configurations without scrolling or truncation issues
+6. **Desktop Layout**: Cargo screen remains readable and functional across desktop viewport sizes (≥1024px width) and ship configurations without scrolling or truncation issues. Mobile/tablet responsive design deferred to future iteration.
 
 ## Assumptions
 
