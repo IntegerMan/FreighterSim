@@ -1,9 +1,18 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { Vector2, ShipEngines, ShipSensors } from '@/models';
-import { vec2, normalizeAngle, clamp, DEFAULT_ENGINES, DEFAULT_SENSORS } from '@/models';
+import type { Vector2, ShipEngines, ShipSensors, CargoBay, CargoItem } from '@/models';
+import { vec2, normalizeAngle, clamp, DEFAULT_ENGINES, DEFAULT_SENSORS, DEFAULT_CARGO_BAY } from '@/models';
 import { updateMovement } from '@/core/physics';
 import type { GameTime } from '@/core/game-loop';
+
+/**
+ * Default cargo items for testing (2x Gold Ore, 1x Medical Supplies)
+ */
+const DEFAULT_CARGO_ITEMS: CargoItem[] = [
+  { id: 'cargo-default-1', name: 'Gold Ore', type: 'mineral' },
+  { id: 'cargo-default-2', name: 'Gold Ore', type: 'mineral' },
+  { id: 'cargo-default-3', name: 'Medical Supplies', type: 'supply' },
+];
 
 /**
  * Ship state store - manages the player's ship state and movement
@@ -19,6 +28,7 @@ export const useShipStore = defineStore('ship', () => {
   // Ship subsystems
   const engines = ref<ShipEngines>({ ...DEFAULT_ENGINES });
   const sensors = ref<ShipSensors>({ ...DEFAULT_SENSORS });
+  const cargoBay = ref<CargoBay>({ ...DEFAULT_CARGO_BAY, items: [...DEFAULT_CARGO_ITEMS] });
 
   // Derived limits
   const minSpeed = computed(() => -engines.value.maxSpeed * 0.25); // Reverse speed limit (25% of max)
@@ -118,6 +128,7 @@ export const useShipStore = defineStore('ship', () => {
     targetSpeed.value = 0;
     isDocked.value = false;
     dockedAtId.value = null;
+    cargoBay.value = { ...DEFAULT_CARGO_BAY, items: [...DEFAULT_CARGO_ITEMS] };
   }
 
   return {
@@ -129,6 +140,7 @@ export const useShipStore = defineStore('ship', () => {
     targetSpeed,
     engines,
     sensors,
+    cargoBay,
     isDocked,
     dockedAtId,
     // Computed

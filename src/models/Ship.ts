@@ -1,4 +1,6 @@
 import type { Vector2 } from './math';
+import type { CargoBay } from './CargoBay';
+import { DEFAULT_CARGO_BAY } from './CargoBay';
 
 /**
  * Ship status for various systems
@@ -51,6 +53,7 @@ export interface Ship {
   targetSpeed: number;
   engines: ShipEngines;
   sensors: ShipSensors;
+  cargoBay: CargoBay;
 }
 
 /**
@@ -65,6 +68,7 @@ export const DEFAULT_SHIP: Ship = {
   targetSpeed: 0,
   engines: { ...DEFAULT_ENGINES },
   sensors: { ...DEFAULT_SENSORS },
+  cargoBay: { ...DEFAULT_CARGO_BAY },
 };
 
 /**
@@ -76,5 +80,6 @@ export function createShip(config: Partial<Ship> = {}): Ship {
     ...config,
     engines: { ...DEFAULT_ENGINES, ...config.engines },
     sensors: { ...DEFAULT_SENSORS, ...config.sensors },
+    cargoBay: { ...DEFAULT_CARGO_BAY, ...config.cargoBay, items: [...(config.cargoBay?.items ?? [])] },
   };
 }

@@ -19,11 +19,11 @@
 
 **Purpose**: Project initialization and model creation for cargo feature
 
-- [ ] T001 [P] Create CargoItem model with CargoType union type in src/models/CargoItem.ts
-- [ ] T002 [P] Create CargoBay interface and DEFAULT_CARGO_BAY constant in src/models/CargoBay.ts
-- [ ] T003 Export new models from src/models/index.ts
-- [ ] T004 Modify Ship interface to add cargoBay subsystem in src/models/Ship.ts
-- [ ] T005 Update DEFAULT_SHIP with cargoBay initialization in src/models/Ship.ts
+- [X] T001 [P] Create CargoItem model with CargoType union type in src/models/CargoItem.ts
+- [X] T002 [P] Create CargoBay interface and DEFAULT_CARGO_BAY constant in src/models/CargoBay.ts
+- [X] T003 Export new models from src/models/index.ts
+- [X] T004 Modify Ship interface to add cargoBay subsystem in src/models/Ship.ts
+- [X] T005 Update DEFAULT_SHIP with cargoBay initialization in src/models/Ship.ts
 
 ---
 
@@ -33,13 +33,13 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T006 Create cargoStore with getters (items, bayDimensions, totalSlots, occupiedSlots, availableSlots, isFull, isEmpty) in src/stores/cargoStore.ts
-- [ ] T007 Implement cargoStore actions (loadCargo, unloadCargo, clearCargo) in src/stores/cargoStore.ts
-- [ ] T008 Add helper functions (getItemsOfType, hasItem, getCountByType, createCargoItem) in src/stores/cargoStore.ts
-- [ ] T009 Export cargoStore from src/stores/index.ts
-- [ ] T010 Initialize ship with cargoBay in shipStore (ensure DEFAULT_SHIP.cargoBay is used) in src/stores/shipStore.ts
-- [ ] T011 Add /cargo route with lazy-loaded CargoView (meta.order: 4) in src/router/index.ts
-- [ ] T012 Create unit tests for cargoStore (load, unload, capacity calculations) in src/stores/cargoStore.test.ts (TEST-FIRST: write tests against contract before UI implementation)
+- [X] T006 Create cargoStore with getters (items, bayDimensions, totalSlots, occupiedSlots, availableSlots, isFull, isEmpty) in src/stores/cargoStore.ts
+- [X] T007 Implement cargoStore actions (loadCargo, unloadCargo, clearCargo) in src/stores/cargoStore.ts
+- [X] T008 Add helper functions (getItemsOfType, hasItem, getCountByType, createCargoItem) in src/stores/cargoStore.ts
+- [X] T009 Export cargoStore from src/stores/index.ts
+- [X] T010 Initialize ship with cargoBay in shipStore (ensure DEFAULT_SHIP.cargoBay is used) in src/stores/shipStore.ts
+- [X] T011 Add /cargo route with lazy-loaded CargoView (meta.order: 4) in src/router/index.ts
+- [X] T012 Create unit tests for cargoStore (load, unload, capacity calculations) in src/stores/cargoStore.test.ts (TEST-FIRST: write tests against contract before UI implementation)
 
 **Checkpoint**: Foundation ready with test coverage - user story implementation can now begin
 
@@ -53,16 +53,16 @@
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Create CargoView.vue with LcarsFrame wrapper following existing view patterns in src/views/CargoView.vue
-- [ ] T014 [US1] Export CargoView from src/views/index.ts
-- [ ] T015 [US1] Create CargoGrid.vue component with Canvas element for 2D grid rendering in src/components/cargo/CargoGrid.vue
-- [ ] T016 [US1] Implement grid slot drawing function (empty slots as dark rectangles with border) in src/components/cargo/CargoGrid.vue
-- [ ] T017 [US1] Implement cargo item rendering with CargoType color mapping (mineral=gold, supply=white, hazmat=danger, equipment=purple, luxury=success) in src/components/cargo/CargoGrid.vue
-- [ ] T018 [US1] Add cargo item name label rendering on hover or within grid cell (per FR-001: display item name) in src/components/cargo/CargoGrid.vue
-- [ ] T019 [US1] Add empty state display showing "NO CARGO LOADED" message when cargo bay is empty in src/components/cargo/CargoGrid.vue
-- [ ] T020 [US1] Wire CargoGrid to cargoStore with reactive watch for cargo changes in src/components/cargo/CargoGrid.vue
-- [ ] T021 [US1] Create components/cargo/index.ts barrel export for CargoGrid
-- [ ] T022 [US1] Integrate CargoGrid into CargoView layout in src/views/CargoView.vue
+- [X] T013 [US1] Create CargoView.vue with LcarsFrame wrapper following existing view patterns in src/views/CargoView.vue
+- [X] T014 [US1] Export CargoView from src/views/index.ts
+- [X] T015 [US1] Create CargoGrid.vue component with Canvas element for 2D grid rendering in src/components/cargo/CargoGrid.vue
+- [X] T016 [US1] Implement grid slot drawing function (empty slots as dark rectangles with border) in src/components/cargo/CargoGrid.vue
+- [X] T017 [US1] Implement cargo item rendering with CargoType color mapping (mineral=gold, supply=white, hazmat=danger, equipment=purple, luxury=success) in src/components/cargo/CargoGrid.vue
+- [X] T018 [US1] Add cargo item name label rendering on hover or within grid cell (per FR-001: display item name) in src/components/cargo/CargoGrid.vue
+- [X] T019 [US1] Add empty state display showing "NO CARGO LOADED" message when cargo bay is empty in src/components/cargo/CargoGrid.vue
+- [X] T020 [US1] Wire CargoGrid to cargoStore with reactive watch for cargo changes in src/components/cargo/CargoGrid.vue
+- [X] T021 [US1] Create components/cargo/index.ts barrel export for CargoGrid
+- [X] T022 [US1] Integrate CargoGrid into CargoView layout in src/views/CargoView.vue
 
 **Checkpoint**: User Story 1 complete - cargo items visible in grid with names, empty state handled
 
@@ -76,13 +76,13 @@
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] Create CargoPanel.vue with LCARS styling for capacity display in src/components/panels/CargoPanel.vue
-- [ ] T024 [US2] Display total capacity (totalSlots) with label in src/components/panels/CargoPanel.vue
-- [ ] T025 [US2] Display occupied slots count (occupiedSlots) with label in src/components/panels/CargoPanel.vue
-- [ ] T026 [US2] Display available slots count (availableSlots) with label in src/components/panels/CargoPanel.vue
-- [ ] T027 [US2] Add full capacity indicator (warning style when isFull is true) in src/components/panels/CargoPanel.vue
-- [ ] T028 [US2] Export CargoPanel from src/components/panels/index.ts
-- [ ] T029 [US2] Integrate CargoPanel into CargoView layout alongside CargoGrid in src/views/CargoView.vue
+- [X] T023 [US2] Create CargoPanel.vue with LCARS styling for capacity display in src/components/panels/CargoPanel.vue
+- [X] T024 [US2] Display total capacity (totalSlots) with label in src/components/panels/CargoPanel.vue
+- [X] T025 [US2] Display occupied slots count (occupiedSlots) with label in src/components/panels/CargoPanel.vue
+- [X] T026 [US2] Display available slots count (availableSlots) with label in src/components/panels/CargoPanel.vue
+- [X] T027 [US2] Add full capacity indicator (warning style when isFull is true) in src/components/panels/CargoPanel.vue
+- [X] T028 [US2] Export CargoPanel from src/components/panels/index.ts
+- [X] T029 [US2] Integrate CargoPanel into CargoView layout alongside CargoGrid in src/views/CargoView.vue
 
 **Checkpoint**: User Stories 1 AND 2 complete - cargo visible and capacity displayed
 
@@ -96,11 +96,11 @@
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] Add capacityPercent getter to cargoStore (implements contract-defined getter) in src/stores/cargoStore.ts
-- [ ] T031 [US3] Add itemsByType and uniqueTypeCount getters to cargoStore (implements contract-defined getters) in src/stores/cargoStore.ts
-- [ ] T032 [US3] Create capacity gauge component using LcarsGauge in src/components/panels/CargoPanel.vue
-- [ ] T033 [US3] Wire gauge to capacityPercent reactive getter in src/components/panels/CargoPanel.vue
-- [ ] T034 [US3] Add cargo type breakdown display (count by type) in src/components/panels/CargoPanel.vue
+- [X] T030 [US3] Add capacityPercent getter to cargoStore (implements contract-defined getter) in src/stores/cargoStore.ts
+- [X] T031 [US3] Add itemsByType and uniqueTypeCount getters to cargoStore (implements contract-defined getters) in src/stores/cargoStore.ts
+- [X] T032 [US3] Create capacity gauge component using LcarsGauge in src/components/panels/CargoPanel.vue
+- [X] T033 [US3] Wire gauge to capacityPercent reactive getter in src/components/panels/CargoPanel.vue
+- [X] T034 [US3] Add cargo type breakdown display (count by type) in src/components/panels/CargoPanel.vue
 
 **Checkpoint**: All user stories complete - full cargo screen functionality delivered
 
@@ -112,15 +112,15 @@
 
 ### Edge Case Implementation (from spec.md Edge Cases section)
 
-- [ ] T035 [P] Add validation in cargoStore.loadCargo to prevent exceeding capacity (return false, log warning) in src/stores/cargoStore.ts
-- [ ] T036 [P] Add error state display in CargoGrid for inconsistent/corrupted cargo data (items.length > totalSlots) in src/components/cargo/CargoGrid.vue
-- [ ] T037 [P] Add loading indicator for transient states during cargo load/unload operations in src/components/cargo/CargoGrid.vue
+- [X] T035 [P] Add validation in cargoStore.loadCargo to prevent exceeding capacity (return false, log warning) in src/stores/cargoStore.ts
+- [X] T036 [P] Add error state display in CargoGrid for inconsistent/corrupted cargo data (items.length > totalSlots) in src/components/cargo/CargoGrid.vue
+- [X] T037 [P] Add loading indicator for transient states during cargo load/unload operations in src/components/cargo/CargoGrid.vue
 
 ### Testing & Validation
 
-- [ ] T038 [P] Create E2E test for cargo screen navigation, display, and real-time updates (include simulated NPC cargo change per FR-004) in e2e/cargo.spec.ts
-- [ ] T039 Run quickstart.md manual testing checklist validation
-- [ ] T040 Verify LCARS design consistency (colors, fonts, spacing) across cargo components
+- [X] T038 [P] Create E2E test for cargo screen navigation, display, and real-time updates (include simulated NPC cargo change per FR-004) in e2e/cargo.spec.ts
+- [X] T039 Run quickstart.md manual testing checklist validation
+- [X] T040 Verify LCARS design consistency (colors, fonts, spacing) across cargo components
 
 **Scope Note**: Responsive design testing is desktop-only for v1. Mobile/tablet viewport support deferred to future iteration.
 
