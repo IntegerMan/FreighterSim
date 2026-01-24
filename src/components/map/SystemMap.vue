@@ -324,7 +324,7 @@ function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   if (template) {
     // Selection highlight
     if (isSelected) {
-      const selectionRadius = template.boundingRadius * stationScale * zoom.value + 6;
+      const selectionRadius = (template.boundingRadius ?? 1) * stationScale * zoom.value + 6;
       ctx.strokeStyle = COLORS.selected;
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -374,10 +374,10 @@ function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   ctx.fillStyle = COLORS.station;
   ctx.font = '11px "Share Tech Mono", monospace';
   ctx.textAlign = 'center';
-  ctx.fillText(station.name, screenPos.x, screenPos.y + (template ? template.boundingRadius * stationScale * zoom.value : 10) + 14);
+  ctx.fillText(station.name, screenPos.x, screenPos.y + (template ? (template.boundingRadius ?? 1) * stationScale * zoom.value : 10) + 14);
 
   // Draw docking port indicators (T047) - always show when zoomed in enough
-  const screenSize = template ? template.boundingRadius * stationScale * zoom.value : 10;
+  const screenSize = template ? (template.boundingRadius ?? 1) * stationScale * zoom.value : 10;
   if (template && screenSize > 20) {
     const camera = {
       zoom: zoom.value,
