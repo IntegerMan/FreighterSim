@@ -26,8 +26,8 @@
 
 **Purpose**: Create project structure for starfield feature
 
-- [ ] T001 Create directory structure at src/core/starfield/
-- [ ] T002 [P] Create placeholder index.ts at src/core/starfield/index.ts
+- [X] T001 Create directory structure at src/core/starfield/
+- [X] T002 [P] Create placeholder index.ts at src/core/starfield/index.ts
 
 ---
 
@@ -37,10 +37,10 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Create Star, StarfieldLayerConfig, StarfieldConfig, StarfieldLayer interfaces in src/models/Starfield.ts
-- [ ] T004 [P] Implement mulberry32 seeded PRNG function in src/core/starfield/StarGenerator.ts
-- [ ] T005 [P] Implement hashString deterministic hashing function in src/core/starfield/StarGenerator.ts
-- [ ] T006 Export Starfield types from src/models/index.ts
+- [X] T003 Create Star, StarfieldLayerConfig, StarfieldConfig, StarfieldLayer interfaces in src/models/Starfield.ts
+- [X] T004 [P] Implement mulberry32 seeded PRNG function in src/core/starfield/StarGenerator.ts
+- [X] T005 [P] Implement hashString deterministic hashing function in src/core/starfield/StarGenerator.ts
+- [X] T006 Export Starfield types from src/models/index.ts
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 
@@ -56,15 +56,15 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T007 [P] [US1] Unit test: starToScreen applies parallax factor correctly in src/core/starfield/StarGenerator.test.ts
-- [ ] T008 [P] [US1] Unit test: getVisibleCells returns cells with buffer zone for smooth scrolling in src/core/starfield/StarGenerator.test.ts
-- [ ] T009 [P] [US1] Unit test: Starfield.render draws all layers back-to-front in src/core/starfield/Starfield.test.ts
+- [X] T007 [P] [US1] Unit test: starToScreen applies parallax factor correctly in src/core/starfield/StarGenerator.test.ts
+- [X] T008 [P] [US1] Unit test: getVisibleCells returns cells with buffer zone for smooth scrolling in src/core/starfield/StarGenerator.test.ts
+- [X] T009 [P] [US1] Unit test: Starfield.render draws all layers back-to-front in src/core/starfield/Starfield.test.ts
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Implement starToScreen function with parallax factor in src/core/starfield/StarGenerator.ts
-- [ ] T011 [US1] Implement getVisibleCells function with buffer zones and zoom-aware culling in src/core/starfield/StarGenerator.ts
-- [ ] T012 [US1] Implement Starfield.render method for multi-layer parallax rendering in src/core/starfield/Starfield.ts
+- [X] T010 [US1] Implement starToScreen function with parallax factor in src/core/starfield/StarGenerator.ts
+- [X] T011 [US1] Implement getVisibleCells function with buffer zones and zoom-aware culling in src/core/starfield/StarGenerator.ts
+- [X] T012 [US1] Implement Starfield.render method for multi-layer parallax rendering in src/core/starfield/Starfield.ts
 
 **Checkpoint**: Parallax effect works - near stars move faster than far stars during viewport changes
 
@@ -80,15 +80,15 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T013 [P] [US2] Unit test: mulberry32 produces identical sequences from same seed in src/core/starfield/StarGenerator.test.ts
-- [ ] T014 [P] [US2] Unit test: hashString produces consistent hashes for same input in src/core/starfield/StarGenerator.test.ts
-- [ ] T015 [P] [US2] Unit test: generateStarsForCell returns identical stars for same coordinates in src/core/starfield/StarGenerator.test.ts
+- [X] T013 [P] [US2] Unit test: mulberry32 produces identical sequences from same seed in src/core/starfield/StarGenerator.test.ts
+- [X] T014 [P] [US2] Unit test: hashString produces consistent hashes for same input in src/core/starfield/StarGenerator.test.ts
+- [X] T015 [P] [US2] Unit test: generateStarsForCell returns identical stars for same coordinates in src/core/starfield/StarGenerator.test.ts
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Implement generateStarsForCell with seeded PRNG using cell coordinates in src/core/starfield/StarGenerator.ts
-- [ ] T017 [US2] Implement cell-based caching in Starfield class to store generated stars in src/core/starfield/Starfield.ts
-- [ ] T018 [US2] Implement cache pruning for off-screen cells to manage memory in src/core/starfield/Starfield.ts
+- [X] T016 [US2] Implement generateStarsForCell with seeded PRNG using cell coordinates in src/core/starfield/StarGenerator.ts
+- [X] T017 [US2] Implement cell-based caching in Starfield class to store generated stars in src/core/starfield/Starfield.ts
+- [X] T018 [US2] Implement cache pruning for off-screen cells to manage memory in src/core/starfield/Starfield.ts
 
 **Checkpoint**: Same coordinates always show same star patterns across sessions
 
@@ -104,14 +104,14 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T019 [P] [US3] Unit test: DEFAULT_LAYER_CONFIGS defines 3 layers with distinct parallax factors in src/core/starfield/starfieldConfig.ts
-- [ ] T020 [P] [US3] Unit test: Star radius and brightness fall within configured layer ranges in src/core/starfield/Starfield.test.ts
+- [X] T019 [P] [US3] Unit test: DEFAULT_LAYER_CONFIGS defines 3 layers with distinct parallax factors in src/core/starfield/starfieldConfig.ts
+- [X] T020 [P] [US3] Unit test: Star radius and brightness fall within configured layer ranges in src/core/starfield/Starfield.test.ts
 
 ### Implementation for User Story 3
 
-- [ ] T021 [US3] Create DEFAULT_LAYER_CONFIGS with near (1.0x), mid (0.5x), far (0.25x) layers and STAR_COLORS palette in src/core/starfield/starfieldConfig.ts
-- [ ] T022 [US3] Implement createDefaultStarfieldConfig factory function in src/core/starfield/starfieldConfig.ts
-- [ ] T023 [US3] Apply layer-specific radius and brightness ranges in star generation in src/core/starfield/StarGenerator.ts
+- [X] T021 [US3] Create DEFAULT_LAYER_CONFIGS with near (1.0x), mid (0.5x), far (0.25x) layers and STAR_COLORS palette in src/core/starfield/starfieldConfig.ts
+- [X] T022 [US3] Implement createDefaultStarfieldConfig factory function in src/core/starfield/starfieldConfig.ts
+- [X] T023 [US3] Apply layer-specific radius and brightness ranges in star generation in src/core/starfield/StarGenerator.ts
 
 **Checkpoint**: 3 distinct visual layers are distinguishable - near stars are larger/brighter than far stars
 
@@ -121,15 +121,15 @@
 
 **Purpose**: Vue component integration and E2E verification
 
-- [ ] T024 [P] Export Starfield class and config utilities from src/core/starfield/index.ts
-- [ ] T025 Integrate starfield rendering in src/components/map/HelmMap.vue (render after clear, before grid)
-- [ ] T026 Integrate starfield rendering in src/components/map/SystemMap.vue (same pattern)
-- [ ] T027 [P] Create E2E test for starfield visibility in Helm view in e2e/starfield.spec.ts
-- [ ] T028 [P] Create E2E test for parallax effect during ship movement in e2e/starfield.spec.ts
-- [ ] T030 [P] Unit test: starfield handles extreme coordinates without precision errors in src/core/starfield/Starfield.test.ts
-- [ ] T031 [P] Unit test: parallax remains smooth at maximum ship velocity in src/core/starfield/Starfield.test.ts
-- [ ] T032 [P] Unit test: star rendering scales appropriately at zoom extremes in src/core/starfield/Starfield.test.ts
-- [ ] T029 Run full verification: npm run test:run && npm run test:e2e && npm run lint
+- [X] T024 [P] Export Starfield class and config utilities from src/core/starfield/index.ts
+- [X] T025 Integrate starfield rendering in src/components/map/HelmMap.vue (render after clear, before grid)
+- [X] T026 Integrate starfield rendering in src/components/map/SystemMap.vue (same pattern)
+- [X] T027 [P] Create E2E test for starfield visibility in Helm view in e2e/starfield.spec.ts
+- [X] T028 [P] Create E2E test for parallax effect during ship movement in e2e/starfield.spec.ts
+- [X] T030 [P] Unit test: starfield handles extreme coordinates without precision errors in src/core/starfield/Starfield.test.ts
+- [X] T031 [P] Unit test: parallax remains smooth at maximum ship velocity in src/core/starfield/Starfield.test.ts
+- [X] T032 [P] Unit test: star rendering scales appropriately at zoom extremes in src/core/starfield/Starfield.test.ts
+- [X] T029 Run full verification: npm run test:run && npm run test:e2e && npm run lint
 
 ---
 

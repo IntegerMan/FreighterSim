@@ -4,7 +4,7 @@
 
 ## Summary
 
-Implement a 3-layer parallax starfield background that creates depth perception during ship movement. Stars are deterministically positioned using seeded PRNG for consistency across sessions. Each layer moves at geometric rates (1.0x near, 0.5x mid, 0.25x far) with varying star sizes and brightness.
+Implement a 3-layer parallax starfield background that creates depth perception during ship movement. Stars are deterministically positioned using seeded PRNG for consistency across sessions. All layers move slower than the player (0.6x near, 0.35x mid, 0.15x far) so stars are clearly background elements, not game objects.
 
 ## Technical Context
 
@@ -145,11 +145,13 @@ Colors complement LCARS palette while providing subtle variation for visual dept
 
 ### Default Layer Configuration
 
+All layers move slower than the player so stars are clearly background elements.
+
 | Layer | Parallax | Density | Radius | Brightness |
 |-------|----------|---------|--------|------------|
-| Near  | 1.0x     | 15      | 1.5-3.0 | 0.8-1.0   |
-| Mid   | 0.5x     | 40      | 0.8-1.5 | 0.5-0.8   |
-| Far   | 0.25x    | 100     | 0.3-0.8 | 0.2-0.5   |
+| Near  | 0.6x     | 15      | 1.5-3.0 | 0.8-1.0   |
+| Mid   | 0.35x    | 40      | 0.8-1.5 | 0.5-0.8   |
+| Far   | 0.15x    | 100     | 0.3-0.8 | 0.2-0.5   |
 
 ---
 

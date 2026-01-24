@@ -65,7 +65,7 @@ As a player gazing into the void of space, I want to see stars that vary in size
 
 ### Session 2026-01-24
 
-- Q: What parallax rate ratios should each depth layer use relative to camera/ship movement? → A: Geometric progression (1.0x near, 0.5x mid, 0.25x far)
+- Q: What parallax rate ratios should each depth layer use relative to camera/ship movement? → A: All layers slower than player movement (0.6x near, 0.35x mid, 0.15x far) so stars are clearly background elements
 - Q: What star density should each layer have (stars visible on screen per layer)? → A: Balanced (15 near, 40 mid, 100 far) as default; density varies by star system
 - Q: Should parallax movement trigger during camera pan/zoom (independent of ship movement)? → A: Yes, all viewport changes trigger parallax
 
@@ -75,7 +75,7 @@ As a player gazing into the void of space, I want to see stars that vary in size
 
 - **FR-001**: System MUST display a starfield background that appears behind all other game elements (grid, celestial bodies, ships, UI)
 - **FR-002**: System MUST render stars in at least 3 distinct depth layers (near, mid, far)
-- **FR-003**: Each depth layer MUST move at a different parallax rate relative to viewport changes (ship movement, camera pan, zoom) using geometric progression: near layer at 1.0x, mid layer at 0.5x, far layer at 0.25x movement rate
+- **FR-003**: Each depth layer MUST move at a different parallax rate relative to viewport changes (ship movement, camera pan, zoom). All layers move slower than the player (near 0.6x, mid 0.35x, far 0.15x) so stars are clearly background elements, not game objects
 - **FR-004**: Starfield MUST use deterministic positioning based on world coordinates, ensuring the same stars appear at the same locations across all sessions
 - **FR-005**: Stars MUST vary in visual appearance based on their depth layer, with nearer stars appearing larger and brighter than distant stars
 - **FR-006**: Starfield MUST be visible and functional in all map views where the player can see space (system map and helm views)
