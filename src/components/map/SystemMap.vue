@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useShipStore, useNavigationStore, useSensorStore } from '@/stores';
 import { useGameLoop } from '@/core/game-loop';
-import { 
-  
-  drawCourseProjection, 
+import {
+  drawCourseProjection,
   drawShipIcon,
   drawWaypoint,
   drawWaypointPath,
+  type CameraState,
 } from '@/core/rendering';
+import { Starfield, createDefaultStarfieldConfig } from '@/core/starfield';
 import type { Vector2, Station, Planet, JumpGate } from '@/models';
 
 // Colors matching our design system
@@ -35,6 +36,23 @@ const navStore = useNavigationStore();
 const sensorStore = useSensorStore();
 const { subscribe } = useGameLoop();
 
+// Starfield background
+const starfield = ref<Starfield | null>(null);
+
+// Initialize starfield when system is available
+watch(
+  () => navStore.currentSystem,
+  (system) => {
+    if (system) {
+      const config = createDefaultStarfieldConfig(system.id);
+      starfield.value = new Starfield(config);
+    } else {
+      starfield.value = null;
+    }
+  },
+  { immediate: true }
+);
+
 // Canvas state
 const canvasWidth = ref(800);
 const canvasHeight = ref(600);
@@ -47,6 +65,16 @@ const dragStart = ref<Vector2>({ x: 0, y: 0 });
 const cameraCenter = computed(() => ({
   x: shipStore.position.x + panOffset.value.x,
   y: shipStore.position.y + panOffset.value.y,
+}));
+
+// Camera state for starfield rendering
+const camera = computed<CameraState>(() => ({
+  zoom: zoom.value,
+  panOffset: panOffset.value,
+  centerX: cameraCenter.value.x,
+  centerY: cameraCenter.value.y,
+  canvasWidth: canvasWidth.value,
+  canvasHeight: canvasHeight.value,
 }));
 
 // Convert world coordinates to screen coordinates
@@ -81,6 +109,11 @@ function render() {
   // Clear canvas
   ctx.fillStyle = COLORS.background;
   ctx.fillRect(0, 0, canvasWidth.value, canvasHeight.value);
+
+  // Draw starfield background (before grid, behind everything)
+  if (starfield.value) {
+    starfield.value.render(ctx, camera.value);
+  }
 
   // Draw grid
   drawGrid(ctx);

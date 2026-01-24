@@ -46,3 +46,11 @@ export {
   getThreatLevelColor,
   isAngleInSegment
 } from './Particle';
+
+// Starfield types
+export type {
+  Star as BackgroundStar,
+  StarfieldLayerConfig,
+  StarfieldConfig,
+  StarfieldLayer
+} from './Starfield';
