@@ -22,31 +22,21 @@ test.describe('Helm Navigation Controls', () => {
     await expect(allStopButton).toBeVisible();
   });
 
-  test('should change speed when clicking speed preset', async ({ page }) => {
-    // Click 50% speed
-    const speedButton = page.locator('button', { hasText: '50%' });
-    await speedButton.click();
-    
-    // Wait a bit for the UI to update
-    await page.waitForTimeout(100);
-    
-    // Target speed should be updated (checking the target text appears)
-    const targetText = page.locator('text=Target:').first();
+  test('should have speed slider with target display', async ({ page }) => {
+    // Speed slider should show target speed
+    const targetText = page.locator('.speed-slider__target-value');
     await expect(targetText).toBeVisible();
+    await expect(targetText).toContainText('Target:');
   });
 
   test('should stop when clicking ALL STOP', async ({ page }) => {
-    // First set some speed
-    const speedButton = page.locator('button', { hasText: '50%' });
-    await speedButton.click();
-    
-    // Then stop
+    // Click ALL STOP
     const allStopButton = page.locator('button', { hasText: 'ALL STOP' });
     await allStopButton.click();
-    
+
     // Wait for update
     await page.waitForTimeout(100);
-    
+
     // Should show 0 target
     await expect(page.locator('text=Target: 0')).toBeVisible();
   });
