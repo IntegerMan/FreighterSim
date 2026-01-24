@@ -6,7 +6,6 @@ import {
   MAP_COLORS,
   STATION_VISUAL_MULTIPLIER,
   drawCourseProjection,
-}
   drawShipIcon,
   drawWaypoint,
   drawWaypointPath,

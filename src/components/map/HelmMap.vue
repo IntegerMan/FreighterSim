@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useShipStore, useNavigationStore, useSensorStore, useSettingsStore, useShipCollision, type CollisionWarningLevel } from '@/stores';
 import { useGameLoop } from '@/core/game-loop';
 import {
