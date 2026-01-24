@@ -84,7 +84,7 @@ As a player gazing into the void of space, I want to see stars that vary in size
 ### Key Entities
 
 - **Star**: A visual point of light in the background with the following attributes: world position, apparent size, brightness level, and assigned depth layer
-- **Starfield Layer**: A collection of stars at a specific depth level, characterized by: depth factor (affects parallax rate), star density (default: 15 near, 40 mid, 100 far; configurable per star system), size range, and brightness range
+- **Starfield Layer**: A collection of stars at a specific depth level, characterized by: depth factor (affects parallax rate), star density (default: 15 near, 40 mid, 100 far), size range, and brightness range
 - **Starfield**: The complete background visual composed of all layers, rendered consistently based on the current camera/viewport position
 
 ## Success Criteria *(mandatory)*
@@ -102,3 +102,7 @@ As a player gazing into the void of space, I want to see stars that vary in size
 - Star density will be tuned for visual appeal without specific performance targets beyond "smooth operation"
 - The parallax effect applies to all viewport changes: ship movement, camera pan, and zoom level adjustments all trigger parallax motion
 - Color palette for stars will complement the existing game aesthetic (whites, pale blues, occasional warm tones)
+
+## Future Enhancements (Out of Scope)
+
+- **Per-System Star Density**: Allow different star systems to configure unique density values. Current implementation uses fixed defaults (15 near, 40 mid, 100 far).

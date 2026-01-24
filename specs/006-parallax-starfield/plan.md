@@ -130,6 +130,19 @@ interface StarfieldConfig {
 }
 ```
 
+### Star Color Palette
+
+```typescript
+const STAR_COLORS = {
+  white: '#FFFFFF',
+  paleBlue: '#B8D4E8',
+  warmWhite: '#FFF8E7',
+  coolBlue: '#A0C4E8',
+} as const;
+```
+
+Colors complement LCARS palette while providing subtle variation for visual depth.
+
 ### Default Layer Configuration
 
 | Layer | Parallax | Density | Radius | Brightness |
