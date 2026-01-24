@@ -114,15 +114,16 @@ export const HABITAT_MODULE: StationModule = {
   type: 'habitat',
   shape: HABITAT_SHAPE,
   connectionPoints: [
-    { x: 0, y: 1 },   // Top
-    { x: 0, y: -1 },  // Bottom
+    { x: 0, y: 1 },   // Top (inner, connects to station)
+    { x: 0, y: -1 },  // Bottom (outer, faces away from station)
   ],
-  // Docking port on the outer face for passenger transfers
+  // Docking port on the OUTER face (south/bottom) for passenger transfers
+  // When habitat connects via its north to station, this port faces outward
   dockingPorts: [
     {
       id: 'habitat-dock',
-      position: { x: 0, y: 1.1 },
-      approachVector: { x: 0, y: 1 },
+      position: { x: 0, y: -1.1 },
+      approachVector: { x: 0, y: -1 },
       size: 'medium',
       alignmentTolerance: 15,
       dockingRange: 25,

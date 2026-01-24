@@ -69,17 +69,20 @@ export {
   getStationTemplateByType,
 } from './stations';
 
-// Station grid layout system
+// Station layout system (connection-based)
 export {
-  MODULE_GRID_SIZES,
-  TRADING_HUB_GRID,
-  MINING_OUTPOST_GRID,
-  FUEL_DEPOT_GRID,
-  gridToModulePlacements,
-  buildTradingHubFromGrid,
-  buildMiningOutpostFromGrid,
-  buildFuelDepotFromGrid,
-} from './stationGrid';
+  buildStationFromGraph,
+  buildTradingHub,
+  buildMiningOutpost,
+  buildFuelDepot,
+  calculateStationBoundingRadius,
+  getTradingHubBoundingRadius,
+  getMiningOutpostBoundingRadius,
+  getFuelDepotBoundingRadius,
+  TRADING_HUB_GRAPH,
+  MINING_OUTPOST_GRAPH,
+  FUEL_DEPOT_GRAPH,
+} from './stationLayout';
 
 // Registries
 export {

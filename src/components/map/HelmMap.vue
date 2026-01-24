@@ -393,7 +393,7 @@ function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   ctx.fillStyle = MAP_COLORS.station;
   ctx.font = '11px "Share Tech Mono", monospace';
   ctx.textAlign = 'center';
-  const labelOffset = template ? stationScale * zoom.value + 14 : 24;
+  const labelOffset = template ? template.boundingRadius * stationScale * zoom.value + 14 : 24;
   ctx.fillText(station.name, screenPos.x, screenPos.y + labelOffset);
 }
 
