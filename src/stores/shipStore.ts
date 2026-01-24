@@ -27,6 +27,8 @@ interface TractorBeamState {
   active: boolean;
   /** Station ID that engaged the tractor beam */
   stationId: string | null;
+  /** Docking port ID being targeted */
+  portId: string | null;
   /** Target world position to pull ship to */
   targetPosition: Vector2 | null;
   /** Target heading for docking alignment */
@@ -66,6 +68,7 @@ export const useShipStore = defineStore('ship', () => {
   const tractorBeam = ref<TractorBeamState>({
     active: false,
     stationId: null,
+    portId: null,
     targetPosition: null,
     targetHeading: 0,
     onComplete: null,
@@ -121,12 +124,14 @@ export const useShipStore = defineStore('ship', () => {
   /**
    * Engage tractor beam to pull ship to docking position
    * @param stationId - ID of station engaging tractor beam
+   * @param portId - ID of the docking port being targeted
    * @param dockingPosition - Target world position for docking
    * @param dockingHeading - Required heading for docking
    * @param onComplete - Callback when ship reaches docking position
    */
   function engageTractorBeam(
     stationId: string,
+    portId: string,
     dockingPosition: Vector2,
     dockingHeading: number,
     onComplete?: () => void
@@ -138,6 +143,7 @@ export const useShipStore = defineStore('ship', () => {
     tractorBeam.value = {
       active: true,
       stationId,
+      portId,
       targetPosition: { ...dockingPosition },
       targetHeading: normalizeAngle(dockingHeading),
       onComplete: onComplete ?? null,
@@ -151,6 +157,7 @@ export const useShipStore = defineStore('ship', () => {
     tractorBeam.value = {
       active: false,
       stationId: null,
+      portId: null,
       targetPosition: null,
       targetHeading: 0,
       onComplete: null,

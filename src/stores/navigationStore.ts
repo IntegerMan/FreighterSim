@@ -1,10 +1,9 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { StarSystem, Waypoint, Vector2, Station, DockingPort } from '@/models';
-import { updatePlanetOrbit, getDockingRange, getAlignmentTolerance } from '@/models';
-import { SHIP_DOCKING_BUFFER } from '@/core/rendering/mapUtils';
+import { updatePlanetOrbit, getAlignmentTolerance } from '@/models';
+import { SHIP_DOCKING_BUFFER, getStationDockingPorts as getStationDockingPortsShared, getDockingRange } from '@/core/rendering';
 import type { GameTime } from '@/core/game-loop';
-import { getStationTemplateById, getStationModule } from '@/data/shapes';
 
 // Distance threshold for waypoint reached detection (world units)
 const WAYPOINT_REACHED_DISTANCE = 50;
@@ -205,88 +204,18 @@ export const useNavigationStore = defineStore('navigation', () => {
   }
 
   /**
-   * Get all docking ports for a station in world coordinates
+   * Get all docking ports for a station in world coordinates.
+   * Uses the shared utility from dockingUtils for consistent filtering and position calculation.
    * @param station - The station to get ports for
    * @returns Array of docking ports with world positions
    */
   function getStationDockingPorts(station: Station): Array<{ port: DockingPort; worldPosition: Vector2; worldApproachVector: Vector2 }> {
-    const templateId = station.templateId ?? station.type;
-    const template = getStationTemplateById(templateId);
-    if (!template) return [];
-
-    const ports: Array<{ port: DockingPort; worldPosition: Vector2; worldApproachVector: Vector2 }> = [];
-    const stationRotationRad = ((station.rotation ?? 0) * Math.PI) / 180;
-    
-    // Station scale matches SystemMap.vue calculation (6x multiplier for ~30x ship size)
-    const STATION_VISUAL_MULTIPLIER = 6;
-    const stationScale = station.dockingRange * STATION_VISUAL_MULTIPLIER;
-    const moduleScaleFactor = 0.12; // Must match MODULE_SCALE_FACTOR in shapeRenderer
-
-    // Find docking modules in the template
-    for (const modulePlacement of template.modules) {
-      const module = getStationModule(modulePlacement.moduleType);
-      if (!module?.dockingPorts) continue;
-
-      const moduleRotationRad = (modulePlacement.rotation * Math.PI) / 180;
-      const totalRotation = stationRotationRad + moduleRotationRad;
-      
-      // Module position scale factor (module positions are in normalized coords)
-      const modulePositionScale = stationScale;
-      // Module port position scale factor (port positions within module use module scale)
-      const modulePortScale = stationScale * moduleScaleFactor;
-
-      for (const port of module.dockingPorts) {
-        // Filter out internal cargo ports that face inward toward the station core
-        // Cargo modules have ports on all 4 sides, but when positioned on arms,
-        // some face inward (toward core) rather than outward (into space).
-        // Only expose outward-facing ports.
-        if (modulePlacement.moduleType === 'cargo') {
-          // Check if port faces toward station center based on module position
-          // If module position is on an axis and port is on opposite axis, it's internal
-          const moduleX = modulePlacement.position.x;
-          const moduleY = modulePlacement.position.y;
-          const absX = Math.abs(moduleX);
-          const absY = Math.abs(moduleY);
-          
-          // Determine which direction this module extends from the core
-          const isOnEastArm = absX > absY && moduleX > 0; // East arm (positive X)
-          const isOnWestArm = absX > absY && moduleX < 0; // West arm (negative X)
-          const isOnNorthArm = absY > absX && moduleY > 0; // North arm (positive Y)
-          const isOnSouthArm = absY > absX && moduleY < 0; // South arm (negative Y)
-          
-          // Skip ports that face inward
-          if (isOnEastArm && port.id === 'cargo-dock-west') continue; // West port faces inward
-          if (isOnWestArm && port.id === 'cargo-dock-east') continue; // East port faces inward
-          if (isOnNorthArm && port.id === 'cargo-dock-south') continue; // South port faces inward
-          if (isOnSouthArm && port.id === 'cargo-dock-north') continue; // North port faces inward
-        }
-
-        // Transform port position from module local → station local → world
-        // Port position is in module's local coords, scale by module render scale
-        const moduleLocalX = port.position.x * modulePortScale * Math.cos(moduleRotationRad) - port.position.y * modulePortScale * Math.sin(moduleRotationRad);
-        const moduleLocalY = port.position.x * modulePortScale * Math.sin(moduleRotationRad) + port.position.y * modulePortScale * Math.cos(moduleRotationRad);
-        
-        // Add module offset (module position is in normalized coords, scaled by station scale)
-        const stationLocalX = moduleLocalX + modulePlacement.position.x * modulePositionScale;
-        const stationLocalY = moduleLocalY + modulePlacement.position.y * modulePositionScale;
-        
-        // Rotate by station rotation and add station position
-        const worldX = stationLocalX * Math.cos(stationRotationRad) - stationLocalY * Math.sin(stationRotationRad) + station.position.x;
-        const worldY = stationLocalX * Math.sin(stationRotationRad) + stationLocalY * Math.cos(stationRotationRad) + station.position.y;
-
-        // Transform approach vector
-        const approachX = port.approachVector.x * Math.cos(totalRotation) - port.approachVector.y * Math.sin(totalRotation);
-        const approachY = port.approachVector.x * Math.sin(totalRotation) + port.approachVector.y * Math.cos(totalRotation);
-
-        ports.push({
-          port,
-          worldPosition: { x: worldX, y: worldY },
-          worldApproachVector: { x: approachX, y: approachY },
-        });
-      }
-    }
-
-    return ports;
+    // Use the shared utility which handles filtering and position calculation
+    return getStationDockingPortsShared(station).map(({ port, worldPosition, worldApproachVector }) => ({
+      port,
+      worldPosition,
+      worldApproachVector,
+    }));
   }
 
   /**

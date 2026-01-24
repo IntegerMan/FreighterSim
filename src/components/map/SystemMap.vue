@@ -5,8 +5,6 @@ import { useGameLoop } from '@/core/game-loop';
 import {
   MAP_COLORS,
   STATION_VISUAL_MULTIPLIER,
-  MODULE_SCALE_FACTOR,
-  getVisualDockingRange,
   drawCourseProjection,
 }
   drawShipIcon,
@@ -18,11 +16,11 @@ import {
   getShapeScreenSize,
   renderStationWithLOD,
   findModuleAtScreenPosition,
+  drawDockingPorts as drawDockingPortsShared,
 } from '@/core/rendering';
 import { Starfield, createDefaultStarfieldConfig } from '@/core/starfield';
-import { getShipTemplate, getStationTemplateById, getStationModule } from '@/data/shapes';
+import { getShipTemplate, getStationTemplateById } from '@/data/shapes';
 import type { Vector2, Station, Planet, JumpGate } from '@/models';
-import { getDockingRange } from '@/models';
 
 // Extended colors for SystemMap (inherits from MAP_COLORS)
 const COLORS = {
@@ -382,135 +380,15 @@ function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   // Draw docking port indicators (T047) - always show when zoomed in enough
   const screenSize = template ? template.boundingRadius * stationScale * zoom.value : 10;
   if (template && screenSize > 20) {
-    drawDockingPorts(ctx, station, stationScale, stationRotation, isSelected);
-  }
-}
-
-/**
- * T047: Draw visual docking port indicators on station
- * Shows port locations, approach vectors, and docking position circles
- * Enhanced visibility when station is selected
- */
-function drawDockingPorts(
-  ctx: CanvasRenderingContext2D,
-  station: Station,
-  stationScale: number,
-  stationRotation: number,
-  isSelected: boolean = false
-) {
-  const templateId = station.templateId ?? station.type;
-  const template = getStationTemplateById(templateId);
-  if (!template) return;
-
-  const stationRotationRad = (stationRotation * Math.PI) / 180;
-
-  // Find docking modules in the template
-  for (const modulePlacement of template.modules) {
-    const module = getStationModule(modulePlacement.moduleType);
-    if (!module?.dockingPorts) continue;
-
-    const moduleRotationRad = (modulePlacement.rotation * Math.PI) / 180;
-    const totalRotation = stationRotationRad + moduleRotationRad;
-    
-    // Module position scale factor (module positions are in normalized coords)
-    const modulePositionScale = stationScale;
-    // Module port position scale factor (port positions within module use shared constant)
-    const modulePortScale = stationScale * MODULE_SCALE_FACTOR;
-
-    for (const port of module.dockingPorts) {
-      // Transform port position from module local → station local → world
-      // Port position is in module's local coords, scale by module render scale
-      const moduleLocalX = port.position.x * modulePortScale * Math.cos(moduleRotationRad) - port.position.y * modulePortScale * Math.sin(moduleRotationRad);
-      const moduleLocalY = port.position.x * modulePortScale * Math.sin(moduleRotationRad) + port.position.y * modulePortScale * Math.cos(moduleRotationRad);
-      
-      // Add module offset (module position is in normalized coords, scaled by station scale)
-      const stationLocalX = moduleLocalX + modulePlacement.position.x * modulePositionScale;
-      const stationLocalY = moduleLocalY + modulePlacement.position.y * modulePositionScale;
-      
-      // Rotate by station rotation and add station position
-      const worldX = stationLocalX * Math.cos(stationRotationRad) - stationLocalY * Math.sin(stationRotationRad) + station.position.x;
-      const worldY = stationLocalX * Math.sin(stationRotationRad) + stationLocalY * Math.cos(stationRotationRad) + station.position.y;
-
-      // Transform approach vector
-      const approachX = port.approachVector.x * Math.cos(totalRotation) - port.approachVector.y * Math.sin(totalRotation);
-      const approachY = port.approachVector.x * Math.sin(totalRotation) + port.approachVector.y * Math.cos(totalRotation);
-
-      // Convert to screen coordinates
-      const screenPos = worldToScreen({ x: worldX, y: worldY });
-      
-      // Use shared colors for consistency
-      const portColor = isSelected ? COLORS.dockingPort : COLORS.dockingPortRange;
-      
-      // Draw port marker (small circle)
-      const portSize = Math.max(5, 8 * zoom.value);
-      ctx.fillStyle = portColor;
-      ctx.beginPath();
-      ctx.arc(screenPos.x, screenPos.y, portSize, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Get docking range with ship buffer for visual display
-      const baseDockingRange = getDockingRange(port);
-      const visualDockingRange = getVisualDockingRange(baseDockingRange);
-      const screenDockingRange = visualDockingRange * zoom.value;
-
-      // Draw docking position circle (dotted) - where the ship should position
-      // The docking position is offset from the port along the approach vector
-      const dockingPositionDistance = baseDockingRange * 0.6; // Position ship at 60% of docking range
-      const dockingPosWorldX = worldX + approachX * dockingPositionDistance;
-      const dockingPosWorldY = worldY + approachY * dockingPositionDistance;
-      const dockingPosScreen = worldToScreen({ x: dockingPosWorldX, y: dockingPosWorldY });
-      
-      // Draw dotted circle at docking position - always visible, green
-      const dockingCircleRadius = Math.max(15, 25 * zoom.value);
-      ctx.strokeStyle = isSelected ? COLORS.dockingPort : COLORS.dockingPortRange;
-      ctx.lineWidth = isSelected ? 2 : 1;
-      ctx.setLineDash([5, 5]);
-      ctx.beginPath();
-      ctx.arc(dockingPosScreen.x, dockingPosScreen.y, dockingCircleRadius, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Only draw detailed indicators when selected
-      if (isSelected) {
-        // Draw approach direction arrow from docking position toward port
-        const arrowLength = dockingPositionDistance * zoom.value * 0.4;
-        const arrowEndX = dockingPosScreen.x - approachX * arrowLength;
-        const arrowEndY = dockingPosScreen.y + approachY * arrowLength; // Flip Y for screen coords
-
-        ctx.strokeStyle = COLORS.dockingPortApproach;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(dockingPosScreen.x, dockingPosScreen.y);
-        ctx.lineTo(arrowEndX, arrowEndY);
-        ctx.stroke();
-
-        // Draw arrowhead pointing toward port
-        const arrowHeadSize = 6;
-        const angle = Math.atan2(approachY, -approachX); // Points toward port
-        ctx.beginPath();
-        ctx.moveTo(arrowEndX, arrowEndY);
-        ctx.lineTo(
-          arrowEndX - arrowHeadSize * Math.cos(angle - Math.PI / 6),
-          arrowEndY - arrowHeadSize * Math.sin(angle - Math.PI / 6)
-        );
-        ctx.lineTo(
-          arrowEndX - arrowHeadSize * Math.cos(angle + Math.PI / 6),
-          arrowEndY - arrowHeadSize * Math.sin(angle + Math.PI / 6)
-        );
-        ctx.closePath();
-        ctx.fillStyle = COLORS.dockingPortApproach;
-        ctx.fill();
-      }
-
-      // Draw docking range indicator (green circle around port with ship buffer)
-      ctx.strokeStyle = COLORS.dockingPortRange;
-      ctx.lineWidth = 1;
-      ctx.setLineDash([2, 4]);
-      ctx.beginPath();
-      ctx.arc(screenPos.x, screenPos.y, screenDockingRange, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
+    const camera = {
+      zoom: zoom.value,
+      panOffset: panOffset.value,
+      centerX: shipStore.position.x,
+      centerY: shipStore.position.y,
+      canvasWidth: canvasWidth.value,
+      canvasHeight: canvasHeight.value,
+    };
+    drawDockingPortsShared(ctx, station, camera, { isSelected });
   }
 }
 

@@ -18,14 +18,15 @@ import {
   northUpToCanvasArcRad,
   findModuleAtScreenPosition,
   STATION_VISUAL_MULTIPLIER,
-  MODULE_SCALE_FACTOR,
   getVisualDockingRange,
+  drawDockingPorts as drawDockingPortsShared,
+  getDockingRange,
   type CameraState,
 } from '@/core/rendering';
 import { Starfield, createDefaultStarfieldConfig } from '@/core/starfield';
 import { getShipTemplate, getStationTemplateById, getStationModule } from '@/data/shapes';
 import type { Vector2, Station, Planet, JumpGate } from '@/models';
-import { getThreatLevelColor, getDockingRange } from '@/models';
+import { getThreatLevelColor } from '@/models';
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const containerRef = ref<HTMLDivElement | null>(null);
@@ -148,9 +149,29 @@ function render() {
     drawPlanet(ctx, planet);
   }
 
+  // Determine the active docking port (for colored lights)
+  // This port will NOT get white lights - it gets colored lights in drawDockingApproachGuidance
+  let activePortId: string | null = null;
+  const selectedStation = navStore.selectedStation;
+  if (selectedStation) {
+    const dockingStatus = navStore.checkDockingPortAvailability(
+      selectedStation,
+      shipStore.position,
+      shipStore.heading
+    );
+    if (dockingStatus?.port) {
+      activePortId = dockingStatus.port.id;
+    }
+  } else {
+    const nearestPort = navStore.findNearestDockingPort(shipStore.position, shipStore.heading);
+    if (nearestPort?.port) {
+      activePortId = nearestPort.port.id;
+    }
+  }
+
   // Draw stations
   for (const station of navStore.stations) {
-    drawStation(ctx, station);
+    drawStation(ctx, station, activePortId);
   }
 
   // Draw jump gates
@@ -308,7 +329,7 @@ function drawPlanet(ctx: CanvasRenderingContext2D, planet: Planet) {
   ctx.fillText(planet.name, screenPos.x, screenPos.y + screenRadius + 14);
 }
 
-function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
+function drawStation(ctx: CanvasRenderingContext2D, station: Station, activePortId: string | null = null) {
   const screenPos = worldToScreen(station.position, camera.value);
   const isSelected = navStore.selectedObjectId === station.id;
   const cameraVec = { x: cameraCenter.value.x, y: cameraCenter.value.y };
@@ -375,7 +396,11 @@ function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   if (template) {
     const screenSize = (template.boundingRadius ?? 1) * stationScale * zoom.value;
     if (screenSize > 20) {
-      drawDockingPorts(ctx, station, stationScale, stationRotation, isSelected);
+      drawDockingPortsShared(ctx, station, camera.value, { 
+        isSelected, 
+        activePortId,
+        drawRunwayLights: true,
+      });
     }
   }
 
@@ -385,149 +410,6 @@ function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   ctx.textAlign = 'center';
   const labelOffset = template?.boundingRadius ? template.boundingRadius * stationScale * zoom.value + 14 : 24;
   ctx.fillText(station.name, screenPos.x, screenPos.y + labelOffset);
-}
-
-/**
- * Draw visual docking port indicators on station
- * Shows port locations and docking range circles - critical for helm navigation
- * Uses shared constants from mapUtils for consistency with other views
- */
-function drawDockingPorts(
-  ctx: CanvasRenderingContext2D,
-  station: Station,
-  stationScale: number,
-  stationRotation: number,
-  isSelected: boolean = false
-) {
-  const templateId = station.templateId ?? station.type;
-  const template = getStationTemplateById(templateId);
-  if (!template) return;
-
-  const stationRotationRad = (stationRotation * Math.PI) / 180;
-
-  // Find docking modules in the template
-  for (const modulePlacement of template.modules) {
-    const module = getStationModule(modulePlacement.moduleType);
-    if (!module?.dockingPorts) continue;
-
-    const moduleRotationRad = (modulePlacement.rotation * Math.PI) / 180;
-    
-    // Module position scale factor (module positions are in normalized coords)
-    const modulePositionScale = stationScale;
-    // Module port position scale factor (port positions within module use module scale)
-    const modulePortScale = stationScale * MODULE_SCALE_FACTOR;
-
-    for (const port of module.dockingPorts) {
-      // Filter out internal cargo ports that face inward (match navigationStore logic)
-      if (modulePlacement.moduleType === 'cargo') {
-        const moduleX = modulePlacement.position.x;
-        const moduleY = modulePlacement.position.y;
-        const absX = Math.abs(moduleX);
-        const absY = Math.abs(moduleY);
-        
-        const isOnEastArm = absX > absY && moduleX > 0;
-        const isOnWestArm = absX > absY && moduleX < 0;
-        const isOnNorthArm = absY > absX && moduleY > 0;
-        const isOnSouthArm = absY > absX && moduleY < 0;
-        
-        if (isOnEastArm && port.id === 'cargo-dock-west') continue;
-        if (isOnWestArm && port.id === 'cargo-dock-east') continue;
-        if (isOnNorthArm && port.id === 'cargo-dock-south') continue;
-        if (isOnSouthArm && port.id === 'cargo-dock-north') continue;
-      }
-
-      // Transform port position from module local → station local → world
-      const moduleLocalX = port.position.x * modulePortScale * Math.cos(moduleRotationRad) - port.position.y * modulePortScale * Math.sin(moduleRotationRad);
-      const moduleLocalY = port.position.x * modulePortScale * Math.sin(moduleRotationRad) + port.position.y * modulePortScale * Math.cos(moduleRotationRad);
-      
-      // Add module offset
-      const stationLocalX = moduleLocalX + modulePlacement.position.x * modulePositionScale;
-      const stationLocalY = moduleLocalY + modulePlacement.position.y * modulePositionScale;
-      
-      // Rotate by station rotation and add station position
-      const worldX = stationLocalX * Math.cos(stationRotationRad) - stationLocalY * Math.sin(stationRotationRad) + station.position.x;
-      const worldY = stationLocalX * Math.sin(stationRotationRad) + stationLocalY * Math.cos(stationRotationRad) + station.position.y;
-
-      // Convert to screen coordinates
-      const screenPos = worldToScreen({ x: worldX, y: worldY }, camera.value);
-      
-      // Use green colors from shared MAP_COLORS for consistency
-      const portColor = isSelected ? MAP_COLORS.dockingPort : MAP_COLORS.dockingPortRange;
-      
-      // Draw port marker (small circle)
-      const portSize = Math.max(5, 8 * zoom.value);
-      ctx.fillStyle = portColor;
-      ctx.beginPath();
-      ctx.arc(screenPos.x, screenPos.y, portSize, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Get docking range with ship buffer for expanded visual range
-      const baseDockingRange = getDockingRange(port);
-      const visualDockingRange = getVisualDockingRange(baseDockingRange);
-      const screenDockingRange = visualDockingRange * zoom.value;
-
-      // Draw docking range indicator circle around port - always green for visibility
-      ctx.strokeStyle = isSelected ? MAP_COLORS.dockingPortRangeSelected : MAP_COLORS.dockingPortRange;
-      ctx.lineWidth = isSelected ? 2 : 1.5;
-      ctx.setLineDash([5, 5]);
-      ctx.beginPath();
-      ctx.arc(screenPos.x, screenPos.y, screenDockingRange, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Draw landing lights for all ports (visible even when not in active docking guidance)
-      // Calculate approach vector
-      const totalRotation = stationRotationRad + moduleRotationRad;
-      const worldApproachVectorX = port.approachVector.x * Math.cos(totalRotation) - port.approachVector.y * Math.sin(totalRotation);
-      const worldApproachVectorY = port.approachVector.x * Math.sin(totalRotation) + port.approachVector.y * Math.cos(totalRotation);
-
-      // Draw landing lights along approach corridor
-      const portRangeWorld = getDockingRange(port);
-      const runwayLength = portRangeWorld * 4; // Shorter runway for port view
-      const runwayWidth = 10; // Narrower for port view
-      const lightSpacing = 20;
-      const numLights = Math.floor(runwayLength / lightSpacing);
-
-      // Perpendicular vector for light positioning
-      const perpX = -worldApproachVectorY;
-      const perpY = worldApproachVectorX;
-
-      for (let i = 0; i < numLights; i++) {
-        const distanceFromPort = (i + 1) * lightSpacing;
-
-        // Center point along approach vector
-        const centerWorldX = worldX + worldApproachVectorX * distanceFromPort;
-        const centerWorldY = worldY + worldApproachVectorY * distanceFromPort;
-
-        // Left and right light positions
-        const leftWorldX = centerWorldX + perpX * runwayWidth;
-        const leftWorldY = centerWorldY + perpY * runwayWidth;
-        const rightWorldX = centerWorldX - perpX * runwayWidth;
-        const rightWorldY = centerWorldY - perpY * runwayWidth;
-
-        const leftScreen = worldToScreen({ x: leftWorldX, y: leftWorldY }, camera.value);
-        const rightScreen = worldToScreen({ x: rightWorldX, y: rightWorldY }, camera.value);
-
-        // Simple white pulsing when not in active guidance
-        // (Will be overridden by colored animated lights in drawDockingApproachGuidance when active)
-        const time = Date.now() / 1000; // Slow pulse
-        const pulsePhase = (Math.sin(time * Math.PI) + 1) / 2; // 0 to 1
-        const lightBrightness = 0.4 + pulsePhase * 0.6; // Pulse between 0.4 and 1.0
-
-        const lightColor = `rgba(255, 255, 255, ${lightBrightness})`;
-
-        // Draw lights (small)
-        const lightSize = Math.max(2, 3 * zoom.value);
-        ctx.fillStyle = lightColor;
-        ctx.beginPath();
-        ctx.arc(leftScreen.x, leftScreen.y, lightSize, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(rightScreen.x, rightScreen.y, lightSize, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-  }
 }
 
 /**
@@ -632,21 +514,24 @@ function drawDockingApproachGuidance(ctx: CanvasRenderingContext2D) {
     const leftScreen = worldToScreen({ x: leftWorldX, y: leftWorldY }, camera.value);
     const rightScreen = worldToScreen({ x: rightWorldX, y: rightWorldY }, camera.value);
     
-    // Animate lights - create a "chasing" effect toward the ship (inward, away from port)
+    // Animate lights - create a "chasing" effect from far (green) toward dock (red)
+    // Animation flows inward toward the docking port
     const time = Date.now() / 200; // Animation speed
-    const lightIndex = i; // Lights chase inward toward ship (away from port)
+    const lightIndex = i; // Lights chase from far (high i) toward dock (low i)
     const phase = (lightIndex + time) % 4;
     const brightness = phase < 1 ? 1 : 0.3; // One light bright, others dim
     
-    // Color based on distance (green when close, amber when far)
+    // Color based on distance like a speed indicator:
+    // GREEN = far from dock (go fast, you have room)
+    // RED = near dock (slow down, almost there)
     const distanceRatio = distanceFromPort / runwayLength;
     let lightColor: string;
-    if (distanceRatio < 0.3) {
-      lightColor = `rgba(0, 255, 128, ${brightness})`; // Green - close
-    } else if (distanceRatio < 0.7) {
-      lightColor = `rgba(255, 200, 0, ${brightness})`; // Amber - medium
+    if (distanceRatio > 0.7) {
+      lightColor = `rgba(0, 255, 128, ${brightness})`; // Green - far (go)
+    } else if (distanceRatio > 0.3) {
+      lightColor = `rgba(255, 200, 0, ${brightness})`; // Amber - medium (caution)
     } else {
-      lightColor = `rgba(255, 100, 0, ${brightness * 0.7})`; // Orange-red - far
+      lightColor = `rgba(255, 80, 80, ${brightness})`; // Red - near dock (slow)  
     }
     
     // Draw lights
@@ -777,19 +662,34 @@ function drawShip(ctx: CanvasRenderingContext2D) {
 }
 
 /**
- * Draw tractor beam effect from station to ship
+ * Draw tractor beam effect from station docking port to ship
  * Creates an animated beam pulling the ship toward docking position
  */
 function drawTractorBeam(ctx: CanvasRenderingContext2D) {
   const targetPos = shipStore.tractorBeam.targetPosition;
-  if (!targetPos) return;
+  const stationId = shipStore.tractorBeam.stationId;
+  const portId = shipStore.tractorBeam.portId;
+  if (!targetPos || !stationId || !portId) return;
 
+  // Find the station and its nearest docking port
+  const station = navStore.stations.find(s => s.id === stationId);
+  if (!station) return;
+
+  // Get the docking port world position (the beam should emanate FROM the port)
+  const ports = navStore.getStationDockingPorts(station);
+  if (ports.length === 0) return;
+
+  // Find the specific port by ID (this is the port we're docking at)
+  const targetPort = ports.find(p => p.port.id === portId);
+  if (!targetPort) return;
+
+  const portScreenPos = worldToScreen(targetPort.worldPosition, camera.value);
   const shipScreenPos = worldToScreen(shipStore.position, camera.value);
   const targetScreenPos = worldToScreen(targetPos, camera.value);
 
-  // Calculate beam properties
-  const dx = targetScreenPos.x - shipScreenPos.x;
-  const dy = targetScreenPos.y - shipScreenPos.y;
+  // Calculate beam properties (from port to ship)
+  const dx = shipScreenPos.x - portScreenPos.x;
+  const dy = shipScreenPos.y - portScreenPos.y;
   const distance = Math.hypot(dx, dy);
   
   if (distance < 1) return; // Already at target
@@ -798,7 +698,7 @@ function drawTractorBeam(ctx: CanvasRenderingContext2D) {
   const time = Date.now() * 0.003; // Slow animation
   const pulsePhase = Math.sin(time * 2);
   
-  // Draw multiple beam lines for tractor beam effect
+  // Draw multiple beam lines for tractor beam effect (FROM station TO ship)
   ctx.save();
   
   // Outer glow
@@ -806,27 +706,27 @@ function drawTractorBeam(ctx: CanvasRenderingContext2D) {
   ctx.lineWidth = 12;
   ctx.setLineDash([]);
   ctx.beginPath();
-  ctx.moveTo(shipScreenPos.x, shipScreenPos.y);
-  ctx.lineTo(targetScreenPos.x, targetScreenPos.y);
+  ctx.moveTo(portScreenPos.x, portScreenPos.y);
+  ctx.lineTo(shipScreenPos.x, shipScreenPos.y);
   ctx.stroke();
   
   // Middle beam
   ctx.strokeStyle = `rgba(153, 102, 255, ${0.4 + pulsePhase * 0.2})`;
   ctx.lineWidth = 6;
   ctx.beginPath();
-  ctx.moveTo(shipScreenPos.x, shipScreenPos.y);
-  ctx.lineTo(targetScreenPos.x, targetScreenPos.y);
+  ctx.moveTo(portScreenPos.x, portScreenPos.y);
+  ctx.lineTo(shipScreenPos.x, shipScreenPos.y);
   ctx.stroke();
   
-  // Core beam (animated dashes moving toward target)
+  // Core beam (animated dashes moving from port toward ship - pulling the ship in)
   const dashOffset = time * 50; // Animate dash movement
   ctx.strokeStyle = `rgba(200, 150, 255, ${0.8 + pulsePhase * 0.2})`;
   ctx.lineWidth = 2;
   ctx.setLineDash([10, 15]);
-  ctx.lineDashOffset = -dashOffset; // Negative to move toward target
+  ctx.lineDashOffset = dashOffset; // Positive to move from port toward ship (pulling)
   ctx.beginPath();
-  ctx.moveTo(shipScreenPos.x, shipScreenPos.y);
-  ctx.lineTo(targetScreenPos.x, targetScreenPos.y);
+  ctx.moveTo(portScreenPos.x, portScreenPos.y);
+  ctx.lineTo(shipScreenPos.x, shipScreenPos.y);
   ctx.stroke();
   
   // Draw target position indicator (docking point)

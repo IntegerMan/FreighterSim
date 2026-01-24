@@ -138,6 +138,7 @@ function handleDock() {
         // Engage tractor beam to pull ship to docking position AND rotate to correct heading
         shipStore.engageTractorBeam(
           status.station.id,
+          status.port.id,
           dockingPosition,
           normalizedHeading
         );
