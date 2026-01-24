@@ -3,6 +3,9 @@ import { ref, computed } from 'vue';
 import type { GameTime, TimeScale } from '@/core/game-loop';
 import { TIME_SCALES } from '@/core/game-loop';
 
+/** Initial credit balance for new game sessions */
+export const INITIAL_CREDITS = 10_000;
+
 /**
  * Game state store - manages overall game state, time, and session
  */
@@ -16,6 +19,9 @@ export const useGameStore = defineStore('game', () => {
   const isInitialized = ref(false);
   const currentSystemId = ref<string | null>(null);
 
+  // Credits state
+  const credits = ref(0);
+
   // Computed
   const formattedTime = computed(() => {
     const hours = Math.floor(elapsedTime.value / 3600);
@@ -25,6 +31,10 @@ export const useGameStore = defineStore('game', () => {
   });
 
   const availableTimescales = computed(() => TIME_SCALES);
+
+  const formattedCredits = computed(() =>
+    new Intl.NumberFormat('en-US').format(credits.value)
+  );
 
   // Actions
   function setTimeScale(scale: TimeScale) {
@@ -59,6 +69,7 @@ export const useGameStore = defineStore('game', () => {
     currentSystemId.value = systemId;
     isInitialized.value = true;
     elapsedTime.value = 0;
+    credits.value = INITIAL_CREDITS;
   }
 
   function reset() {
@@ -67,6 +78,7 @@ export const useGameStore = defineStore('game', () => {
     elapsedTime.value = 0;
     timeScale.value = 1;
     isPaused.value = false;
+    credits.value = 0;
   }
 
   return {
@@ -76,9 +88,11 @@ export const useGameStore = defineStore('game', () => {
     elapsedTime,
     isInitialized,
     currentSystemId,
+    credits,
     // Computed
     formattedTime,
     availableTimescales,
+    formattedCredits,
     // Actions
     setTimeScale,
     cycleTimeScale,

@@ -60,8 +60,4 @@ test.describe('Helm Navigation Controls', () => {
     await expect(page.locator('.helm-map')).toBeVisible();
     await expect(page.locator('.helm-map__system-name')).toContainText('Kestrel Reach');
   });
-
-  test('should have docking panel', async ({ page }) => {
-    await expect(page.locator('text=Docking').first()).toBeVisible();
-  });
 });

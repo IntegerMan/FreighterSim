@@ -38,7 +38,7 @@ function handleSelectContact(contactId: string) {
     <div class="sensors-view__display">
       <LcarsFrame
         title="Proximity Radar"
-        color="purple"
+        color="gold"
         no-padding
       >
         <RadarDisplay
@@ -55,7 +55,7 @@ function handleSelectContact(contactId: string) {
     <div class="sensors-view__display">
       <LcarsFrame
         title="Particle Traces"
-        color="purple"
+        color="gold"
         no-padding
       >
         <TraceParticlesDisplay

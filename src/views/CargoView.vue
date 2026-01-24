@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { LcarsFrame } from '@/components/ui';
 import { CargoGrid } from '@/components/cargo';
-import { CargoPanel } from '@/components/panels';
+import { CargoPanel, CreditsPanel } from '@/components/panels';
 </script>
 
 <template>
   <div class="cargo-view">
     <!-- Left Panel Column -->
     <div class="cargo-view__left-panels">
+      <div class="cargo-view__panel">
+        <CreditsPanel />
+      </div>
       <div class="cargo-view__panel cargo-view__panel--grow">
         <CargoPanel />
       </div>

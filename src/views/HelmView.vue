@@ -328,7 +328,7 @@ function handleRadarSelect(contactId: string) {
     font-family: $font-display;
     font-size: $font-size-xs;
     font-weight: $font-weight-medium;
-    color: $color-gold;
+    color: $color-purple;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     text-align: center;

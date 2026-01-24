@@ -37,7 +37,7 @@ function getContactClass(type: string): string {
 <template>
   <LcarsFrame
     title="Sensors"
-    color="purple"
+    color="gold"
   >
     <div class="sensor-panel">
       <div class="sensor-panel__header">

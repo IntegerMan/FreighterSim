@@ -194,18 +194,18 @@ describe('ShipStore', () => {
 
 ```scss
 // Primary colors
-$color-purple: #9966FF;       // Primary accent, headers, frames
+$color-purple: #9966FF;       // Labels, section headers within panels
 $color-purple-light: #BB99FF; // Hover states
-$color-purple-dark: #6633CC;  // Pressed states
+$color-purple-dark: #6633CC;  // Pressed states, dividers
 
-// Secondary colors  
-$color-gold: #FFCC00;         // Secondary accent, active states
+// Secondary colors
+$color-gold: #FFCC00;         // Panel headers (LcarsFrame), data values
 $color-gold-light: #FFE066;   // Hover states
 $color-gold-dark: #CC9900;    // Pressed states
 
 // Neutral colors
-$color-white: #FFFFFF;        // Primary text, data displays
-$color-gray: #888888;         // Secondary text, disabled
+$color-white: #FFFFFF;        // Primary text, large data displays
+$color-gray: #888888;         // Secondary text, disabled, units
 $color-black: #000000;        // Backgrounds
 $color-black-light: #1A1A1A;  // Panel backgrounds
 
@@ -214,6 +214,16 @@ $color-success: #66FF66;      // Positive status
 $color-warning: #FFAA00;      // Caution
 $color-danger: #FF6666;       // Alert, critical
 ```
+
+### Color Usage Convention
+
+| Element | Color | Example |
+|---------|-------|---------|
+| Panel headers (LcarsFrame title) | Gold | "STATUS", "NAVIGATION", "SENSORS" |
+| Labels within panels | Purple | "BALANCE", "HEADING", "SPEED" |
+| Data values | Gold or White | "10,000", "045°" |
+| Units | Gray | "u/s", "u" |
+| Section headers | Gray | "Ship Telemetry", "Selected Target" |
 
 ### Typography
 
