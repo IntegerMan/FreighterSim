@@ -1115,6 +1115,7 @@ onMounted(() => {
   >
     <canvas
       ref="canvasRef"
+      class="helm-map__canvas"
       :width="canvasWidth"
       :height="canvasHeight"
       @wheel="handleWheel"

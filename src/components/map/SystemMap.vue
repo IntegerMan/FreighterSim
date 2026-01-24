@@ -794,6 +794,7 @@ onMounted(() => {
   >
     <canvas
       ref="canvasRef"
+      class="system-map__canvas"
       :width="canvasWidth"
       :height="canvasHeight"
       @wheel="handleWheel"
