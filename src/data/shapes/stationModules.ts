@@ -14,8 +14,7 @@
  * @module data/shapes/stationModules
  */
 
-import type { Shape, DockingPort } from '@/models';
-import type { StationModule, StationModuleType } from '@/models';
+import type { Shape, StationModule, StationModuleType } from '@/models';
 
 // =============================================================================
 // Core Module - Central hub
@@ -26,14 +25,14 @@ export const CORE_SHAPE: Shape = {
   name: 'Station Core',
   vertices: [
     // Octagonal shape
-    { x: 0.4, y: 1.0 },
-    { x: 1.0, y: 0.4 },
-    { x: 1.0, y: -0.4 },
-    { x: 0.4, y: -1.0 },
-    { x: -0.4, y: -1.0 },
-    { x: -1.0, y: -0.4 },
-    { x: -1.0, y: 0.4 },
-    { x: -0.4, y: 1.0 },
+    { x: 0.4, y: 1 },
+    { x: 1, y: 0.4 },
+    { x: 1, y: -0.4 },
+    { x: 0.4, y: -1 },
+    { x: -0.4, y: -1 },
+    { x: -1, y: -0.4 },
+    { x: -1, y: 0.4 },
+    { x: -0.4, y: 1 },
   ],
   boundingRadius: 1.05,
   centroid: { x: 0, y: 0 },
@@ -43,10 +42,10 @@ export const CORE_MODULE: StationModule = {
   type: 'core',
   shape: CORE_SHAPE,
   connectionPoints: [
-    { x: 0, y: 1.0 },   // Top
-    { x: 1.0, y: 0 },   // Right
-    { x: 0, y: -1.0 },  // Bottom
-    { x: -1.0, y: 0 },  // Left
+    { x: 0, y: 1 },   // Top
+    { x: 1, y: 0 },   // Right
+    { x: 0, y: -1 },  // Bottom
+    { x: -1, y: 0 },  // Left
   ],
 };
 
@@ -59,57 +58,22 @@ export const DOCKING_RING_SHAPE: Shape = {
   name: 'Docking Ring',
   vertices: [
     // Ring shape (12-sided for roundness)
-    { x: 0.5, y: 1.0 },
+    { x: 0.5, y: 1 },
     { x: 0.87, y: 0.87 },
-    { x: 1.0, y: 0.5 },
-    { x: 1.0, y: -0.5 },
+    { x: 1, y: 0.5 },
+    { x: 1, y: -0.5 },
     { x: 0.87, y: -0.87 },
-    { x: 0.5, y: -1.0 },
-    { x: -0.5, y: -1.0 },
+    { x: 0.5, y: -1 },
+    { x: -0.5, y: -1 },
     { x: -0.87, y: -0.87 },
-    { x: -1.0, y: -0.5 },
-    { x: -1.0, y: 0.5 },
+    { x: -1, y: -0.5 },
+    { x: -1, y: 0.5 },
     { x: -0.87, y: 0.87 },
-    { x: -0.5, y: 1.0 },
+    { x: -0.5, y: 1 },
   ],
   boundingRadius: 1.1,
   centroid: { x: 0, y: 0 },
 };
-
-const DOCKING_RING_PORTS: DockingPort[] = [
-  {
-    id: 'dock-top',
-    position: { x: 0, y: 1.0 },
-    approachVector: { x: 0, y: 1 },
-    size: 'medium',
-    alignmentTolerance: 15,
-    dockingRange: 30,
-  },
-  {
-    id: 'dock-right',
-    position: { x: 1.0, y: 0 },
-    approachVector: { x: 1, y: 0 },
-    size: 'medium',
-    alignmentTolerance: 15,
-    dockingRange: 30,
-  },
-  {
-    id: 'dock-bottom',
-    position: { x: 0, y: -1.0 },
-    approachVector: { x: 0, y: -1 },
-    size: 'medium',
-    alignmentTolerance: 15,
-    dockingRange: 30,
-  },
-  {
-    id: 'dock-left',
-    position: { x: -1.0, y: 0 },
-    approachVector: { x: -1, y: 0 },
-    size: 'medium',
-    alignmentTolerance: 15,
-    dockingRange: 30,
-  },
-];
 
 export const DOCKING_RING_MODULE: StationModule = {
   type: 'docking-ring',
@@ -117,7 +81,7 @@ export const DOCKING_RING_MODULE: StationModule = {
   connectionPoints: [
     { x: 0, y: 0 }, // Center connection to core
   ],
-  dockingPorts: DOCKING_RING_PORTS,
+  // No docking ports - docking ring is visual only, ports are on edge modules
 };
 
 // =============================================================================
@@ -129,20 +93,20 @@ export const HABITAT_SHAPE: Shape = {
   name: 'Habitat Module',
   vertices: [
     // Cylindrical-ish shape
-    { x: -0.3, y: 1.0 },
-    { x: 0.3, y: 1.0 },
+    { x: -0.3, y: 1 },
+    { x: 0.3, y: 1 },
     { x: 0.5, y: 0.8 },
     { x: 0.6, y: 0.4 },
     { x: 0.6, y: -0.4 },
     { x: 0.5, y: -0.8 },
-    { x: 0.3, y: -1.0 },
-    { x: -0.3, y: -1.0 },
+    { x: 0.3, y: -1 },
+    { x: -0.3, y: -1 },
     { x: -0.5, y: -0.8 },
     { x: -0.6, y: -0.4 },
     { x: -0.6, y: 0.4 },
     { x: -0.5, y: 0.8 },
   ],
-  boundingRadius: 1.0,
+  boundingRadius: 1,
   centroid: { x: 0, y: 0 },
 };
 
@@ -150,8 +114,19 @@ export const HABITAT_MODULE: StationModule = {
   type: 'habitat',
   shape: HABITAT_SHAPE,
   connectionPoints: [
-    { x: 0, y: 1.0 },   // Top
-    { x: 0, y: -1.0 },  // Bottom
+    { x: 0, y: 1 },   // Top
+    { x: 0, y: -1 },  // Bottom
+  ],
+  // Docking port on the outer face for passenger transfers
+  dockingPorts: [
+    {
+      id: 'habitat-dock',
+      position: { x: 0, y: 1.1 },
+      approachVector: { x: 0, y: 1 },
+      size: 'medium',
+      alignmentTolerance: 15,
+      dockingRange: 25,
+    },
   ],
 };
 
@@ -173,7 +148,7 @@ export const CARGO_SHAPE: Shape = {
     { x: -0.9, y: -0.6 },
     { x: -0.9, y: 0.6 },
   ],
-  boundingRadius: 1.0,
+  boundingRadius: 1,
   centroid: { x: 0, y: 0 },
 };
 
@@ -183,6 +158,17 @@ export const CARGO_MODULE: StationModule = {
   connectionPoints: [
     { x: 0, y: 0.8 },   // Top
     { x: 0, y: -0.8 },  // Bottom
+  ],
+  // Docking port on the outer face (top of module when attached pointing outward)
+  dockingPorts: [
+    {
+      id: 'cargo-dock',
+      position: { x: 0, y: 0.9 },
+      approachVector: { x: 0, y: 1 },
+      size: 'medium',
+      alignmentTolerance: 15,
+      dockingRange: 25,
+    },
   ],
 };
 
@@ -197,16 +183,16 @@ export const SOLAR_ARRAY_SHAPE: Shape = {
     // Long rectangular panel with mounting
     { x: -0.15, y: 0.2 },
     { x: 0.15, y: 0.2 },
-    { x: 0.15, y: 0.0 },
-    { x: 1.0, y: 0.0 },
-    { x: 1.0, y: -0.6 },
+    { x: 0.15, y: 0 },
+    { x: 1, y: 0 },
+    { x: 1, y: -0.6 },
     { x: 0.15, y: -0.6 },
     { x: 0.15, y: -0.8 },
     { x: -0.15, y: -0.8 },
     { x: -0.15, y: -0.6 },
-    { x: -1.0, y: -0.6 },
-    { x: -1.0, y: 0.0 },
-    { x: -0.15, y: 0.0 },
+    { x: -1, y: -0.6 },
+    { x: -1, y: 0 },
+    { x: -0.15, y: 0 },
   ],
   boundingRadius: 1.1,
   centroid: { x: 0, y: -0.3 },
@@ -229,14 +215,14 @@ export const ANTENNA_SHAPE: Shape = {
   name: 'Communications Antenna',
   vertices: [
     // Dish shape with support
-    { x: -0.1, y: 0.0 },
-    { x: 0.1, y: 0.0 },
+    { x: -0.1, y: 0 },
+    { x: 0.1, y: 0 },
     { x: 0.1, y: -0.3 },
     { x: 0.6, y: -0.5 },
     { x: 0.8, y: -0.9 },
-    { x: 0.6, y: -1.0 },
+    { x: 0.6, y: -1 },
     { x: 0, y: -0.7 },
-    { x: -0.6, y: -1.0 },
+    { x: -0.6, y: -1 },
     { x: -0.8, y: -0.9 },
     { x: -0.6, y: -0.5 },
     { x: -0.1, y: -0.3 },
@@ -262,18 +248,18 @@ export const REFINERY_SHAPE: Shape = {
   name: 'Refinery Module',
   vertices: [
     // Industrial shape with processing tanks
-    { x: -0.4, y: 1.0 },
-    { x: 0.4, y: 1.0 },
+    { x: -0.4, y: 1 },
+    { x: 0.4, y: 1 },
     { x: 0.6, y: 0.8 },
     { x: 0.8, y: 0.4 },
-    { x: 0.8, y: 0.0 },
-    { x: 1.0, y: -0.2 },
-    { x: 1.0, y: -0.8 },
-    { x: 0.6, y: -1.0 },
-    { x: -0.6, y: -1.0 },
-    { x: -1.0, y: -0.8 },
-    { x: -1.0, y: -0.2 },
-    { x: -0.8, y: 0.0 },
+    { x: 0.8, y: 0 },
+    { x: 1, y: -0.2 },
+    { x: 1, y: -0.8 },
+    { x: 0.6, y: -1 },
+    { x: -0.6, y: -1 },
+    { x: -1, y: -0.8 },
+    { x: -1, y: -0.2 },
+    { x: -0.8, y: 0 },
     { x: -0.8, y: 0.4 },
     { x: -0.6, y: 0.8 },
   ],
@@ -285,8 +271,19 @@ export const REFINERY_MODULE: StationModule = {
   type: 'refinery',
   shape: REFINERY_SHAPE,
   connectionPoints: [
-    { x: 0, y: 1.0 },   // Input
-    { x: 0, y: -1.0 },  // Output
+    { x: 0, y: 1 },   // Input
+    { x: 0, y: -1 },  // Output
+  ],
+  // Large docking port for ore freighters
+  dockingPorts: [
+    {
+      id: 'refinery-dock',
+      position: { x: 0, y: 1.1 },
+      approachVector: { x: 0, y: 1 },
+      size: 'large',
+      alignmentTolerance: 20,
+      dockingRange: 30,
+    },
   ],
 };
 
@@ -299,15 +296,15 @@ export const COMMAND_SHAPE: Shape = {
   name: 'Command Module',
   vertices: [
     // Elevated command center with viewports
-    { x: 0, y: 1.0 },
+    { x: 0, y: 1 },
     { x: 0.3, y: 0.8 },
     { x: 0.5, y: 0.4 },
-    { x: 0.5, y: 0.0 },
+    { x: 0.5, y: 0 },
     { x: 0.4, y: -0.3 },
     { x: 0.3, y: -0.5 },
     { x: -0.3, y: -0.5 },
     { x: -0.4, y: -0.3 },
-    { x: -0.5, y: 0.0 },
+    { x: -0.5, y: 0 },
     { x: -0.5, y: 0.4 },
     { x: -0.3, y: 0.8 },
   ],
@@ -324,6 +321,68 @@ export const COMMAND_MODULE: StationModule = {
 };
 
 // =============================================================================
+// Corridor Module - Connecting arm
+// =============================================================================
+
+export const CORRIDOR_SHAPE: Shape = {
+  id: 'corridor',
+  name: 'Corridor',
+  vertices: [
+    // Rectangular connector arm
+    { x: -0.25, y: 1 },
+    { x: 0.25, y: 1 },
+    { x: 0.3, y: 0.8 },
+    { x: 0.3, y: -0.8 },
+    { x: 0.25, y: -1 },
+    { x: -0.25, y: -1 },
+    { x: -0.3, y: -0.8 },
+    { x: -0.3, y: 0.8 },
+  ],
+  boundingRadius: 1,
+  centroid: { x: 0, y: 0 },
+};
+
+export const CORRIDOR_MODULE: StationModule = {
+  type: 'corridor',
+  shape: CORRIDOR_SHAPE,
+  connectionPoints: [
+    { x: 0, y: 1 },   // Outward end
+    { x: 0, y: -1 },  // Inward end (connects to hub)
+  ],
+};
+
+// =============================================================================
+// Short Corridor Module - Shorter connecting arm
+// =============================================================================
+
+export const SHORT_CORRIDOR_SHAPE: Shape = {
+  id: 'corridor-short',
+  name: 'Short Corridor',
+  vertices: [
+    // Shorter rectangular connector
+    { x: -0.2, y: 0.6 },
+    { x: 0.2, y: 0.6 },
+    { x: 0.25, y: 0.4 },
+    { x: 0.25, y: -0.4 },
+    { x: 0.2, y: -0.6 },
+    { x: -0.2, y: -0.6 },
+    { x: -0.25, y: -0.4 },
+    { x: -0.25, y: 0.4 },
+  ],
+  boundingRadius: 0.65,
+  centroid: { x: 0, y: 0 },
+};
+
+export const SHORT_CORRIDOR_MODULE: StationModule = {
+  type: 'corridor-short',
+  shape: SHORT_CORRIDOR_SHAPE,
+  connectionPoints: [
+    { x: 0, y: 0.6 },   // Outward end
+    { x: 0, y: -0.6 },  // Inward end
+  ],
+};
+
+// =============================================================================
 // Module Registry
 // =============================================================================
 
@@ -336,6 +395,8 @@ export const STATION_MODULES: Record<StationModuleType, StationModule> = {
   'antenna': ANTENNA_MODULE,
   'refinery': REFINERY_MODULE,
   'command': COMMAND_MODULE,
+  'corridor': CORRIDOR_MODULE,
+  'corridor-short': SHORT_CORRIDOR_MODULE,
 };
 
 /**

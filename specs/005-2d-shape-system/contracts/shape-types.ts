@@ -8,7 +8,11 @@
  * Import from '@/models' after implementation.
  */
 
-import type { Vector2 } from './math';
+/** 2D vector type for positions and directions */
+export interface Vector2 {
+  x: number;
+  y: number;
+}
 
 // =============================================================================
 // Shape Definitions

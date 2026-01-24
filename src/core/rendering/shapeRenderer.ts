@@ -7,9 +7,67 @@
  * @module core/rendering/shapeRenderer
  */
 
-import type { Vector2, Shape, EngineMount, StationTemplate, StationModulePlacement } from '@/models';
+import type { Vector2, Shape, EngineMount, StationTemplate, StationModulePlacement, Station, StationModuleType } from '@/models';
 import { rotatePoint, vec2Add, vec2Scale } from '@/core/physics/vectorMath';
 import { getStationModule } from '@/data/shapes/stationModules';
+
+// =============================================================================
+// Fallback Shapes for Graceful Degradation
+// =============================================================================
+
+/**
+ * Default fallback shape (simple diamond) used when shape data is missing or corrupted
+ */
+export const FALLBACK_SHAPE: Shape = {
+  id: '_fallback',
+  name: 'Fallback Shape',
+  vertices: [
+    { x: 0, y: 1 },
+    { x: 1, y: 0 },
+    { x: 0, y: -1 },
+    { x: -1, y: 0 },
+  ],
+  boundingRadius: 1,
+};
+
+/**
+ * Validate a shape for rendering safety
+ * Returns true if the shape is valid for rendering
+ * 
+ * @param shape - Shape to validate
+ * @returns true if shape is safe to render
+ */
+export function isValidShape(shape: Shape | null | undefined): shape is Shape {
+  if (!shape) return false;
+  if (!Array.isArray(shape.vertices)) return false;
+  if (shape.vertices.length < 3) return false;
+  
+  // Check all vertices have valid x/y coordinates
+  for (const vertex of shape.vertices) {
+    if (typeof vertex?.x !== 'number' || typeof vertex?.y !== 'number') {
+      return false;
+    }
+    if (!Number.isFinite(vertex.x) || !Number.isFinite(vertex.y)) {
+      return false;
+    }
+  }
+  
+  return true;
+}
+
+/**
+ * Get a safe shape for rendering, using fallback if the shape is invalid
+ * 
+ * @param shape - Shape to validate
+ * @returns Valid shape or fallback shape
+ */
+export function getSafeShape(shape: Shape | null | undefined): Shape {
+  if (isValidShape(shape)) {
+    return shape;
+  }
+  console.warn(`[shapeRenderer] Invalid shape detected, using fallback:`, shape);
+  return FALLBACK_SHAPE;
+}
 
 // =============================================================================
 // Coordinate Transformation
@@ -94,7 +152,7 @@ export function screenToWorld(
  * Render a shape as a filled polygon
  * 
  * @param ctx - Canvas 2D rendering context
- * @param shape - The shape to render
+ * @param shape - The shape to render (uses fallback if invalid)
  * @param position - World position of the shape center
  * @param rotation - Rotation in degrees
  * @param scale - Scale factor (size in world units)
@@ -118,7 +176,9 @@ export function renderShape(
   strokeColor?: string,
   lineWidth: number = 1
 ): void {
-  const vertices = shape.vertices;
+  // Use safe shape (fallback if invalid)
+  const safeShape = getSafeShape(shape);
+  const vertices = safeShape.vertices;
   if (vertices.length < 3) return;
 
   ctx.beginPath();
@@ -422,6 +482,9 @@ export class VertexCache {
 // Station Module Rendering
 // =============================================================================
 
+/** Module render size relative to station scale - sized to fill grid cells and connect */
+const MODULE_SCALE_FACTOR = 0.12;
+
 /**
  * Render a single station module at its placement position
  */
@@ -441,7 +504,7 @@ export function renderStationModule(
   const moduleDefinition = getStationModule(module.moduleType);
   
   // Calculate module world position relative to station center
-  // Module position is in station local coordinates
+  // Module position is in normalized coordinates (-1 to 1), scaled by station scale
   const moduleWorldOffset = transformVertex(
     module.position,
     { x: 0, y: 0 },
@@ -457,8 +520,8 @@ export function renderStationModule(
   // Module rotation combines station rotation and module's own rotation
   const moduleWorldRotation = stationRotation + module.rotation;
   
-  // Modules use station scale (normalized to 1:1)
-  const moduleWorldScale = stationScale;
+  // Module scale is a fraction of station scale (modules are smaller than the whole station)
+  const moduleWorldScale = stationScale * MODULE_SCALE_FACTOR;
   
   // Render the module shape
   renderShape(
@@ -510,15 +573,21 @@ export function renderStation(
 
 /**
  * Calculate approximate bounding radius for a station template
- * by finding the maximum extent of all module positions
+ * Uses pre-calculated value if available, otherwise computes from modules
  */
 function calculateStationBoundingRadius(template: StationTemplate): number {
+  // Use pre-calculated value if available
+  if (template.boundingRadius !== undefined) {
+    return template.boundingRadius;
+  }
+  
+  // Calculate from modules - find maximum extent
   let maxRadius = 0;
   for (const modulePlacement of template.modules) {
     const moduleDefinition = getStationModule(modulePlacement.moduleType);
-    // Distance from center plus module's own radius
+    // Distance from center (module position) plus module's own scaled radius
     const distanceFromCenter = Math.hypot(modulePlacement.position.x, modulePlacement.position.y);
-    const totalRadius = distanceFromCenter + moduleDefinition.shape.boundingRadius;
+    const totalRadius = distanceFromCenter + moduleDefinition.shape.boundingRadius * MODULE_SCALE_FACTOR;
     maxRadius = Math.max(maxRadius, totalRadius);
   }
   return maxRadius || 1; // Fallback to 1 if no modules
@@ -574,4 +643,183 @@ export function renderStationWithLOD(
     // Close up - render full detail
     renderStation(ctx, template, position, rotation, scale, camera, screenCenter, zoom, fillColor, strokeColor);
   }
+}
+
+// =============================================================================
+// Module Hit Testing
+// =============================================================================
+
+/** Module scale factor - must match MODULE_SCALE_FACTOR above */
+const MODULE_HIT_SCALE_FACTOR = MODULE_SCALE_FACTOR;
+
+/**
+ * Result of a module hit test
+ */
+export interface ModuleHitResult {
+  /** Whether a module was hit */
+  hit: boolean;
+  /** The module type that was hit */
+  moduleType?: StationModuleType;
+  /** The module placement info */
+  modulePlacement?: StationModulePlacement;
+  /** Index of the module in the template */
+  moduleIndex?: number;
+  /** The station that owns this module */
+  station?: Station;
+}
+
+/**
+ * Check if a point is inside a polygon using ray casting algorithm
+ */
+function isPointInPolygon(point: Vector2, vertices: Vector2[]): boolean {
+  let inside = false;
+  const n = vertices.length;
+  
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = vertices[i]!.x;
+    const yi = vertices[i]!.y;
+    const xj = vertices[j]!.x;
+    const yj = vertices[j]!.y;
+    
+    if (((yi > point.y) !== (yj > point.y)) &&
+        (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  
+  return inside;
+}
+
+/**
+ * Get the world position of a module within a station
+ */
+export function getModuleWorldPosition(
+  modulePlacement: StationModulePlacement,
+  stationPosition: Vector2,
+  stationRotation: number,
+  stationScale: number
+): Vector2 {
+  const moduleWorldOffset = transformVertex(
+    modulePlacement.position,
+    { x: 0, y: 0 },
+    stationRotation,
+    stationScale
+  );
+  
+  return {
+    x: stationPosition.x + moduleWorldOffset.x,
+    y: stationPosition.y + moduleWorldOffset.y,
+  };
+}
+
+/**
+ * Check if a world point is inside a specific station module
+ */
+export function isPointInModule(
+  worldPoint: Vector2,
+  modulePlacement: StationModulePlacement,
+  stationPosition: Vector2,
+  stationRotation: number,
+  stationScale: number
+): boolean {
+  const moduleDefinition = getStationModule(modulePlacement.moduleType);
+  
+  // Get module world position
+  const moduleWorldPosition = getModuleWorldPosition(
+    modulePlacement,
+    stationPosition,
+    stationRotation,
+    stationScale
+  );
+  
+  // Module rotation combines station rotation and module's own rotation
+  const moduleWorldRotation = stationRotation + modulePlacement.rotation;
+  
+  // Module scale
+  const moduleWorldScale = stationScale * MODULE_HIT_SCALE_FACTOR;
+  
+  // Transform module vertices to world coordinates
+  const worldVertices = transformVertices(
+    moduleDefinition.shape.vertices,
+    moduleWorldPosition,
+    moduleWorldRotation,
+    moduleWorldScale
+  );
+  
+  return isPointInPolygon(worldPoint, worldVertices);
+}
+
+/**
+ * Find which module (if any) contains the given world point
+ */
+export function findModuleAtPoint(
+  worldPoint: Vector2,
+  template: StationTemplate,
+  stationPosition: Vector2,
+  stationRotation: number,
+  stationScale: number
+): { modulePlacement: StationModulePlacement; moduleIndex: number } | null {
+  // Check modules in reverse order (last rendered = on top)
+  for (let i = template.modules.length - 1; i >= 0; i--) {
+    const modulePlacement = template.modules[i]!;
+    if (isPointInModule(worldPoint, modulePlacement, stationPosition, stationRotation, stationScale)) {
+      return { modulePlacement, moduleIndex: i };
+    }
+  }
+  return null;
+}
+
+/**
+ * Find which module at a screen position across all stations
+ */
+export function findModuleAtScreenPosition(
+  screenPoint: Vector2,
+  stations: Station[],
+  getTemplate: (templateId: string) => StationTemplate | undefined,
+  camera: Vector2,
+  screenCenter: Vector2,
+  zoom: number,
+  getStationScale: (station: Station) => number
+): ModuleHitResult {
+  // Convert screen point to world coordinates
+  const worldPoint = screenToWorld(screenPoint, camera, screenCenter, zoom);
+  
+  // Check each station (in reverse for proper z-order)
+  for (let i = stations.length - 1; i >= 0; i--) {
+    const station = stations[i]!;
+    const templateId = station.templateId ?? station.type;
+    const template = getTemplate(templateId);
+    
+    if (!template) continue;
+    
+    const stationScale = getStationScale(station);
+    const stationRotation = station.rotation ?? 0;
+    
+    // Check if the station is rendering in full detail (not as a point)
+    const boundingRadius = template.boundingRadius ?? 1;
+    const screenSize = boundingRadius * stationScale * zoom * 2;
+    
+    // Only hit-test modules if station is rendered in detail
+    if (screenSize < 40) continue; // Skip if rendered as simplified shape
+    
+    const result = findModuleAtPoint(
+      worldPoint,
+      template,
+      station.position,
+      stationRotation,
+      stationScale
+    );
+    
+    if (result) {
+      return {
+        hit: true,
+        moduleType: result.modulePlacement.moduleType,
+        modulePlacement: result.modulePlacement,
+        moduleIndex: result.moduleIndex,
+        station,
+      };
+    }
+  }
+  
+  return { hit: false };
 }

@@ -51,6 +51,10 @@ export {
   REFINERY_MODULE,
   COMMAND_SHAPE,
   COMMAND_MODULE,
+  CORRIDOR_SHAPE,
+  CORRIDOR_MODULE,
+  SHORT_CORRIDOR_SHAPE,
+  SHORT_CORRIDOR_MODULE,
   STATION_MODULES,
   getStationModule,
 } from './stationModules';
@@ -64,6 +68,18 @@ export {
   getStationTemplate,
   getStationTemplateByType,
 } from './stations';
+
+// Station grid layout system
+export {
+  MODULE_GRID_SIZES,
+  TRADING_HUB_GRID,
+  MINING_OUTPOST_GRID,
+  FUEL_DEPOT_GRID,
+  gridToModulePlacements,
+  buildTradingHubFromGrid,
+  buildMiningOutpostFromGrid,
+  buildFuelDepotFromGrid,
+} from './stationGrid';
 
 // Registries
 export {

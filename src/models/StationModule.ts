@@ -24,7 +24,9 @@ export type StationModuleType =
   | 'solar-array'
   | 'antenna'
   | 'refinery'
-  | 'command';
+  | 'command'
+  | 'corridor'
+  | 'corridor-short';
 
 /**
  * A reusable building block for station composition.
@@ -104,6 +106,8 @@ export interface StationTemplate {
   modules: StationModulePlacement[];
   /** Initial rotation in degrees (default: 0) */
   defaultRotation?: number;
+  /** Pre-calculated bounding radius for collision and LOD (optional, calculated if not set) */
+  boundingRadius?: number;
 }
 
 /** Default station rotation in degrees */

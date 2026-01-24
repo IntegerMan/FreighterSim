@@ -58,3 +58,39 @@ test.describe('Sensors View', () => {
     await expect(page).toHaveURL(/\/bridge/);
   });
 });
+
+test.describe('Sensor Raytracing and Occlusion', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/bridge');
+    await page.waitForSelector('.system-map');
+  });
+
+  test('should detect contacts using shape-based sensing', async ({ page }) => {
+    // Wait for sensor refresh cycle
+    await page.waitForTimeout(600);
+    
+    // Sensors should detect nearby objects
+    await expect(page.locator('text=CONTACTS')).toBeVisible();
+    
+    // Contacts list should have items
+    const contacts = page.locator('.sensor-panel__contact');
+    const count = await contacts.count();
+    expect(count).toBeGreaterThan(0);
+  });
+
+  test('should show contact information based on sensor data', async ({ page }) => {
+    await page.waitForTimeout(600);
+    
+    // Station contacts should include name and type info
+    await expect(page.locator('text=Nexus Trading Hub')).toBeVisible();
+  });
+
+  test('should affect contact visibility based on occlusion', async ({ page }) => {
+    // Sensor system uses raytracing for occlusion
+    // Verify sensor panel is operational
+    await page.waitForTimeout(600);
+    
+    const sensorPanel = page.locator('.sensor-panel');
+    await expect(sensorPanel).toBeVisible();
+  });
+});

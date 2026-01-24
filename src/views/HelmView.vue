@@ -63,11 +63,6 @@ const selectedStationDockingStatus = computed(() => {
   );
 });
 
-// Determine if docking should use new port-based system
-const useDockingPorts = computed(() => {
-  return selectedStationDockingStatus.value?.port !== null;
-});
-
 // Updated canDock that considers port alignment (T050)
 const canDockAtPort = computed(() => {
   if (shipStore.isDocked) return false;
@@ -106,9 +101,42 @@ const dockingPortInfo = computed(() => {
   };
 });
 
+// Check if tractor beam is active
+const isTractorBeamActive = computed(() => shipStore.isTractorBeamActive);
+
 function handleDock() {
-  // T050: Use port-based docking if available
+  // T050: Use port-based docking with tractor beam
   if (canDockAtPort.value && navStore.selectedStation) {
+    const status = selectedStationDockingStatus.value;
+    if (status?.portWorldPosition && status.port) {
+      // Calculate docking position (60% of range along approach vector)
+      const dockingRange = getDockingRange(status.port);
+      const dockingPositionDistance = dockingRange * 0.6;
+      
+      // Get approach vector from port world position
+      const ports = navStore.getStationDockingPorts(navStore.selectedStation);
+      const portData = ports.find(p => p.port.id === status.port?.id);
+      
+      if (portData) {
+        const dockingPosition = {
+          x: portData.worldPosition.x + portData.worldApproachVector.x * dockingPositionDistance,
+          y: portData.worldPosition.y + portData.worldApproachVector.y * dockingPositionDistance,
+        };
+        
+        // Calculate required heading (opposite of approach vector)
+        const dockingHeading = Math.atan2(-portData.worldApproachVector.x, -portData.worldApproachVector.y) * (180 / Math.PI);
+        const normalizedHeading = (dockingHeading + 360) % 360;
+        
+        // Engage tractor beam to pull ship to docking position
+        shipStore.engageTractorBeam(
+          navStore.selectedStation.id,
+          dockingPosition,
+          normalizedHeading
+        );
+        return;
+      }
+    }
+    // Fallback to instant docking if tractor beam calculation fails
     shipStore.dock(navStore.selectedStation.id);
   } else if (canDock.value && nearestStation.value) {
     // Fallback to legacy docking
@@ -173,7 +201,7 @@ function handleRadarSelect(contactId: string) {
             :target-speed="shipStore.targetSpeed"
             :max-speed="shipStore.engines.maxSpeed"
             :min-speed="shipStore.minSpeed"
-            :disabled="shipStore.isDocked"
+            :disabled="shipStore.isDocked || isTractorBeamActive"
             @set-speed="setSpeed"
           />
         </div>
@@ -187,12 +215,25 @@ function handleRadarSelect(contactId: string) {
             label="ALL STOP" 
             color="danger" 
             full-width 
-            :disabled="shipStore.isDocked"
+            :disabled="shipStore.isDocked || isTractorBeamActive"
             @click="shipStore.allStop()" 
           />
           
+          <!-- Tractor Beam Active Status -->
+          <template v-if="isTractorBeamActive">
+            <div class="helm-view__tractor-beam-info">
+              <span class="helm-view__tractor-beam-label">TRACTOR BEAM</span>
+              <span class="helm-view__tractor-beam-status">ENGAGED</span>
+            </div>
+            <LcarsButton 
+              label="CANCEL DOCK" 
+              color="warning" 
+              full-width 
+              @click="shipStore.disengageTractorBeam()" 
+            />
+          </template>
           <!-- Dock Button - conditional display -->
-          <template v-if="shipStore.isDocked">
+          <template v-else-if="shipStore.isDocked">
             <div class="helm-view__docked-info">
               <span class="helm-view__docked-label">DOCKED AT</span>
               <span class="helm-view__docked-station">{{ dockedStation?.name }}</span>
@@ -492,6 +533,52 @@ function handleRadarSelect(contactId: string) {
     font-family: $font-mono;
     font-size: $font-size-xs;
     color: $color-gold;
+  }
+
+  &__tractor-beam-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: $space-xs;
+    background-color: rgba($color-purple, 0.2);
+    border-radius: $radius-sm;
+    animation: tractor-pulse 1s ease-in-out infinite;
+  }
+
+  &__tractor-beam-label {
+    font-family: $font-display;
+    font-size: 10px;
+    color: $color-purple;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  &__tractor-beam-status {
+    font-family: $font-mono;
+    font-size: $font-size-xs;
+    color: $color-gold;
+    animation: tractor-text-pulse 0.5s ease-in-out infinite;
+  }
+
+  @keyframes tractor-pulse {
+    0%, 100% {
+      background-color: rgba($color-purple, 0.1);
+      box-shadow: 0 0 5px rgba($color-purple, 0.3);
+    }
+    50% {
+      background-color: rgba($color-purple, 0.3);
+      box-shadow: 0 0 15px rgba($color-purple, 0.6);
+    }
+  }
+
+  @keyframes tractor-text-pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
   }
 
   &__radar-container {

@@ -57,3 +57,11 @@ export {
   type RayHit,
   type RaycastTarget,
 } from './raycasting';
+
+// T070: Spatial partitioning for broad-phase collision
+export {
+  SpatialGrid,
+  createOptimizedGrid,
+  type SpatialObject,
+  type QueryResult,
+} from './spatialGrid';

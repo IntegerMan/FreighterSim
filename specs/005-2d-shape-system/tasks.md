@@ -166,7 +166,16 @@
 - [X] T049 [US4] Add docking status indicator to HelmView showing alignment/distance in src/views/HelmView.vue
 - [X] T050 [US4] Update docking action to validate port alignment before allowing dock in src/stores/navigationStore.ts
 
-**Checkpoint**: Docking only succeeds when properly aligned with a designated docking port
+### Tractor Beam Docking Enhancement
+
+- [X] T050a [US4] Implement tractor beam state and movement control in src/stores/shipStore.ts
+- [X] T050b [US4] Add tractor beam engage/disengage functions for docking assistance in src/stores/shipStore.ts
+- [X] T050c [US4] Update HelmView docking to use tractor beam for guided docking in src/views/HelmView.vue
+- [X] T050d [US4] Add tractor beam visual effect (animated beam) in src/components/map/HelmMap.vue
+- [X] T050e [US4] Add tractor beam UI status indicator in src/views/HelmView.vue
+- [X] T050f [US4] Add dotted docking position indicator showing ship's target position in src/components/map/SystemMap.vue
+
+**Checkpoint**: Docking only succeeds when properly aligned with a designated docking port, with tractor beam assistance
 
 ---
 
@@ -205,11 +214,11 @@
 
 **Purpose**: End-to-end tests validating full feature integration
 
-- [ ] T060 [P] Create E2E test for ship shape rendering on SystemMap in e2e/shapes.spec.ts (verify player ship displays as polygon, NPC ships have distinct shapes)
-- [ ] T061 [P] Create E2E test for station shape rendering in e2e/shapes.spec.ts (verify modular station composition visible)
-- [ ] T062 Create E2E test for engine particle traces in e2e/shapes.spec.ts (verify 3 particle origins on player ship)
-- [ ] T063 Create E2E test for collision detection in e2e/navigation.spec.ts (verify collision warning triggers on hull proximity)
-- [ ] T064 Create E2E test for sensor raytracing in e2e/sensors.spec.ts (verify occlusion affects contact visibility)
+- [X] T060 [P] Create E2E test for ship shape rendering on SystemMap in e2e/shapes.spec.ts (verify player ship displays as polygon, NPC ships have distinct shapes)
+- [X] T061 [P] Create E2E test for station shape rendering in e2e/shapes.spec.ts (verify modular station composition visible)
+- [X] T062 Create E2E test for engine particle traces in e2e/shapes.spec.ts (verify 3 particle origins on player ship)
+- [X] T063 Create E2E test for collision detection in e2e/navigation.spec.ts (verify collision warning triggers on hull proximity)
+- [X] T064 Create E2E test for sensor raytracing in e2e/sensors.spec.ts (verify occlusion affects contact visibility)
 
 ---
 
@@ -217,13 +226,13 @@
 
 **Purpose**: Documentation, optimization, and final validation
 
-- [ ] T065 [P] Add JSDoc documentation to all shape model interfaces in src/models/Shape.ts
-- [ ] T066 [P] Add JSDoc documentation to collision functions in src/core/physics/collision.ts
-- [ ] T067 [P] Add JSDoc documentation to rendering functions in src/core/rendering/shapeRenderer.ts
-- [ ] T068 Implement graceful fallback to circle rendering when shape data is missing or corrupted
-- [ ] T069 [P] Performance optimization: Cache transformed vertices per frame in shapeRenderer.ts
-- [ ] T070 [P] Performance optimization: Spatial partitioning for collision checks with many objects
-- [ ] T071 Run quickstart.md validation to ensure all integration points work correctly
+- [X] T065 [P] Add JSDoc documentation to all shape model interfaces in src/models/Shape.ts
+- [X] T066 [P] Add JSDoc documentation to collision functions in src/core/physics/collision.ts
+- [X] T067 [P] Add JSDoc documentation to rendering functions in src/core/rendering/shapeRenderer.ts
+- [X] T068 Implement graceful fallback to circle rendering when shape data is missing or corrupted
+- [X] T069 [P] Performance optimization: Cache transformed vertices per frame in shapeRenderer.ts
+- [X] T070 [P] Performance optimization: Spatial partitioning for collision checks with many objects
+- [X] T071 Run quickstart.md validation to ensure all integration points work correctly
 
 ---
 
@@ -348,5 +357,13 @@ Task T018: "Create station module shapes in src/data/shapes/stationModules.ts"
 - Stop at any checkpoint to validate story independently
 - Graceful degradation: ships/stations without templateId continue to render as circles
 - **Test-First Compliance**: Unit tests (T005a, T006a, T007a, T029a, T036a, T039a, T040a, T051a, T052a, T056a) written before implementation per Constitution Principle III
-- **Total Tasks**: 71 (includes 10 unit test tasks + 5 E2E test tasks)
+- **Total Tasks**: 77 (includes 10 unit test tasks + 5 E2E test tasks + 6 tractor beam tasks)
 - Graceful degradation: ships/stations without templateId continue to render as circles
+
+### Additional Enhancements (Added during implementation)
+
+- **World Scale**: Increased station/planet distances in kestrelReach.ts for better "space is vast" feeling
+- **Station Visual Scale**: Station modules render at 60% of docking range with proper module scaling (0.25x)
+- **Docking Range Scaling**: Station types have appropriate docking ranges (200 for trading hub, 150 for mining, 100 for fuel depot)
+- **Tractor Beam System**: Ships are pulled to exact docking position with animated visual effect
+- **Docking Position Indicator**: Dotted circle shows exactly where ship should position for docking

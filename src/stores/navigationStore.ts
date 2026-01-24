@@ -213,6 +213,11 @@ export const useNavigationStore = defineStore('navigation', () => {
 
     const ports: Array<{ port: DockingPort; worldPosition: Vector2; worldApproachVector: Vector2 }> = [];
     const stationRotationRad = ((station.rotation ?? 0) * Math.PI) / 180;
+    
+    // Station scale matches SystemMap.vue calculation (6x multiplier for ~30x ship size)
+    const STATION_VISUAL_MULTIPLIER = 6;
+    const stationScale = station.dockingRange * STATION_VISUAL_MULTIPLIER;
+    const moduleScaleFactor = 0.12; // Must match MODULE_SCALE_FACTOR in shapeRenderer
 
     // Find docking modules in the template
     for (const modulePlacement of template.modules) {
@@ -221,16 +226,21 @@ export const useNavigationStore = defineStore('navigation', () => {
 
       const moduleRotationRad = (modulePlacement.rotation * Math.PI) / 180;
       const totalRotation = stationRotationRad + moduleRotationRad;
+      
+      // Module position scale factor (module positions are in normalized coords)
+      const modulePositionScale = stationScale;
+      // Module port position scale factor (port positions within module use module scale)
+      const modulePortScale = stationScale * moduleScaleFactor;
 
       for (const port of module.dockingPorts) {
         // Transform port position from module local → station local → world
-        // First rotate by module rotation relative to station
-        const moduleLocalX = port.position.x * Math.cos(moduleRotationRad) - port.position.y * Math.sin(moduleRotationRad);
-        const moduleLocalY = port.position.x * Math.sin(moduleRotationRad) + port.position.y * Math.cos(moduleRotationRad);
+        // Port position is in module's local coords, scale by module render scale
+        const moduleLocalX = port.position.x * modulePortScale * Math.cos(moduleRotationRad) - port.position.y * modulePortScale * Math.sin(moduleRotationRad);
+        const moduleLocalY = port.position.x * modulePortScale * Math.sin(moduleRotationRad) + port.position.y * modulePortScale * Math.cos(moduleRotationRad);
         
-        // Add module offset (already in station local coords)
-        const stationLocalX = moduleLocalX * 40 + modulePlacement.position.x; // Module scale factor
-        const stationLocalY = moduleLocalY * 40 + modulePlacement.position.y;
+        // Add module offset (module position is in normalized coords, scaled by station scale)
+        const stationLocalX = moduleLocalX + modulePlacement.position.x * modulePositionScale;
+        const stationLocalY = moduleLocalY + modulePlacement.position.y * modulePositionScale;
         
         // Rotate by station rotation and add station position
         const worldX = stationLocalX * Math.cos(stationRotationRad) - stationLocalY * Math.sin(stationRotationRad) + station.position.x;

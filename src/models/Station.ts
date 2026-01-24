@@ -44,6 +44,7 @@ export function createStation(config: {
   rotation?: number;
 }): Station {
   const defaultServices = getDefaultServices(config.type);
+  const defaultDockingRange = getDefaultDockingRangeForType(config.type);
   
   return {
     id: config.id,
@@ -51,12 +52,35 @@ export function createStation(config: {
     type: config.type,
     position: config.position,
     services: config.services ?? defaultServices,
-    dockingRange: config.dockingRange ?? 50,
+    dockingRange: config.dockingRange ?? defaultDockingRange,
     description: config.description,
     faction: config.faction,
     templateId: config.templateId ?? config.type, // Default templateId to station type
     rotation: config.rotation ?? 0,
   };
+}
+
+/**
+ * Get default docking range for a station type
+ * Larger stations have larger docking zones
+ */
+function getDefaultDockingRangeForType(type: StationType): number {
+  switch (type) {
+    case 'trading-hub':
+      return 200; // Large commercial station
+    case 'mining-outpost':
+      return 150; // Medium industrial station
+    case 'fuel-depot':
+      return 100; // Smaller automated station
+    case 'shipyard':
+      return 180; // Large construction facility
+    case 'research':
+      return 120; // Medium research station
+    case 'military':
+      return 160; // Large military installation
+    default:
+      return 100;
+  }
 }
 
 /**

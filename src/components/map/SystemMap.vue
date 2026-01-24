@@ -12,6 +12,7 @@ import {
   renderEngineMounts,
   getShapeScreenSize,
   renderStationWithLOD,
+  findModuleAtScreenPosition,
 } from '@/core/rendering';
 import { Starfield, createDefaultStarfieldConfig } from '@/core/starfield';
 import { getShipTemplate, getStationTemplateById, getStationModule } from '@/data/shapes';
@@ -68,6 +69,29 @@ const zoom = ref(0.5);
 const panOffset = ref<Vector2>({ x: 0, y: 0 });
 const isDragging = ref(false);
 const dragStart = ref<Vector2>({ x: 0, y: 0 });
+
+// Module tooltip state
+const tooltipVisible = ref(false);
+const tooltipX = ref(0);
+const tooltipY = ref(0);
+const tooltipContent = ref<{
+  stationName: string;
+  moduleName: string;
+  moduleType: string;
+  moduleStatus: string;
+} | null>(null);
+
+// Format module type for display
+function formatModuleType(type: string): string {
+  return type.split('-').map(word => 
+    word.charAt(0).toUpperCase() + word.slice(1)
+  ).join(' ');
+}
+
+// Get module status (could be extended with actual status data)
+function getModuleStatus(moduleType: string): string {
+  return 'Operational';
+}
 
 // Computed camera center (follows ship by default)
 const cameraCenter = computed(() => ({
@@ -290,19 +314,26 @@ function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   const camera = { x: cameraCenter.value.x, y: cameraCenter.value.y };
   const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
 
-  // Docking range circle
+  // Docking range circle (dotted outline)
   const screenDockingRange = station.dockingRange * zoom.value;
-  ctx.fillStyle = COLORS.dockingRange;
+  ctx.strokeStyle = 'rgba(153, 102, 255, 0.5)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
   ctx.beginPath();
   ctx.arc(screenPos.x, screenPos.y, screenDockingRange, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.stroke();
+  ctx.setLineDash([]);
 
   // Get station template for shape rendering
   const templateId = station.templateId ?? station.type;
   const template = getStationTemplateById(templateId);
   
-  // Calculate station render size (use docking range as a guide, or default scale)
-  const stationScale = station.dockingRange * 0.3; // Station visual size is ~30% of docking range
+  // Calculate station render size
+  // Ship is ~40 units, station dockingRange is ~200 units
+  // Station visual should be ~30x ship size = 1200 units
+  // So stationScale = dockingRange * 6 = 1200 for trading hub
+  const STATION_VISUAL_MULTIPLIER = 6;
+  const stationScale = station.dockingRange * STATION_VISUAL_MULTIPLIER;
   const stationRotation = station.rotation ?? 0;
 
   if (template) {
@@ -360,27 +391,31 @@ function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   ctx.textAlign = 'center';
   ctx.fillText(station.name, screenPos.x, screenPos.y + (template ? template.boundingRadius * stationScale * zoom.value : 10) + 14);
 
-  // Draw docking port indicators (T047)
-  if (template && isSelected) {
-    drawDockingPorts(ctx, station, stationScale, stationRotation);
+  // Draw docking port indicators (T047) - always show when zoomed in enough
+  const screenSize = template ? template.boundingRadius * stationScale * zoom.value : 10;
+  if (template && screenSize > 20) {
+    drawDockingPorts(ctx, station, stationScale, stationRotation, isSelected);
   }
 }
 
 /**
  * T047: Draw visual docking port indicators on station
- * Shows port locations and approach vectors when station is selected
+ * Shows port locations, approach vectors, and docking position circles
+ * Enhanced visibility when station is selected
  */
 function drawDockingPorts(
   ctx: CanvasRenderingContext2D,
   station: Station,
   stationScale: number,
-  stationRotation: number
+  stationRotation: number,
+  isSelected: boolean = false
 ) {
   const templateId = station.templateId ?? station.type;
   const template = getStationTemplateById(templateId);
   if (!template) return;
 
   const stationRotationRad = (stationRotation * Math.PI) / 180;
+  const moduleScaleFactor = 0.12; // Must match MODULE_SCALE_FACTOR in shapeRenderer
 
   // Find docking modules in the template
   for (const modulePlacement of template.modules) {
@@ -389,15 +424,21 @@ function drawDockingPorts(
 
     const moduleRotationRad = (modulePlacement.rotation * Math.PI) / 180;
     const totalRotation = stationRotationRad + moduleRotationRad;
+    
+    // Module position scale factor (module positions are in normalized coords)
+    const modulePositionScale = stationScale;
+    // Module port position scale factor (port positions within module use module scale)
+    const modulePortScale = stationScale * moduleScaleFactor;
 
     for (const port of module.dockingPorts) {
       // Transform port position from module local → station local → world
-      const moduleLocalX = port.position.x * Math.cos(moduleRotationRad) - port.position.y * Math.sin(moduleRotationRad);
-      const moduleLocalY = port.position.x * Math.sin(moduleRotationRad) + port.position.y * Math.cos(moduleRotationRad);
+      // Port position is in module's local coords, scale by module render scale
+      const moduleLocalX = port.position.x * modulePortScale * Math.cos(moduleRotationRad) - port.position.y * modulePortScale * Math.sin(moduleRotationRad);
+      const moduleLocalY = port.position.x * modulePortScale * Math.sin(moduleRotationRad) + port.position.y * modulePortScale * Math.cos(moduleRotationRad);
       
-      // Add module offset (module scale = 40 world units per normalized unit)
-      const stationLocalX = moduleLocalX * 40 + modulePlacement.position.x;
-      const stationLocalY = moduleLocalY * 40 + modulePlacement.position.y;
+      // Add module offset (module position is in normalized coords, scaled by station scale)
+      const stationLocalX = moduleLocalX + modulePlacement.position.x * modulePositionScale;
+      const stationLocalY = moduleLocalY + modulePlacement.position.y * modulePositionScale;
       
       // Rotate by station rotation and add station position
       const worldX = stationLocalX * Math.cos(stationRotationRad) - stationLocalY * Math.sin(stationRotationRad) + station.position.x;
@@ -410,42 +451,78 @@ function drawDockingPorts(
       // Convert to screen coordinates
       const screenPos = worldToScreen({ x: worldX, y: worldY });
       
+      // Adjust visibility based on selection state
+      const portAlpha = isSelected ? 1 : 0.6;
+      const portColor = isSelected ? COLORS.dockingPort : `rgba(0, 255, 153, ${portAlpha})`;
+      
       // Draw port marker (small circle)
-      const portSize = Math.max(4, 6 * zoom.value);
-      ctx.fillStyle = COLORS.dockingPort;
+      const portSize = Math.max(5, 8 * zoom.value);
+      ctx.fillStyle = portColor;
       ctx.beginPath();
       ctx.arc(screenPos.x, screenPos.y, portSize, 0, Math.PI * 2);
       ctx.fill();
 
-      // Draw approach direction arrow
+      // Get docking range for this port
       const dockingRange = getDockingRange(port);
-      const arrowLength = Math.min(30, dockingRange * zoom.value * 0.5);
-      const arrowEndX = screenPos.x + approachX * arrowLength;
-      const arrowEndY = screenPos.y - approachY * arrowLength; // Flip Y for screen coords
+      const screenDockingRange = dockingRange * zoom.value;
 
-      ctx.strokeStyle = COLORS.dockingPortApproach;
-      ctx.lineWidth = 2;
+      // Draw docking position circle (dotted) - where the ship should position
+      // The docking position is offset from the port along the approach vector
+      const dockingPositionDistance = dockingRange * 0.6; // Position ship at 60% of docking range
+      const dockingPosWorldX = worldX + approachX * dockingPositionDistance;
+      const dockingPosWorldY = worldY + approachY * dockingPositionDistance;
+      const dockingPosScreen = worldToScreen({ x: dockingPosWorldX, y: dockingPosWorldY });
+      
+      // Draw dotted circle at docking position - always visible
+      const dockingCircleRadius = Math.max(15, 25 * zoom.value);
+      ctx.strokeStyle = isSelected ? COLORS.dockingPort : `rgba(0, 255, 153, ${portAlpha})`;
+      ctx.lineWidth = isSelected ? 2 : 1;
+      ctx.setLineDash([5, 5]);
       ctx.beginPath();
-      ctx.moveTo(screenPos.x, screenPos.y);
-      ctx.lineTo(arrowEndX, arrowEndY);
+      ctx.arc(dockingPosScreen.x, dockingPosScreen.y, dockingCircleRadius, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.setLineDash([]);
 
-      // Draw arrowhead
-      const arrowHeadSize = 6;
-      const angle = Math.atan2(-approachY, approachX); // Note: -Y for screen coords
+      // Only draw detailed indicators when selected
+      if (isSelected) {
+        // Draw approach direction arrow from docking position toward port
+        const arrowLength = dockingPositionDistance * zoom.value * 0.4;
+        const arrowEndX = dockingPosScreen.x - approachX * arrowLength;
+        const arrowEndY = dockingPosScreen.y + approachY * arrowLength; // Flip Y for screen coords
+
+        ctx.strokeStyle = COLORS.dockingPortApproach;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(dockingPosScreen.x, dockingPosScreen.y);
+        ctx.lineTo(arrowEndX, arrowEndY);
+        ctx.stroke();
+
+        // Draw arrowhead pointing toward port
+        const arrowHeadSize = 6;
+        const angle = Math.atan2(approachY, -approachX); // Points toward port
+        ctx.beginPath();
+        ctx.moveTo(arrowEndX, arrowEndY);
+        ctx.lineTo(
+          arrowEndX - arrowHeadSize * Math.cos(angle - Math.PI / 6),
+          arrowEndY - arrowHeadSize * Math.sin(angle - Math.PI / 6)
+        );
+        ctx.lineTo(
+          arrowEndX - arrowHeadSize * Math.cos(angle + Math.PI / 6),
+          arrowEndY - arrowHeadSize * Math.sin(angle + Math.PI / 6)
+        );
+        ctx.closePath();
+        ctx.fillStyle = COLORS.dockingPortApproach;
+        ctx.fill();
+      }
+
+      // Draw docking range indicator (faint circle around port)
+      ctx.strokeStyle = 'rgba(0, 255, 153, 0.3)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 4]);
       ctx.beginPath();
-      ctx.moveTo(arrowEndX, arrowEndY);
-      ctx.lineTo(
-        arrowEndX - arrowHeadSize * Math.cos(angle - Math.PI / 6),
-        arrowEndY - arrowHeadSize * Math.sin(angle - Math.PI / 6)
-      );
-      ctx.lineTo(
-        arrowEndX - arrowHeadSize * Math.cos(angle + Math.PI / 6),
-        arrowEndY - arrowHeadSize * Math.sin(angle + Math.PI / 6)
-      );
-      ctx.closePath();
-      ctx.fillStyle = COLORS.dockingPortApproach;
-      ctx.fill();
+      ctx.arc(screenPos.x, screenPos.y, screenDockingRange, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
     }
   }
 }
@@ -626,11 +703,62 @@ function handleMouseMove(event: MouseEvent) {
       y: panOffset.value.y + dy, // Flip Y
     };
     dragStart.value = { x: event.clientX, y: event.clientY };
+  } else {
+    // Check for module hover
+    handleModuleHover(event);
+  }
+}
+
+function handleModuleHover(event: MouseEvent) {
+  const canvas = canvasRef.value;
+  if (!canvas) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const screenPoint = {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top,
+  };
+
+  const camera = { x: cameraCenter.value.x, y: cameraCenter.value.y };
+  const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
+
+  // Station scale function (matches drawStation - station visual fills docking range)
+  const getStationScale = (station: Station) => station.dockingRange;
+
+  const result = findModuleAtScreenPosition(
+    screenPoint,
+    navStore.stations,
+    getStationTemplateById,
+    camera,
+    screenCenter,
+    zoom.value,
+    getStationScale
+  );
+
+  if (result.hit && result.station && result.moduleType) {
+    tooltipContent.value = {
+      stationName: result.station.name,
+      moduleName: formatModuleType(result.moduleType),
+      moduleType: result.moduleType,
+      moduleStatus: getModuleStatus(result.moduleType),
+    };
+    tooltipX.value = event.clientX + 15;
+    tooltipY.value = event.clientY + 15;
+    tooltipVisible.value = true;
+  } else {
+    tooltipVisible.value = false;
+    tooltipContent.value = null;
   }
 }
 
 function handleMouseUp() {
   isDragging.value = false;
+}
+
+function handleMouseLeave() {
+  handleMouseUp();
+  tooltipVisible.value = false;
+  tooltipContent.value = null;
 }
 
 function handleContextMenu(event: MouseEvent) {
@@ -685,7 +813,7 @@ onMounted(() => {
       @mousedown="handleMouseDown"
       @mousemove="handleMouseMove"
       @mouseup="handleMouseUp"
-      @mouseleave="handleMouseUp"
+      @mouseleave="handleMouseLeave"
       @contextmenu="handleContextMenu"
     />
     <div class="system-map__overlay">
@@ -693,6 +821,17 @@ onMounted(() => {
         <span class="system-map__system-name">{{ navStore.systemName }}</span>
         <span class="system-map__zoom">{{ (zoom * 100).toFixed(0) }}%</span>
       </div>
+    </div>
+    <!-- Module tooltip -->
+    <div
+      v-if="tooltipVisible && tooltipContent"
+      class="system-map__tooltip"
+      :style="{ left: tooltipX + 'px', top: tooltipY + 'px' }"
+    >
+      <div class="system-map__tooltip-station">{{ tooltipContent.stationName }}</div>
+      <div class="system-map__tooltip-module">{{ tooltipContent.moduleName }}</div>
+      <div class="system-map__tooltip-type">{{ tooltipContent.moduleType.toUpperCase() }}</div>
+      <div class="system-map__tooltip-status">{{ tooltipContent.moduleStatus }}</div>
     </div>
   </div>
 </template>
@@ -741,6 +880,44 @@ onMounted(() => {
     font-family: $font-mono;
     font-size: $font-size-xs;
     color: $color-gray;
+  }
+
+  &__tooltip {
+    position: fixed;
+    z-index: 1000;
+    background-color: rgba(0, 0, 0, 0.95);
+    border: 1px solid $color-gold;
+    border-radius: $radius-sm;
+    padding: $space-xs $space-sm;
+    pointer-events: none;
+    max-width: 250px;
+    font-family: $font-mono;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  &__tooltip-station {
+    color: $color-gold;
+    font-weight: bold;
+    margin-bottom: 2px;
+  }
+
+  &__tooltip-module {
+    color: $color-white;
+    margin-bottom: 2px;
+  }
+
+  &__tooltip-type {
+    color: $color-gray;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+  }
+
+  &__tooltip-status {
+    color: $color-success;
+    font-size: 10px;
   }
 }
 </style>

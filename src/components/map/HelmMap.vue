@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useShipStore, useNavigationStore, useSensorStore, useSettingsStore, useShipCollision, type CollisionWarningLevel } from '@/stores';
 import { useGameLoop } from '@/core/game-loop';
 import {
@@ -97,6 +97,30 @@ const DOCKING_COLORS = {
   rangeCircle: 'rgba(0, 255, 153, 0.3)', // Green range indicator
 };
 
+// Module tooltip state
+const tooltipVisible = ref(false);
+const tooltipX = ref(0);
+const tooltipY = ref(0);
+const tooltipContent = ref<{
+  stationName: string;
+  moduleName: string;
+  moduleType: string;
+  moduleStatus: string;
+} | null>(null);
+
+// Format module type for display
+function formatModuleType(type: string): string {
+  return type.split('-').map(word => 
+    word.charAt(0).toUpperCase() + word.slice(1)
+  ).join(' ');
+}
+
+// Get module status (could be extended with actual status data)
+function getModuleStatus(_moduleType: string): string {
+  // Could check against a station's module status if we track that
+  return 'Operational';
+}
+
 function render() {
   const canvas = canvasRef.value;
   if (!canvas) return;
@@ -171,6 +195,11 @@ function render() {
     const waypoint = waypoints[i]!;
     const screenPos = worldToScreen(waypoint.position, camera.value);
     drawWaypoint(ctx, screenPos, waypoint.name, i === 0);
+  }
+
+  // Draw tractor beam effect if active
+  if (shipStore.isTractorBeamActive && shipStore.tractorBeam.targetPosition) {
+    drawTractorBeam(ctx);
   }
 
   // Draw ship
@@ -470,7 +499,6 @@ function drawDockingApproachGuidance(ctx: CanvasRenderingContext2D) {
 
   // Draw current heading indicator
   const headingRad = (shipStore.heading * Math.PI) / 180;
-  const headingCanvasAngle = -Math.atan2(Math.sin(headingRad), Math.cos(headingRad)) + Math.PI / 2;
   const headingIndicatorX = shipScreenPos.x + Math.cos(-headingRad + Math.PI / 2) * indicatorRadius;
   const headingIndicatorY = shipScreenPos.y + Math.sin(-headingRad + Math.PI / 2) * indicatorRadius;
 
@@ -578,6 +606,77 @@ function drawShip(ctx: CanvasRenderingContext2D) {
     // Fallback to simple icon if template not found
     drawShipIcon(ctx, screenPos, shipStore.heading, 8, MAP_COLORS.ship);
   }
+}
+
+/**
+ * Draw tractor beam effect from station to ship
+ * Creates an animated beam pulling the ship toward docking position
+ */
+function drawTractorBeam(ctx: CanvasRenderingContext2D) {
+  const targetPos = shipStore.tractorBeam.targetPosition;
+  if (!targetPos) return;
+
+  const shipScreenPos = worldToScreen(shipStore.position, camera.value);
+  const targetScreenPos = worldToScreen(targetPos, camera.value);
+
+  // Calculate beam properties
+  const dx = targetScreenPos.x - shipScreenPos.x;
+  const dy = targetScreenPos.y - shipScreenPos.y;
+  const distance = Math.hypot(dx, dy);
+  
+  if (distance < 1) return; // Already at target
+
+  // Animated beam effect using time
+  const time = Date.now() * 0.003; // Slow animation
+  const pulsePhase = Math.sin(time * 2);
+  
+  // Draw multiple beam lines for tractor beam effect
+  ctx.save();
+  
+  // Outer glow
+  ctx.strokeStyle = `rgba(153, 102, 255, ${0.2 + pulsePhase * 0.1})`;
+  ctx.lineWidth = 12;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(shipScreenPos.x, shipScreenPos.y);
+  ctx.lineTo(targetScreenPos.x, targetScreenPos.y);
+  ctx.stroke();
+  
+  // Middle beam
+  ctx.strokeStyle = `rgba(153, 102, 255, ${0.4 + pulsePhase * 0.2})`;
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(shipScreenPos.x, shipScreenPos.y);
+  ctx.lineTo(targetScreenPos.x, targetScreenPos.y);
+  ctx.stroke();
+  
+  // Core beam (animated dashes moving toward target)
+  const dashOffset = time * 50; // Animate dash movement
+  ctx.strokeStyle = `rgba(200, 150, 255, ${0.8 + pulsePhase * 0.2})`;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 15]);
+  ctx.lineDashOffset = -dashOffset; // Negative to move toward target
+  ctx.beginPath();
+  ctx.moveTo(shipScreenPos.x, shipScreenPos.y);
+  ctx.lineTo(targetScreenPos.x, targetScreenPos.y);
+  ctx.stroke();
+  
+  // Draw target position indicator (docking point)
+  ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = `rgba(0, 255, 153, ${0.6 + pulsePhase * 0.2})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(targetScreenPos.x, targetScreenPos.y, 15 + pulsePhase * 3, 0, Math.PI * 2);
+  ctx.stroke();
+  
+  // Inner target dot
+  ctx.setLineDash([]);
+  ctx.fillStyle = `rgba(0, 255, 153, ${0.8 + pulsePhase * 0.2})`;
+  ctx.beginPath();
+  ctx.arc(targetScreenPos.x, targetScreenPos.y, 4, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.restore();
 }
 
 /**
@@ -744,7 +843,58 @@ function handleMouseMove(event: MouseEvent) {
       y: panOffset.value.y + dy,
     };
     dragStart.value = { x: event.clientX, y: event.clientY };
+  } else {
+    // Check for module hover
+    handleModuleHover(event);
   }
+}
+
+function handleModuleHover(event: MouseEvent) {
+  const canvas = canvasRef.value;
+  if (!canvas) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const screenPoint = {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top,
+  };
+
+  const cameraVec = { x: cameraCenter.value.x, y: cameraCenter.value.y };
+  const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
+
+  // Get station scale function (matches drawStation)
+  const getStationScale = (station: Station) => station.dockingRange * 0.3;
+
+  const result = findModuleAtScreenPosition(
+    screenPoint,
+    navStore.stations,
+    getStationTemplateById,
+    cameraVec,
+    screenCenter,
+    zoom.value,
+    getStationScale
+  );
+
+  if (result.hit && result.station && result.moduleType) {
+    tooltipContent.value = {
+      stationName: result.station.name,
+      moduleName: formatModuleType(result.moduleType),
+      moduleType: result.moduleType,
+      moduleStatus: getModuleStatus(result.moduleType),
+    };
+    tooltipX.value = event.clientX + 15;
+    tooltipY.value = event.clientY + 15;
+    tooltipVisible.value = true;
+  } else {
+    tooltipVisible.value = false;
+    tooltipContent.value = null;
+  }
+}
+
+function handleMouseLeave() {
+  handleMouseUp();
+  tooltipVisible.value = false;
+  tooltipContent.value = null;
 }
 
 function handleMouseUp() {
@@ -803,7 +953,7 @@ onMounted(() => {
       @mousedown="handleMouseDown"
       @mousemove="handleMouseMove"
       @mouseup="handleMouseUp"
-      @mouseleave="handleMouseUp"
+      @mouseleave="handleMouseLeave"
       @contextmenu="handleContextMenu"
     />
     <div class="helm-map__overlay">
@@ -873,6 +1023,17 @@ onMounted(() => {
           />
         </svg>
       </button>
+    </div>
+    <!-- Module tooltip -->
+    <div
+      v-if="tooltipVisible && tooltipContent"
+      class="helm-map__tooltip"
+      :style="{ left: tooltipX + 'px', top: tooltipY + 'px' }"
+    >
+      <div class="helm-map__tooltip-station">{{ tooltipContent.stationName }}</div>
+      <div class="helm-map__tooltip-module">{{ tooltipContent.moduleName }}</div>
+      <div class="helm-map__tooltip-type">{{ tooltipContent.moduleType.toUpperCase() }}</div>
+      <div class="helm-map__tooltip-status">{{ tooltipContent.moduleStatus }}</div>
     </div>
   </div>
 </template>
@@ -1002,6 +1163,44 @@ onMounted(() => {
   &__collision-warning-object {
     opacity: 0.8;
     font-size: $font-size-xs;
+  }
+
+  &__tooltip {
+    position: fixed;
+    z-index: 1000;
+    background-color: rgba(0, 0, 0, 0.95);
+    border: 1px solid $color-gold;
+    border-radius: $radius-sm;
+    padding: $space-xs $space-sm;
+    pointer-events: none;
+    max-width: 250px;
+    font-family: $font-mono;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  &__tooltip-station {
+    color: $color-gold;
+    font-weight: bold;
+    margin-bottom: 2px;
+  }
+
+  &__tooltip-module {
+    color: $color-white;
+    margin-bottom: 2px;
+  }
+
+  &__tooltip-type {
+    color: $color-gray;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+  }
+
+  &__tooltip-status {
+    color: $color-success;
+    font-size: 10px;
   }
 }
 

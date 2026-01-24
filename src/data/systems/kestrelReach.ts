@@ -9,6 +9,9 @@ import { createPlanet, createStation, createStarSystem, vec2 } from '@/models';
  * - 3 planets: Ashara Prime (terrestrial), Veris Minor (ice), Thallos (gas giant)
  * - 3 stations: Nexus Trading Hub, Deepcore Mining Outpost, Waypoint Fuel Depot
  * - 1 jump gate (placeholder for future expansion)
+ * 
+ * Scale: Space is vast - stations and planets are spaced far apart to 
+ * emphasize the "space is big and dangerous" atmosphere.
  */
 export const KESTREL_REACH: StarSystem = createStarSystem({
   id: 'kestrel-reach',
@@ -18,17 +21,17 @@ export const KESTREL_REACH: StarSystem = createStarSystem({
     id: 'kestrel',
     name: 'Kestrel',
     color: '#FFB347',
-    radius: 50,
+    radius: 80,
   },
   planets: [
     createPlanet({
       id: 'ashara-prime',
       name: 'Ashara Prime',
       type: 'terrestrial',
-      orbitRadius: 400,
-      orbitSpeed: 2, // Slow orbit
+      orbitRadius: 800,
+      orbitSpeed: 1.5, // Slow orbit
       initialAngle: 45,
-      radius: 25,
+      radius: 45,
       color: '#4A90D9',
       description: 'A temperate world with scattered settlements. The primary population center of the system.',
     }),
@@ -36,10 +39,10 @@ export const KESTREL_REACH: StarSystem = createStarSystem({
       id: 'veris-minor',
       name: 'Veris Minor',
       type: 'ice-giant',
-      orbitRadius: 700,
-      orbitSpeed: 1,
+      orbitRadius: 1500,
+      orbitSpeed: 0.8,
       initialAngle: 180,
-      radius: 18,
+      radius: 30,
       color: '#A8D8EA',
       description: 'A frozen dwarf planet rich in water ice, supporting several mining operations.',
     }),
@@ -47,10 +50,10 @@ export const KESTREL_REACH: StarSystem = createStarSystem({
       id: 'thallos',
       name: 'Thallos',
       type: 'gas-giant',
-      orbitRadius: 1100,
-      orbitSpeed: 0.5,
+      orbitRadius: 2500,
+      orbitSpeed: 0.4,
       initialAngle: 270,
-      radius: 40,
+      radius: 70,
       color: '#D4A574',
       description: 'A massive gas giant with swirling amber storms. Its moons host fuel harvesting operations.',
     }),
@@ -60,7 +63,7 @@ export const KESTREL_REACH: StarSystem = createStarSystem({
       id: 'nexus-hub',
       name: 'Nexus Trading Hub',
       type: 'trading-hub',
-      position: vec2(300, 150),
+      position: vec2(600, 350),
       services: ['refuel', 'repair', 'trade', 'missions', 'storage'],
       description: 'The commercial heart of Kestrel Reach. Merchants from across the sector gather here.',
       faction: 'Merchants Guild',
@@ -69,7 +72,7 @@ export const KESTREL_REACH: StarSystem = createStarSystem({
       id: 'deepcore-outpost',
       name: 'Deepcore Mining Outpost',
       type: 'mining-outpost',
-      position: vec2(-450, 350),
+      position: vec2(-900, 700),
       services: ['refuel', 'trade', 'storage'],
       description: 'A rugged mining station extracting valuable ores from nearby asteroid clusters.',
       faction: 'Deepcore Industries',
@@ -78,7 +81,7 @@ export const KESTREL_REACH: StarSystem = createStarSystem({
       id: 'waypoint-depot',
       name: 'Waypoint Fuel Depot',
       type: 'fuel-depot',
-      position: vec2(150, -500),
+      position: vec2(350, -1000),
       services: ['refuel', 'repair'],
       description: 'An automated fuel depot serving vessels traveling to and from the outer system.',
       faction: 'Independent',
@@ -88,7 +91,7 @@ export const KESTREL_REACH: StarSystem = createStarSystem({
     {
       id: 'gate-to-corvalis',
       name: 'Corvalis Gate',
-      position: vec2(-800, -600),
+      position: vec2(-1600, -1200),
       destinationSystemId: 'corvalis-cluster',
       destinationGateId: 'gate-from-kestrel',
     },
@@ -97,6 +100,6 @@ export const KESTREL_REACH: StarSystem = createStarSystem({
 
 /**
  * Default spawn position for new games in Kestrel Reach
- * Near the Nexus Trading Hub
+ * Near the Nexus Trading Hub but at a visible distance
  */
-export const KESTREL_REACH_SPAWN = vec2(200, 100);
+export const KESTREL_REACH_SPAWN = vec2(400, 200);
