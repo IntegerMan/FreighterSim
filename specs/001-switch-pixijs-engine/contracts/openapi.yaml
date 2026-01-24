@@ -1,0 +1,62 @@
+openapi: 3.0.3
+info:
+  title: Space Freighter Sim - Rendering & Debug API (Contracts)
+  version: 0.1.0
+  description: Contracts to support PixiJS renderer capability reporting and QA instrumentation.
+servers:
+  - url: http://localhost:5173
+paths:
+  /renderer/capabilities:
+    get:
+      summary: Get renderer capability selection and fallback mode
+      responses:
+        '200':
+          description: Capability selection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RendererCapabilities'
+  /debug/performance:
+    get:
+      summary: Get current performance indicators for QA/debug
+      responses:
+        '200':
+          description: Performance indicators
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PerformanceIndicators'
+components:
+  schemas:
+    RendererCapabilities:
+      type: object
+      properties:
+        preferred:
+          type: string
+          enum: [WebGL2, WebGL1, Canvas]
+        selected:
+          type: string
+          enum: [WebGL2, WebGL1, Canvas]
+        fallbackReason:
+          type: string
+          nullable: true
+    PerformanceIndicators:
+      type: object
+      properties:
+        fps:
+          type: number
+          format: float
+        frameTimeP95Ms:
+          type: number
+          format: float
+        memoryMB:
+          type: number
+          format: float
+        particleCount:
+          type: integer
+        effectsIntensity:
+          type: number
+          format: float
+        throttlingStage:
+          type: string
+          enum: [none, particles, effects, resolution]
