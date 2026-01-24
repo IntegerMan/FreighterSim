@@ -177,8 +177,8 @@ export const useParticleStore = defineStore('particle', () => {
         // Calculate world position of this engine
         const engineWorldPos = engineMountToWorld(mount, shipPosition, shipHeading, shipScale);
         
-        // Emission amount scaled by mount's thrust multiplier
-        const emissionAmount = config.value.baseEmissionRate * throttle * mount.thrustMultiplier * dt;
+        // Emission amount scaled by mount's thrust multiplier (default to 1)
+        const emissionAmount = config.value.baseEmissionRate * throttle * (mount.thrustMultiplier ?? 1) * dt;
         emitParticles(engineWorldPos, emissionAmount);
       }
     }

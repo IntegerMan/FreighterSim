@@ -36,16 +36,6 @@ const createSquare = (size: number = 1): Shape => ({
   boundingRadius: Math.sqrt(2) * size,
 });
 
-const _createTriangle = (): Shape => ({
-  id: 'triangle',
-  name: 'Triangle',
-  vertices: [
-    { x: 0, y: 1 },
-    { x: 1, y: -1 },
-    { x: -1, y: -1 },
-  ],
-  boundingRadius: 1.2,
-});
 
 const createTarget = (
   id: string,

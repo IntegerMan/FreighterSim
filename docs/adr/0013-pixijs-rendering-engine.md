@@ -1,4 +1,3 @@
-````markdown
 # ADR-0013: Migrate to Pixi.js Rendering Engine
 
 ## Status

@@ -31,7 +31,6 @@ const emit = defineEmits<{
 }>();
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
-const tooltipRef = ref<HTMLDivElement | null>(null);
 const tooltipVisible = ref(false);
 const tooltipX = ref(0);
 const tooltipY = ref(0);
@@ -170,7 +169,6 @@ watch([() => props.segments, () => props.contacts, () => props.shipHeading], () 
     />
     <div
       v-if="tooltipVisible"
-      ref="tooltipRef"
       class="compact-radar__tooltip"
       :style="{ left: tooltipX + 'px', top: tooltipY + 'px' }"
     >

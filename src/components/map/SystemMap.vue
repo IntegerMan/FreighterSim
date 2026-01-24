@@ -18,7 +18,7 @@ import {
   drawDockingPorts as drawDockingPortsShared,
 } from '@/core/rendering';
 import { Starfield, createDefaultStarfieldConfig } from '@/core/starfield';
-import { getShipTemplate, getStationTemplateById } from '@/data/shapes';
+import { getShipTemplate, getStationTemplateById, calculateStationBoundingRadius } from '@/data/shapes';
 import type { Vector2, Station, Planet, JumpGate } from '@/models';
 
 // Extended colors for SystemMap (inherits from MAP_COLORS)
@@ -300,7 +300,7 @@ function drawPlanet(ctx: CanvasRenderingContext2D, planet: Planet) {
 function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   const screenPos = worldToScreen(station.position);
   const isSelected = navStore.selectedObjectId === station.id;
-  const camera = { x: cameraCenter.value.x, y: cameraCenter.value.y };
+  const cameraPos = { x: cameraCenter.value.x, y: cameraCenter.value.y };
   const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
 
   // Station-wide docking range circle (dotted outline) - shows approximate approach area
@@ -324,7 +324,8 @@ function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   if (template) {
     // Selection highlight
     if (isSelected) {
-      const selectionRadius = template.boundingRadius * stationScale * zoom.value + 6;
+      const boundingRadius = (template.boundingRadius ?? calculateStationBoundingRadius(template.modules));
+      const selectionRadius = boundingRadius * stationScale * zoom.value + 6;
       ctx.strokeStyle = COLORS.selected;
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -339,7 +340,7 @@ function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
       station.position,
       stationRotation,
       stationScale,
-      camera,
+      cameraPos,
       screenCenter,
       zoom.value,
       COLORS.station,   // fillColor
@@ -374,20 +375,13 @@ function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   ctx.fillStyle = COLORS.station;
   ctx.font = '11px "Share Tech Mono", monospace';
   ctx.textAlign = 'center';
-  ctx.fillText(station.name, screenPos.x, screenPos.y + (template ? template.boundingRadius * stationScale * zoom.value : 10) + 14);
+  const effectiveRadius = template ? (template.boundingRadius ?? calculateStationBoundingRadius(template.modules)) : 10;
+  ctx.fillText(station.name, screenPos.x, screenPos.y + (effectiveRadius * stationScale * zoom.value) + 14);
 
   // Draw docking port indicators (T047) - always show when zoomed in enough
-  const screenSize = template ? template.boundingRadius * stationScale * zoom.value : 10;
+  const screenSize = template ? (template.boundingRadius ?? calculateStationBoundingRadius(template.modules)) * stationScale * zoom.value : 10;
   if (template && screenSize > 20) {
-    const camera = {
-      zoom: zoom.value,
-      panOffset: panOffset.value,
-      centerX: shipStore.position.x,
-      centerY: shipStore.position.y,
-      canvasWidth: canvasWidth.value,
-      canvasHeight: canvasHeight.value,
-    };
-    drawDockingPortsShared(ctx, station, camera, { isSelected });
+    drawDockingPortsShared(ctx, station, camera.value, { isSelected });
   }
 }
 

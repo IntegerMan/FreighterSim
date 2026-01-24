@@ -26,7 +26,6 @@ all-tests.txt
 lint-output.txt
 test-output.txt
 test-results/*
-playwright-report/index.html
 
 # Environment files
 .env*
@@ -39,3 +38,4 @@ coverage-*
 nul
 
 coverage/
+playwright-report/*

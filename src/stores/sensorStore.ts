@@ -6,7 +6,7 @@ import { useShipStore } from './shipStore';
 import { useNavigationStore } from './navigationStore';
 import { useSettingsStore } from './settingsStore';
 import type { GameTime } from '@/core/game-loop';
-import { hasLineOfSight } from '@/core/physics/raycasting';
+import { hasLineOfSight, raycast, createRay } from '@/core/physics/raycasting';
 import type { RaycastTarget } from '@/core/physics/raycasting';
 import { getStationVisualBoundingRadius } from '@/core/physics/collision';
 
@@ -167,24 +167,19 @@ function calculateContactVisibility(
   
   const visibility = visibleCount / (sampleCount + 1);
   
-  // Find which object is blocking (if any) - check if center ray is blocked
+  // Find which object is blocking (if any) - use raycast to find actual blocker
   if (visibility < 1) {
     const targetDistance = Math.hypot(
       contact.position.x - shipPosition.x,
       contact.position.y - shipPosition.y
     );
     
-    // Find which target blocks the ray (closest one between ship and contact)
-    for (const target of blockingTargets) {
-      const toTarget = Math.hypot(
-        target.position.x - shipPosition.x,
-        target.position.y - shipPosition.y
-      );
-      // If this target is closer than the contact, it might be blocking
-      if (toTarget < targetDistance) {
-        occluder = target.id;
-        break;
-      }
+    // Cast ray to contact center and check what's actually blocking it
+    const ray = createRay(shipPosition, contact.position);
+    const hit = raycast(ray, blockingTargets, targetDistance);
+    
+    if (hit.hit && hit.objectId) {
+      occluder = hit.objectId;
     }
   }
   

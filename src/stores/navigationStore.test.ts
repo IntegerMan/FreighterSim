@@ -113,17 +113,18 @@ describe('navigationStore', () => {
             return {
                 id: 'test-system',
                 name: 'Test System',
+                description: 'Test system',
                 star: {
                     id: 'star-1',
                     name: 'Test Star',
                     radius: 100,
                     color: '#ffff00',
-                    type: 'G',
                 },
                 stations: [
                     {
                         id: 'station-1',
                         name: 'Test Station',
+                        type: 'trading-hub',
                         position: { x: 200, y: 0 },
                         templateId: 'trading-hub',
                         rotation: 0,
@@ -135,12 +136,14 @@ describe('navigationStore', () => {
                     {
                         id: 'planet-1',
                         name: 'Test Planet',
+                        type: 'terrestrial',
                         position: { x: -300, y: 0 },
                         radius: 80,
                         color: '#4444ff',
                         orbitRadius: 300,
                         orbitSpeed: 0,
                         orbitAngle: 180,
+                        isScannable: true,
                     },
                 ],
                 jumpGates: [],

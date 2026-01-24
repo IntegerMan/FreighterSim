@@ -182,9 +182,10 @@ export const useShipStore = defineStore('ship', () => {
 
     // Check if we've reached the docking position
     if (distance <= DOCKING_COMPLETE_DISTANCE) {
-      // Snap to exact position
+      // Snap to exact position and heading
       position.value = { ...target };
       heading.value = tractorBeam.value.targetHeading;
+      targetHeading.value = tractorBeam.value.targetHeading;
       
       // Complete docking
       const stationId = tractorBeam.value.stationId;

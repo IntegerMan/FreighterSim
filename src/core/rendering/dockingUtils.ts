@@ -10,18 +10,10 @@
 import type { Vector2, DockingPort, Station, StationModulePlacement } from '@/models';
 import { getStationTemplateById, getStationModule } from '@/data/shapes';
 import { MAP_COLORS, MODULE_SCALE_FACTOR, STATION_VISUAL_MULTIPLIER, getVisualDockingRange, type CameraState, worldToScreen } from './mapUtils';
+import { getDockingRange } from '@/models/DockingPort';
 
-// =============================================================================
-// Constants
-// =============================================================================
-
-/** Default docking range if not specified on port */
-export const DEFAULT_DOCKING_RANGE = 25;
-
-/** Get the docking range for a port, with default fallback */
-export function getDockingRange(port: DockingPort): number {
-  return port.dockingRange ?? DEFAULT_DOCKING_RANGE;
-}
+// Re-export docking range utilities from the model for single source of truth
+export { DEFAULT_DOCKING_RANGE, getDockingRange } from '@/models/DockingPort';
 
 // =============================================================================
 // Port Filtering Logic
