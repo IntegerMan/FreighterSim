@@ -58,7 +58,7 @@ As a player, I want my credit balance to be clearly formatted with appropriate v
 ### Edge Cases
 
 - What happens when credits reach zero? The display should show "0" clearly, not hide or error.
-- What happens if credits somehow become negative (future debt feature)? The display should handle negative values gracefully, perhaps with distinct styling.
+- What happens if credits somehow become negative? **Out of scope** - negative credits (debt) are not supported in this feature. Future debt mechanics would require a separate specification.
 - What happens on very small screen sizes? The credit display should remain readable and not overflow or truncate.
 
 ## Requirements *(mandatory)*
@@ -76,7 +76,7 @@ As a player, I want my credit balance to be clearly formatted with appropriate v
 
 ### Key Entities
 
-- **Credits**: The player's available currency balance. Represented as a non-negative integer value. Associated with the player/game session. Will be modified by future features (trading, contracts, repairs, upgrades). **Stored in `gameStore.ts`** as session-level state alongside existing session data (`isInitialized`, `elapsedTime`, `currentSystemId`).
+- **Credits**: The player's available currency balance. Represented as a non-negative integer value. Associated with the player/game session. Will be modified by future features (trading, contracts, repairs, upgrades). **Stored in `gameStore.ts`** as session-level state alongside existing session data (`isInitialized`, `elapsedTime`, `currentSystemId`). Initial value defined by `INITIAL_CREDITS` constant (10,000).
 - **Credit Display**: A reusable UI component (`CreditsPanel.vue`) that renders the formatted credit amount with the "Credits" label. Implemented as a single shared component in `src/components/panels/` and used on both Bridge and Cargo screens for visual consistency.
 
 ## Success Criteria *(mandatory)*
