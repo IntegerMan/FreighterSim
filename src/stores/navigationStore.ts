@@ -527,16 +527,9 @@ export const useNavigationStore = defineStore('navigation', () => {
       const perpDist = Math.hypot(perpX, perpY);
       const nearLights = projDist > 0 && projDist <= runwayLength && perpDist <= runwayWidth;
 
-      // Compute runway bbox corners
-      const p1 = { x: portData.worldPosition.x + portData.worldApproachVector.x * 0 + (-portData.worldApproachVector.y) * runwayWidth, y: portData.worldPosition.y + portData.worldApproachVector.y * 0 + (portData.worldApproachVector.x) * runwayWidth };
-      const p2 = { x: portData.worldPosition.x + portData.worldApproachVector.x * runwayLength + (-portData.worldApproachVector.y) * runwayWidth, y: portData.worldPosition.y + portData.worldApproachVector.y * runwayLength + (portData.worldApproachVector.x) * runwayWidth };
-      const p3 = { x: portData.worldPosition.x + portData.worldApproachVector.x * runwayLength - (-portData.worldApproachVector.y) * runwayWidth, y: portData.worldPosition.y + portData.worldApproachVector.y * runwayLength - (portData.worldApproachVector.x) * runwayWidth };
-      const p4 = { x: portData.worldPosition.x + portData.worldApproachVector.x * 0 - (-portData.worldApproachVector.y) * runwayWidth, y: portData.worldPosition.y + portData.worldApproachVector.y * 0 - (portData.worldApproachVector.x) * runwayWidth };
+      // Runway bbox corners are not used here; skip computing for performance and lint
 
-      const minX = Math.min(p1.x, p2.x, p3.x, p4.x);
-      const maxX = Math.max(p1.x, p2.x, p3.x, p4.x);
-      const minY = Math.min(p1.y, p2.y, p3.y, p4.y);
-      const maxY = Math.max(p1.y, p2.y, p3.y, p4.y);
+      // Bounding box calculations are no longer used for guidance; removed to satisfy lint
 
       // Available only when inRange (do not toggle availability here)
       const available = inRange;

@@ -51,6 +51,7 @@ describe('HelmView docking behavior with runway lights', () => {
       })),
       planets: [],
       stations: [],
+      checkWaypointReached: vi.fn(),
     };
 
     (useShipStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue(mockShipStore);

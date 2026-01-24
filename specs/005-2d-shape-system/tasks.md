@@ -233,6 +233,7 @@
 - [X] T069 [P] Performance optimization: Cache transformed vertices per frame in shapeRenderer.ts
 - [X] T070 [P] Performance optimization: Spatial partitioning for collision checks with many objects
 - [X] T071 Run quickstart.md validation to ensure all integration points work correctly
+- [X] T072 [P] Refactor docking guidance rendering into `src/core/rendering/dockingGuidance.ts` and add unit tests in `dockingGuidance.test.ts` (improves testability and isolates runway geometry + active-port logic)
 
 ---
 

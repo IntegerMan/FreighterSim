@@ -79,7 +79,7 @@ function formatModuleType(type: string): string {
 }
 
 // Get module status (could be extended with actual status data)
-function getModuleStatus(moduleType: string): string {
+function getModuleStatus(_moduleType: string): string {
   return 'Operational';
 }
 
@@ -694,10 +694,18 @@ onMounted(() => {
       class="system-map__tooltip"
       :style="{ left: tooltipX + 'px', top: tooltipY + 'px' }"
     >
-      <div class="system-map__tooltip-station">{{ tooltipContent.stationName }}</div>
-      <div class="system-map__tooltip-module">{{ tooltipContent.moduleName }}</div>
-      <div class="system-map__tooltip-type">{{ tooltipContent.moduleType.toUpperCase() }}</div>
-      <div class="system-map__tooltip-status">{{ tooltipContent.moduleStatus }}</div>
+      <div class="system-map__tooltip-station">
+        {{ tooltipContent.stationName }}
+      </div>
+      <div class="system-map__tooltip-module">
+        {{ tooltipContent.moduleName }}
+      </div>
+      <div class="system-map__tooltip-type">
+        {{ tooltipContent.moduleType.toUpperCase() }}
+      </div>
+      <div class="system-map__tooltip-status">
+        {{ tooltipContent.moduleStatus }}
+      </div>
     </div>
   </div>
 </template>

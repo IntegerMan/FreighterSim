@@ -26,6 +26,7 @@ import {
   type CameraState,
 } from '@/core/rendering';
 import { Starfield, createDefaultStarfieldConfig } from '@/core/starfield';
+import { isPortNearby, shouldShowColoredLandingLights, computeRunwayCorners } from '@/core/rendering/dockingGuidance';
 import { getShipTemplate, getStationTemplateById, getStationModule } from '@/data/shapes';
 import type { Vector2, Station, Planet, JumpGate } from '@/models';
 import { getThreatLevelColor } from '@/models';
@@ -142,18 +143,17 @@ function render() {
   }
 
   // Draw orbits
-  for (const planet of navStore.planets) {
+  for (const planet of (navStore.planets ?? [])) {
     drawOrbit(ctx, planet);
   }
 
   // Draw planets
-  for (const planet of navStore.planets) {
+  for (const planet of (navStore.planets ?? [])) {
     drawPlanet(ctx, planet);
   }
 
   // Determine the active docking port (for colored landing lights)
-  // Only set an active port when that port is IN-RANGE and is the nearest port.
-  // When not set, ports will show the default white runway lights.
+  // Prefer selected station, otherwise nearest slot. Use helper to centralize logic.
   let activePortId: string | null = null;
   const selectedStation = navStore.selectedStation;
   if (selectedStation) {
@@ -163,37 +163,26 @@ function render() {
       shipStore.heading
     );
 
-    // Treat selected port as active when it is either in-range, within the approach corridor
-    // (nearLights), or otherwise 'nearby' based on runway length. This makes the active
-    // runway feel responsive when the player is approaching the station.
-    if (dockingStatus?.port) {
-      const portRange = getDockingRange(dockingStatus.port);
-      const isNearby = dockingStatus.inRange || dockingStatus.nearLights || dockingStatus.distance <= portRange * RUNWAY_LENGTH_FACTOR;
-      if (isNearby) {
-        const nearestPort = navStore.findNearestDockingPort(shipStore.position, shipStore.heading);
-        if (nearestPort?.port?.id === dockingStatus.port.id) {
-          activePortId = dockingStatus.port.id;
-        }
+    if (dockingStatus?.port && isPortNearby(dockingStatus, getDockingRange, RUNWAY_LENGTH_FACTOR)) {
+      const nearestPort = navStore.findNearestDockingPort(shipStore.position, shipStore.heading);
+      if (nearestPort?.port?.id === dockingStatus.port.id) {
+        activePortId = dockingStatus.port.id;
       }
     }
   } else {
     const nearestPort = navStore.findNearestDockingPort(shipStore.position, shipStore.heading);
-    // Nearest port becomes active when the ship is in-range, inside the approach corridor, or
-    // otherwise near the runway (based on runway length)
-    if (nearestPort?.port) {
-      const portRange = getDockingRange(nearestPort.port);
-      const isNearby = nearestPort.inRange || nearestPort.nearLights || nearestPort.distance <= portRange * RUNWAY_LENGTH_FACTOR;
-      if (isNearby) activePortId = nearestPort.port.id;
+    if (nearestPort?.port && isPortNearby(nearestPort, getDockingRange, RUNWAY_LENGTH_FACTOR)) {
+      activePortId = nearestPort.port.id;
     }
   }
 
   // Draw stations
-  for (const station of navStore.stations) {
+  for (const station of (navStore.stations ?? [])) {
     drawStation(ctx, station, activePortId);
   }
 
   // Draw jump gates
-  for (const gate of navStore.jumpGates) {
+  for (const gate of (navStore.jumpGates ?? [])) {
     drawJumpGate(ctx, gate);
   }
 
@@ -203,7 +192,7 @@ function render() {
   drawCourseProjection(ctx, shipScreenPos, shipStore.heading, shipStore.speed, camera.value, 20, isReversing);
 
   // Draw waypoint paths
-  const waypoints = navStore.waypoints;
+  const waypoints = (navStore.waypoints ?? []);
   if (waypoints.length > 0) {
     // Line from ship to first waypoint
     const firstWaypointScreenPos = worldToScreen(waypoints[0]!.position, camera.value);
@@ -510,22 +499,16 @@ function drawDockingApproachGuidance(ctx: CanvasRenderingContext2D) {
   // Make the runway slightly longer and wider to match gameplay detection
   const runwayLength = portRange * 10; // Extended runway for better visibility
   const runwayWidth = 25; // Width between light pairs in world units (wider)
-  const perpX = -worldApproachVector.y;
-  const perpY = worldApproachVector.x;
 
   // Rectangle corners in world space
   const startWorld = { x: dockingStatus.portWorldPosition.x, y: dockingStatus.portWorldPosition.y };
   const endWorld = { x: dockingStatus.portWorldPosition.x + worldApproachVector.x * runwayLength, y: dockingStatus.portWorldPosition.y + worldApproachVector.y * runwayLength };
 
-  const p1 = { x: startWorld.x + perpX * runwayWidth, y: startWorld.y + perpY * runwayWidth };
-  const p2 = { x: endWorld.x + perpX * runwayWidth, y: endWorld.y + perpY * runwayWidth };
-  const p3 = { x: endWorld.x - perpX * runwayWidth, y: endWorld.y - perpY * runwayWidth };
-  const p4 = { x: startWorld.x - perpX * runwayWidth, y: startWorld.y - perpY * runwayWidth };
-
-  const p1s = worldToScreen(p1, camera.value);
-  const p2s = worldToScreen(p2, camera.value);
-  const p3s = worldToScreen(p3, camera.value);
-  const p4s = worldToScreen(p4, camera.value);
+  const corners = computeRunwayCorners(dockingStatus.portWorldPosition, worldApproachVector, runwayLength, runwayWidth);
+  const p1s = worldToScreen(corners.p1, camera.value);
+  const p2s = worldToScreen(corners.p2, camera.value);
+  const p3s = worldToScreen(corners.p3, camera.value);
+  const p4s = worldToScreen(corners.p4, camera.value);
 
   // Fill the runway rectangle faintly, and stroke with stronger color when ship is within the corridor
   ctx.fillStyle = dockingStatus.nearLights ? 'rgba(0, 255, 153, 0.12)' : 'rgba(0, 255, 153, 0.04)';
@@ -553,13 +536,10 @@ function drawDockingApproachGuidance(ctx: CanvasRenderingContext2D) {
   // Draw runway lights along the approach corridor
   // Use shared drawing helper so white and colored lights line up exactly.
   const nearestPortForGuidance = navStore.findNearestDockingPort(shipStore.position, shipStore.heading);
-  // Landing lights should be colored starting at the same point the runway preview appears
-  // (i.e. when the runway preview is visible — dockingStatus.distance <= portRange * 60)
-  const showColoredLandingLights = nearestPortForGuidance?.port?.id === dockingStatus.port.id &&
-    dockingStatus.distance <= portRange * 60;
-
   // Always draw runway lights in guidance overlay to match placement; choose colored mode
   // for the active runway when the player is nearby.
+  const showColoredLandingLights = shouldShowColoredLandingLights(nearestPortForGuidance, dockingStatus, getDockingRange);
+
   if (showColoredLandingLights) {
     drawRunwayLightsForPort(ctx, dockingStatus.portWorldPosition, worldApproachVector, portRange, camera.value, Date.now() / 1000, 'colored');
   } else {
@@ -1067,7 +1047,10 @@ onMounted(() => {
         <span class="helm-map__collision-warning-text">
           {{ collision.highestWarningLevel.value.toUpperCase() }}
         </span>
-        <span v-if="collision.warnings.value[0]" class="helm-map__collision-warning-object">
+        <span
+          v-if="collision.warnings.value[0]"
+          class="helm-map__collision-warning-object"
+        >
           {{ collision.warnings.value[0].objectName }}
         </span>
       </div>
@@ -1126,10 +1109,18 @@ onMounted(() => {
       class="helm-map__tooltip"
       :style="{ left: tooltipX + 'px', top: tooltipY + 'px' }"
     >
-      <div class="helm-map__tooltip-station">{{ tooltipContent.stationName }}</div>
-      <div class="helm-map__tooltip-module">{{ tooltipContent.moduleName }}</div>
-      <div class="helm-map__tooltip-type">{{ tooltipContent.moduleType.toUpperCase() }}</div>
-      <div class="helm-map__tooltip-status">{{ tooltipContent.moduleStatus }}</div>
+      <div class="helm-map__tooltip-station">
+        {{ tooltipContent.stationName }}
+      </div>
+      <div class="helm-map__tooltip-module">
+        {{ tooltipContent.moduleName }}
+      </div>
+      <div class="helm-map__tooltip-type">
+        {{ tooltipContent.moduleType.toUpperCase() }}
+      </div>
+      <div class="helm-map__tooltip-status">
+        {{ tooltipContent.moduleStatus }}
+      </div>
     </div>
   </div>
 </template>

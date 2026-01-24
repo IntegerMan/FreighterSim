@@ -36,7 +36,7 @@ const createSquare = (size: number = 1): Shape => ({
   boundingRadius: Math.sqrt(2) * size,
 });
 
-const createTriangle = (): Shape => ({
+const _createTriangle = (): Shape => ({
   id: 'triangle',
   name: 'Triangle',
   vertices: [

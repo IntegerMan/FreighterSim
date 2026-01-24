@@ -36,6 +36,7 @@ const mockCanvasContext = {
   measureText: vi.fn(() => ({ width: 0 })),
   setTransform: vi.fn(),
   resetTransform: vi.fn(),
+  setLineDash: vi.fn(),
   fillStyle: '',
   strokeStyle: '',
   lineWidth: 1,

@@ -293,8 +293,8 @@ describe('particleStore', () => {
     it('should respect thrust multiplier for different engines', () => {
       const store = useParticleStore();
       
-      let mainThrottle = 1;
-      let portThrottle = 0.5;
+      const mainThrottle = 1;
+      const portThrottle = 0.5;
       
       const registration: ShipEngineRegistration = {
         shipId: 'test-ship',
