@@ -483,6 +483,10 @@ function drawDockingApproachGuidance(ctx: CanvasRenderingContext2D) {
     }
   }
 
+  // Guard against zero approach vector (data inconsistency) - skip runway rendering
+  const approachMagnitude = Math.hypot(worldApproachVector.x, worldApproachVector.y);
+  if (approachMagnitude < 0.001) return;
+
   // Draw docking range circle around port (with ship buffer)
   const visualRange = getVisualDockingRange(portRange);
   const screenRange = visualRange * zoom.value;
