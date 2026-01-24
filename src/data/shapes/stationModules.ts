@@ -160,12 +160,39 @@ export const CARGO_MODULE: StationModule = {
     { x: 0, y: 0.8 },   // Top
     { x: 0, y: -0.8 },  // Bottom
   ],
-  // Docking port on the outer face (top of module when attached pointing outward)
+  // Docking ports on multiple faces so outer ports work regardless of module orientation
+  // When cargo is on north/south arms, the north port (y: 0.9) is outward
+  // When cargo is on east arm, the east port (x: 0.9) is outward
+  // When cargo is on west arm, the west port (x: -0.9) is outward
   dockingPorts: [
     {
-      id: 'cargo-dock',
+      id: 'cargo-dock-north',
       position: { x: 0, y: 0.9 },
       approachVector: { x: 0, y: 1 },
+      size: 'medium',
+      alignmentTolerance: 15,
+      dockingRange: 25,
+    },
+    {
+      id: 'cargo-dock-south',
+      position: { x: 0, y: -0.9 },
+      approachVector: { x: 0, y: -1 },
+      size: 'medium',
+      alignmentTolerance: 15,
+      dockingRange: 25,
+    },
+    {
+      id: 'cargo-dock-east',
+      position: { x: 0.9, y: 0 },
+      approachVector: { x: 1, y: 0 },
+      size: 'medium',
+      alignmentTolerance: 15,
+      dockingRange: 25,
+    },
+    {
+      id: 'cargo-dock-west',
+      position: { x: -0.9, y: 0 },
+      approachVector: { x: -1, y: 0 },
       size: 'medium',
       alignmentTolerance: 15,
       dockingRange: 25,

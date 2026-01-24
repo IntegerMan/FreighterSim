@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { StarSystem, Waypoint, Vector2, Station, DockingPort } from '@/models';
 import { updatePlanetOrbit, getDockingRange, getAlignmentTolerance } from '@/models';
+import { SHIP_DOCKING_BUFFER } from '@/core/rendering/mapUtils';
 import type { GameTime } from '@/core/game-loop';
 import { getStationTemplateById, getStationModule } from '@/data/shapes';
 
@@ -195,8 +196,10 @@ export const useNavigationStore = defineStore('navigation', () => {
     inRange: boolean;
     /** Whether ship heading is aligned */
     headingAligned: boolean;
-    /** Whether approach vector is correct */
+    /** Whether approach vector is correct (always true - no longer enforced) */
     approachAligned: boolean;
+    /** Required heading for ship to dock (ship will rotate to this during docking) */
+    requiredHeading?: number;
     /** Reason if not available */
     reason: string | null;
   }
@@ -233,6 +236,31 @@ export const useNavigationStore = defineStore('navigation', () => {
       const modulePortScale = stationScale * moduleScaleFactor;
 
       for (const port of module.dockingPorts) {
+        // Filter out internal cargo ports that face inward toward the station core
+        // Cargo modules have ports on all 4 sides, but when positioned on arms,
+        // some face inward (toward core) rather than outward (into space).
+        // Only expose outward-facing ports.
+        if (modulePlacement.moduleType === 'cargo') {
+          // Check if port faces toward station center based on module position
+          // If module position is on an axis and port is on opposite axis, it's internal
+          const moduleX = modulePlacement.position.x;
+          const moduleY = modulePlacement.position.y;
+          const absX = Math.abs(moduleX);
+          const absY = Math.abs(moduleY);
+          
+          // Determine which direction this module extends from the core
+          const isOnEastArm = absX > absY && moduleX > 0; // East arm (positive X)
+          const isOnWestArm = absX > absY && moduleX < 0; // West arm (negative X)
+          const isOnNorthArm = absY > absX && moduleY > 0; // North arm (positive Y)
+          const isOnSouthArm = absY > absX && moduleY < 0; // South arm (negative Y)
+          
+          // Skip ports that face inward
+          if (isOnEastArm && port.id === 'cargo-dock-west') continue; // West port faces inward
+          if (isOnWestArm && port.id === 'cargo-dock-east') continue; // East port faces inward
+          if (isOnNorthArm && port.id === 'cargo-dock-south') continue; // South port faces inward
+          if (isOnSouthArm && port.id === 'cargo-dock-north') continue; // North port faces inward
+        }
+
         // Transform port position from module local → station local → world
         // Port position is in module's local coords, scale by module render scale
         const moduleLocalX = port.position.x * modulePortScale * Math.cos(moduleRotationRad) - port.position.y * modulePortScale * Math.sin(moduleRotationRad);
@@ -289,11 +317,25 @@ export const useNavigationStore = defineStore('navigation', () => {
       };
     }
 
-    // Find the nearest port
-    let nearestPort = ports[0];
+    // Find the nearest port that faces OUTWARD from the station
+    // Filter out ports where the approach vector points toward station center
+    let nearestPort: typeof ports[0] | null = null;
     let nearestDistance = Infinity;
 
     for (const portData of ports) {
+      // Check if this port faces outward (approach vector points away from station center)
+      // Port world position relative to station center
+      const portRelativeX = portData.worldPosition.x - station.position.x;
+      const portRelativeY = portData.worldPosition.y - station.position.y;
+      
+      // Dot product of port position and approach vector
+      // Positive = approach vector points outward from station center
+      const outwardDot = portRelativeX * portData.worldApproachVector.x + 
+                        portRelativeY * portData.worldApproachVector.y;
+      
+      // Skip ports that face inward (would require going through station to dock)
+      if (outwardDot < 0) continue;
+      
       const dx = portData.worldPosition.x - shipPosition.x;
       const dy = portData.worldPosition.y - shipPosition.y;
       const distance = Math.hypot(dx, dy);
@@ -304,38 +346,39 @@ export const useNavigationStore = defineStore('navigation', () => {
       }
     }
 
+    // Fallback: if no outward-facing ports found, use the closest port anyway
+    if (!nearestPort) {
+      for (const portData of ports) {
+        const dx = portData.worldPosition.x - shipPosition.x;
+        const dy = portData.worldPosition.y - shipPosition.y;
+        const distance = Math.hypot(dx, dy);
+        
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestPort = portData;
+        }
+      }
+    }
+
     // nearestPort is guaranteed to be defined since ports.length > 0
     // TypeScript assertion since we checked ports.length > 0 at the start
     const port = nearestPort!;
 
-    // Check range (T046)
-    const dockingRange = getDockingRange(port.port);
+    // Check range (T046) - include ship buffer for more forgiving docking
+    const dockingRange = getDockingRange(port.port) + SHIP_DOCKING_BUFFER;
     const inRange = nearestDistance <= dockingRange;
 
-    // Check approach vector alignment (T044)
-    const dx = port.worldPosition.x - shipPosition.x;
-    const dy = port.worldPosition.y - shipPosition.y;
-    const distToPort = Math.hypot(dx, dy);
-    
-    // Ship approach direction (normalized vector from ship to port)
-    const shipApproachX = distToPort > 0 ? dx / distToPort : 0;
-    const shipApproachY = distToPort > 0 ? dy / distToPort : 0;
-    
-    // Port approach vector (ship should approach FROM this direction, so ship faces opposite)
-    // Dot product to check alignment
-    const approachDot = shipApproachX * port.worldApproachVector.x + shipApproachY * port.worldApproachVector.y;
-    const approachAligned = approachDot > 0.7; // ~45 degree tolerance for approach direction
-
-    // Check heading alignment (T045)
-    // Ship heading should be opposite to the approach vector (ship nose faces port)
-    const shipHeadingRad = (shipHeading * Math.PI) / 180;
-    // Ship facing direction (based on heading, 0° = up/north)
-    const shipFacingX = Math.sin(shipHeadingRad);
-    const shipFacingY = Math.cos(shipHeadingRad);
-    
-    // Ship should face INTO the port (opposite of approach vector)
+    // Calculate required heading for ship's docking port to face station port
+    // Ship should face INTO the port (opposite of station's approach vector)
     const requiredFacingX = -port.worldApproachVector.x;
     const requiredFacingY = -port.worldApproachVector.y;
+    const requiredHeadingRad = Math.atan2(requiredFacingX, requiredFacingY);
+    const requiredHeading = ((requiredHeadingRad * 180) / Math.PI + 360) % 360;
+
+    // Check current heading alignment (T045)
+    const shipHeadingRad = (shipHeading * Math.PI) / 180;
+    const shipFacingX = Math.sin(shipHeadingRad);
+    const shipFacingY = Math.cos(shipHeadingRad);
     
     // Calculate angle difference
     const facingDot = shipFacingX * requiredFacingX + shipFacingY * requiredFacingY;
@@ -345,16 +388,13 @@ export const useNavigationStore = defineStore('navigation', () => {
     const tolerance = getAlignmentTolerance(port.port);
     const headingAligned = alignmentAngle <= tolerance;
 
-    // Determine availability
-    const available = inRange && headingAligned && approachAligned;
+    // Docking is available if in range - ship will auto-rotate during docking sequence
+    // No more "wrong approach" requirement - tractor beam handles rotation
+    const available = inRange;
     let reason: string | null = null;
     
     if (!inRange) {
-      reason = `Out of range (${nearestDistance.toFixed(0)}/${dockingRange} units)`;
-    } else if (!approachAligned) {
-      reason = 'Approach from wrong direction';
-    } else if (!headingAligned) {
-      reason = `Heading misaligned (${alignmentAngle.toFixed(0)}° off, need <${tolerance}°)`;
+      reason = 'Out of range';
     }
 
     return {
@@ -365,7 +405,8 @@ export const useNavigationStore = defineStore('navigation', () => {
       alignmentAngle,
       inRange,
       headingAligned,
-      approachAligned,
+      approachAligned: true, // Always true now - no approach requirement
+      requiredHeading, // New: heading ship needs to rotate to for docking
       reason,
     };
   }
@@ -446,6 +487,35 @@ export const useNavigationStore = defineStore('navigation', () => {
   }
 
   /**
+   * Find the nearest available docking port across ALL stations
+   * This allows docking without manually selecting a station first
+   * @param shipPosition - Current ship position
+   * @param shipHeading - Current ship heading in degrees
+   * @returns The nearest port availability info, or null if no ports found
+   */
+  function findNearestDockingPort(
+    shipPosition: Vector2,
+    shipHeading: number
+  ): (DockingPortAvailability & { station: Station }) | null {
+    let nearestResult: (DockingPortAvailability & { station: Station }) | null = null;
+    let nearestDistance = Infinity;
+
+    for (const station of stations.value) {
+      const status = checkDockingPortAvailability(station, shipPosition, shipHeading);
+      
+      if (status.port && status.distance < nearestDistance) {
+        nearestDistance = status.distance;
+        nearestResult = {
+          ...status,
+          station,
+        };
+      }
+    }
+
+    return nearestResult;
+  }
+
+  /**
    * Get all available docking ports for a station with their status
    */
   function getAllDockingPortStatus(
@@ -460,33 +530,30 @@ export const useNavigationStore = defineStore('navigation', () => {
       const dy = portData.worldPosition.y - shipPosition.y;
       const distance = Math.hypot(dx, dy);
       
-      const dockingRange = getDockingRange(portData.port);
+      // Include ship buffer for more forgiving docking
+      const dockingRange = getDockingRange(portData.port) + SHIP_DOCKING_BUFFER;
       const inRange = distance <= dockingRange;
       
-      // Check approach
-      const distToPort = distance; // Already calculated above
-      const shipApproachX = distToPort > 0 ? dx / distToPort : 0;
-      const shipApproachY = distToPort > 0 ? dy / distToPort : 0;
-      const approachDot = shipApproachX * portData.worldApproachVector.x + shipApproachY * portData.worldApproachVector.y;
-      const approachAligned = approachDot > 0.7;
+      // Calculate required heading for docking
+      const requiredFacingX = -portData.worldApproachVector.x;
+      const requiredFacingY = -portData.worldApproachVector.y;
+      const requiredHeadingRad = Math.atan2(requiredFacingX, requiredFacingY);
+      const requiredHeading = ((requiredHeadingRad * 180) / Math.PI + 360) % 360;
       
-      // Check heading
+      // Check current heading alignment
       const shipHeadingRad = (shipHeading * Math.PI) / 180;
       const shipFacingX = Math.sin(shipHeadingRad);
       const shipFacingY = Math.cos(shipHeadingRad);
-      const requiredFacingX = -portData.worldApproachVector.x;
-      const requiredFacingY = -portData.worldApproachVector.y;
       const facingDot = shipFacingX * requiredFacingX + shipFacingY * requiredFacingY;
       const alignmentAngleRad = Math.acos(Math.min(1, Math.max(-1, facingDot)));
       const alignmentAngle = (alignmentAngleRad * 180) / Math.PI;
       const tolerance = getAlignmentTolerance(portData.port);
       const headingAligned = alignmentAngle <= tolerance;
       
-      const available = inRange && headingAligned && approachAligned;
+      // Available if in range - ship will auto-rotate during docking
+      const available = inRange;
       let reason: string | null = null;
       if (!inRange) reason = 'Out of range';
-      else if (!approachAligned) reason = 'Wrong approach';
-      else if (!headingAligned) reason = 'Misaligned';
       
       return {
         portId: portData.port.id,
@@ -497,7 +564,8 @@ export const useNavigationStore = defineStore('navigation', () => {
         alignmentAngle,
         inRange,
         headingAligned,
-        approachAligned,
+        approachAligned: true, // No longer enforced
+        requiredHeading,
         reason,
       };
     });
@@ -543,6 +611,7 @@ export const useNavigationStore = defineStore('navigation', () => {
     // Docking port functions (T043-T046)
     getStationDockingPorts,
     checkDockingPortAvailability,
+    findNearestDockingPort,
     validateApproachVector,
     validateHeadingAlignment,
     checkDockingRange,

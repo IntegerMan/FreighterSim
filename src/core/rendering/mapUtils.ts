@@ -1,5 +1,9 @@
 import type { Vector2 } from '@/models';
 
+// =============================================================================
+// Color Constants - Shared across all map views
+// =============================================================================
+
 // Colors matching our design system
 export const MAP_COLORS = {
   background: '#000000',
@@ -16,7 +20,46 @@ export const MAP_COLORS = {
   dockingRange: 'rgba(153, 102, 255, 0.2)',
   courseProjection: 'rgba(255, 204, 0, 0.5)',
   headingArc: 'rgba(255, 204, 0, 0.3)',
+  // Docking port colors - green for visibility
+  dockingPort: '#00FF99',
+  dockingPortApproach: '#00FF99',
+  dockingPortRange: 'rgba(0, 255, 153, 0.5)',
+  dockingPortRangeSelected: 'rgba(0, 255, 153, 0.8)',
+  dockingPortUnavailable: '#FF6666',
 };
+
+// =============================================================================
+// Station Rendering Constants - Shared scale factors
+// =============================================================================
+
+/**
+ * Multiplier for station visual size relative to docking range
+ * Station visual = dockingRange * STATION_VISUAL_MULTIPLIER
+ * This ensures consistent station sizes across all views
+ */
+export const STATION_VISUAL_MULTIPLIER = 6;
+
+/**
+ * Module scale factor - converts module shape coordinates (-1 to 1) to station coordinates
+ * Must match MODULE_SCALE in stationLayout.ts
+ */
+export const MODULE_SCALE_FACTOR = 0.12;
+
+/**
+ * Ship size buffer added to docking range for visual display
+ * Ensures the docking circle accounts for the ship's physical size
+ * Also provides comfortable docking range so ships don't need to "collide" with station
+ */
+export const SHIP_DOCKING_BUFFER = 50; // Comfortable docking distance
+
+/**
+ * Calculate the visual docking range that accounts for ship size
+ * @param portDockingRange - The base docking range from the port
+ * @param includeShipBuffer - Whether to add buffer for ship size (default: true)
+ */
+export function getVisualDockingRange(portDockingRange: number, includeShipBuffer: boolean = true): number {
+  return includeShipBuffer ? portDockingRange + SHIP_DOCKING_BUFFER : portDockingRange;
+}
 
 const DEG_TO_RAD = Math.PI / 180;
 

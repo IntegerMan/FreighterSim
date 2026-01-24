@@ -7,7 +7,7 @@
  * @module core/physics/collision
  */
 
-import type { Vector2, Shape, CollisionResult, BoundingBox } from '@/models';
+import type { Vector2, Shape, CollisionResult, BoundingBox, Station, StationModulePlacement } from '@/models';
 import {
   vec2Sub,
   vec2Normalize,
@@ -17,6 +17,7 @@ import {
   vec2Scale,
   rotatePoint,
 } from './vectorMath';
+import { getStationTemplateById, getStationModule } from '@/data/shapes';
 
 // =============================================================================
 // Bounding Box Utilities
@@ -253,6 +254,272 @@ export function getShapeBoundingBox(
 ): BoundingBox {
   const worldVertices = getWorldVertices(shape, position, rotation, scale);
   return getBoundingBox(worldVertices);
+}
+
+// =============================================================================
+// Station Module Collision Utilities
+// =============================================================================
+
+/**
+ * Module scale factor - must match shapeRenderer's MODULE_SCALE_FACTOR (0.12)
+ * Modules are rendered at 12% of the station's visual scale
+ */
+const STATION_MODULE_SCALE_FACTOR = 0.12;
+
+/**
+ * Station visual multiplier - must match SystemMap.vue calculation (6x)
+ * Station scale = dockingRange * 6 for proper visual sizing
+ */
+const STATION_VISUAL_MULTIPLIER = 6;
+
+/**
+ * Get world vertices for a single station module
+ * 
+ * @param modulePlacement - Module placement within station template
+ * @param stationPosition - Station world position
+ * @param stationRotation - Station rotation in degrees
+ * @param stationScale - Station scale (typically dockingRange * STATION_VISUAL_MULTIPLIER)
+ * @returns Array of world-space vertices for the module
+ */
+export function getModuleWorldVertices(
+  modulePlacement: StationModulePlacement,
+  stationPosition: Vector2,
+  stationRotation: number,
+  stationScale: number
+): Vector2[] {
+  const moduleDefinition = getStationModule(modulePlacement.moduleType);
+  if (!moduleDefinition) return [];
+
+  // Calculate module world position
+  // Module position is in normalized coordinates, scaled by station scale
+  const stationRotationRad = (stationRotation * Math.PI) / 180;
+  const cos = Math.cos(stationRotationRad);
+  const sin = Math.sin(stationRotationRad);
+  
+  const moduleWorldX = stationPosition.x + 
+    (modulePlacement.position.x * cos - modulePlacement.position.y * sin) * stationScale;
+  const moduleWorldY = stationPosition.y + 
+    (modulePlacement.position.x * sin + modulePlacement.position.y * cos) * stationScale;
+
+  // Module rotation combines station rotation and module's own rotation
+  const moduleWorldRotation = stationRotation + modulePlacement.rotation;
+
+  // Module scale is a fraction of station scale
+  const moduleWorldScale = stationScale * STATION_MODULE_SCALE_FACTOR;
+
+  return getWorldVertices(
+    moduleDefinition.shape,
+    { x: moduleWorldX, y: moduleWorldY },
+    moduleWorldRotation,
+    moduleWorldScale
+  );
+}
+
+/**
+ * Calculate the visual bounding radius of a station including all modules
+ * This is the actual size of the station as rendered, not just the docking range
+ * 
+ * @param station - Station to calculate bounding radius for
+ * @returns Bounding radius from station center to furthest module vertex
+ */
+export function getStationVisualBoundingRadius(station: Station): number {
+  const templateId = station.templateId ?? station.type;
+  const template = getStationTemplateById(templateId);
+  if (!template) return station.dockingRange;
+
+  const stationScale = station.dockingRange * STATION_VISUAL_MULTIPLIER;
+  const stationRotation = station.rotation ?? 0;
+
+  let maxRadius = 0;
+
+  // Check all modules' vertices
+  for (const modulePlacement of template.modules) {
+    const vertices = getModuleWorldVertices(
+      modulePlacement,
+      { x: 0, y: 0 }, // Calculate relative to station center
+      stationRotation,
+      stationScale
+    );
+    
+    // Find the furthest vertex from the origin
+    for (const vertex of vertices) {
+      const dist = Math.hypot(vertex.x, vertex.y);
+      if (dist > maxRadius) {
+        maxRadius = dist;
+      }
+    }
+  }
+
+  return maxRadius > 0 ? maxRadius : station.dockingRange;
+}
+
+/**
+ * Result of station module collision check
+ */
+export interface StationModuleCollision {
+  /** Module that was collided with */
+  modulePlacement: StationModulePlacement;
+  /** Module index in template */
+  moduleIndex: number;
+  /** Collision result with penetration info */
+  collision: CollisionResult;
+  /** Module's world vertices */
+  moduleVertices: Vector2[];
+}
+
+/**
+ * Get all modules' world vertices for a station
+ * Used for collision detection against entire station geometry
+ * 
+ * @param station - The station to get module vertices for
+ * @returns Array of module vertex arrays, one per module
+ */
+export function getAllStationModuleVertices(
+  station: Station
+): Array<{ modulePlacement: StationModulePlacement; vertices: Vector2[]; moduleIndex: number }> {
+  const templateId = station.templateId ?? station.type;
+  const template = getStationTemplateById(templateId);
+  if (!template) return [];
+
+  const stationScale = station.dockingRange * STATION_VISUAL_MULTIPLIER;
+  const stationRotation = station.rotation ?? 0;
+
+  const results: Array<{ modulePlacement: StationModulePlacement; vertices: Vector2[]; moduleIndex: number }> = [];
+
+  for (let i = 0; i < template.modules.length; i++) {
+    const modulePlacement = template.modules[i]!;
+    const vertices = getModuleWorldVertices(
+      modulePlacement,
+      station.position,
+      stationRotation,
+      stationScale
+    );
+    
+    if (vertices.length >= 3) {
+      results.push({
+        modulePlacement,
+        vertices,
+        moduleIndex: i,
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Check collision between a polygon and all station modules
+ * Returns the closest/deepest collision if multiple modules are hit
+ * 
+ * @param testVertices - Vertices of the polygon to test (e.g., ship hull)
+ * @param station - Station to check collision against
+ * @returns Collision result with module info, or null if no collision
+ */
+export function checkStationCollision(
+  testVertices: Vector2[],
+  station: Station
+): StationModuleCollision | null {
+  const modules = getAllStationModuleVertices(station);
+  
+  let deepestCollision: StationModuleCollision | null = null;
+  let maxPenetration = 0;
+
+  for (const { modulePlacement, vertices, moduleIndex } of modules) {
+    // Quick AABB check first
+    const testBounds = getBoundingBox(testVertices);
+    const moduleBounds = getBoundingBox(vertices);
+    
+    if (!checkBoundingBoxOverlap(testBounds, moduleBounds)) {
+      continue;
+    }
+
+    // Full SAT collision check
+    const collision = checkPolygonCollision(testVertices, vertices);
+    
+    if (collision.collides && (collision.penetration ?? 0) > maxPenetration) {
+      maxPenetration = collision.penetration ?? 0;
+      deepestCollision = {
+        modulePlacement,
+        moduleIndex,
+        collision,
+        moduleVertices: vertices,
+      };
+    }
+  }
+
+  return deepestCollision;
+}
+
+/**
+ * Calculate minimum distance from a point to any station module
+ * 
+ * @param point - Point to check distance from
+ * @param station - Station to check distance to
+ * @returns Minimum distance to any module (0 if inside a module)
+ */
+export function getDistanceToStation(
+  point: Vector2,
+  station: Station
+): { distance: number; nearestModuleIndex: number; moduleType: string } {
+  const modules = getAllStationModuleVertices(station);
+  
+  let minDistance = Infinity;
+  let nearestModuleIndex = -1;
+  let moduleType = 'unknown';
+
+  for (const { modulePlacement, vertices, moduleIndex } of modules) {
+    // Check if point is inside this module
+    if (isPointInPolygon(point, vertices)) {
+      return {
+        distance: 0,
+        nearestModuleIndex: moduleIndex,
+        moduleType: modulePlacement.moduleType,
+      };
+    }
+
+    // Find distance to nearest edge
+    for (let i = 0; i < vertices.length; i++) {
+      const p1 = vertices[i]!;
+      const p2 = vertices[(i + 1) % vertices.length]!;
+      
+      const dist = pointToSegmentDistance(point, p1, p2);
+      if (dist < minDistance) {
+        minDistance = dist;
+        nearestModuleIndex = moduleIndex;
+        moduleType = modulePlacement.moduleType;
+      }
+    }
+  }
+
+  return {
+    distance: minDistance === Infinity ? 0 : minDistance,
+    nearestModuleIndex,
+    moduleType,
+  };
+}
+
+/**
+ * Calculate distance from a point to a line segment
+ */
+function pointToSegmentDistance(point: Vector2, p1: Vector2, p2: Vector2): number {
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const lengthSq = dx * dx + dy * dy;
+  
+  if (lengthSq === 0) {
+    // Segment is a point
+    return Math.hypot(point.x - p1.x, point.y - p1.y);
+  }
+  
+  // Project point onto segment
+  const t = Math.max(0, Math.min(1, 
+    ((point.x - p1.x) * dx + (point.y - p1.y) * dy) / lengthSq
+  ));
+  
+  const projX = p1.x + t * dx;
+  const projY = p1.y + t * dy;
+  
+  return Math.hypot(point.x - projX, point.y - projY);
 }
 
 // =============================================================================

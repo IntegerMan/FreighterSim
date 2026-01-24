@@ -3,7 +3,12 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useShipStore, useNavigationStore, useSensorStore } from '@/stores';
 import { useGameLoop } from '@/core/game-loop';
 import {
+  MAP_COLORS,
+  STATION_VISUAL_MULTIPLIER,
+  MODULE_SCALE_FACTOR,
+  getVisualDockingRange,
   drawCourseProjection,
+}
   drawShipIcon,
   drawWaypoint,
   drawWaypointPath,
@@ -19,22 +24,9 @@ import { getShipTemplate, getStationTemplateById, getStationModule } from '@/dat
 import type { Vector2, Station, Planet, JumpGate } from '@/models';
 import { getDockingRange } from '@/models';
 
-// Colors matching our design system
+// Extended colors for SystemMap (inherits from MAP_COLORS)
 const COLORS = {
-  background: '#000000',
-  grid: '#1a1a1a',
-  gridMajor: '#333333',
-  star: '#FFB347',
-  ship: '#FFFFFF',
-  shipHeading: '#FFCC00',
-  station: '#FFCC00',
-  planet: '#66CCFF',
-  jumpGate: '#BB99FF',
-  orbit: '#333333',
-  selected: '#9966FF',
-  dockingRange: 'rgba(153, 102, 255, 0.2)',
-  dockingPort: '#00FF99',           // Green for available docking ports
-  dockingPortApproach: '#00FF99',   // Arrow showing approach direction
+  ...MAP_COLORS,
 };
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -314,7 +306,7 @@ function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   const camera = { x: cameraCenter.value.x, y: cameraCenter.value.y };
   const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
 
-  // Docking range circle (dotted outline)
+  // Station-wide docking range circle (dotted outline) - shows approximate approach area
   const screenDockingRange = station.dockingRange * zoom.value;
   ctx.strokeStyle = 'rgba(153, 102, 255, 0.5)';
   ctx.lineWidth = 1;
@@ -328,11 +320,7 @@ function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   const templateId = station.templateId ?? station.type;
   const template = getStationTemplateById(templateId);
   
-  // Calculate station render size
-  // Ship is ~40 units, station dockingRange is ~200 units
-  // Station visual should be ~30x ship size = 1200 units
-  // So stationScale = dockingRange * 6 = 1200 for trading hub
-  const STATION_VISUAL_MULTIPLIER = 6;
+  // Calculate station render size using shared constant
   const stationScale = station.dockingRange * STATION_VISUAL_MULTIPLIER;
   const stationRotation = station.rotation ?? 0;
 
@@ -415,7 +403,6 @@ function drawDockingPorts(
   if (!template) return;
 
   const stationRotationRad = (stationRotation * Math.PI) / 180;
-  const moduleScaleFactor = 0.12; // Must match MODULE_SCALE_FACTOR in shapeRenderer
 
   // Find docking modules in the template
   for (const modulePlacement of template.modules) {
@@ -427,8 +414,8 @@ function drawDockingPorts(
     
     // Module position scale factor (module positions are in normalized coords)
     const modulePositionScale = stationScale;
-    // Module port position scale factor (port positions within module use module scale)
-    const modulePortScale = stationScale * moduleScaleFactor;
+    // Module port position scale factor (port positions within module use shared constant)
+    const modulePortScale = stationScale * MODULE_SCALE_FACTOR;
 
     for (const port of module.dockingPorts) {
       // Transform port position from module local → station local → world
@@ -451,9 +438,8 @@ function drawDockingPorts(
       // Convert to screen coordinates
       const screenPos = worldToScreen({ x: worldX, y: worldY });
       
-      // Adjust visibility based on selection state
-      const portAlpha = isSelected ? 1 : 0.6;
-      const portColor = isSelected ? COLORS.dockingPort : `rgba(0, 255, 153, ${portAlpha})`;
+      // Use shared colors for consistency
+      const portColor = isSelected ? COLORS.dockingPort : COLORS.dockingPortRange;
       
       // Draw port marker (small circle)
       const portSize = Math.max(5, 8 * zoom.value);
@@ -462,20 +448,21 @@ function drawDockingPorts(
       ctx.arc(screenPos.x, screenPos.y, portSize, 0, Math.PI * 2);
       ctx.fill();
 
-      // Get docking range for this port
-      const dockingRange = getDockingRange(port);
-      const screenDockingRange = dockingRange * zoom.value;
+      // Get docking range with ship buffer for visual display
+      const baseDockingRange = getDockingRange(port);
+      const visualDockingRange = getVisualDockingRange(baseDockingRange);
+      const screenDockingRange = visualDockingRange * zoom.value;
 
       // Draw docking position circle (dotted) - where the ship should position
       // The docking position is offset from the port along the approach vector
-      const dockingPositionDistance = dockingRange * 0.6; // Position ship at 60% of docking range
+      const dockingPositionDistance = baseDockingRange * 0.6; // Position ship at 60% of docking range
       const dockingPosWorldX = worldX + approachX * dockingPositionDistance;
       const dockingPosWorldY = worldY + approachY * dockingPositionDistance;
       const dockingPosScreen = worldToScreen({ x: dockingPosWorldX, y: dockingPosWorldY });
       
-      // Draw dotted circle at docking position - always visible
+      // Draw dotted circle at docking position - always visible, green
       const dockingCircleRadius = Math.max(15, 25 * zoom.value);
-      ctx.strokeStyle = isSelected ? COLORS.dockingPort : `rgba(0, 255, 153, ${portAlpha})`;
+      ctx.strokeStyle = isSelected ? COLORS.dockingPort : COLORS.dockingPortRange;
       ctx.lineWidth = isSelected ? 2 : 1;
       ctx.setLineDash([5, 5]);
       ctx.beginPath();
@@ -515,8 +502,8 @@ function drawDockingPorts(
         ctx.fill();
       }
 
-      // Draw docking range indicator (faint circle around port)
-      ctx.strokeStyle = 'rgba(0, 255, 153, 0.3)';
+      // Draw docking range indicator (green circle around port with ship buffer)
+      ctx.strokeStyle = COLORS.dockingPortRange;
       ctx.lineWidth = 1;
       ctx.setLineDash([2, 4]);
       ctx.beginPath();
@@ -722,8 +709,8 @@ function handleModuleHover(event: MouseEvent) {
   const camera = { x: cameraCenter.value.x, y: cameraCenter.value.y };
   const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
 
-  // Station scale function (matches drawStation - station visual fills docking range)
-  const getStationScale = (station: Station) => station.dockingRange;
+  // Station scale function using shared constant (matches drawStation)
+  const getStationScale = (station: Station) => station.dockingRange * STATION_VISUAL_MULTIPLIER;
 
   const result = findModuleAtScreenPosition(
     screenPoint,

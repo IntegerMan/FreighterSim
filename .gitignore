@@ -29,3 +29,5 @@ test-results/*
 playwright-report/index.html
 
 nul
+
+coverage/

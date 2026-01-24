@@ -58,6 +58,8 @@ export interface Ship {
   templateId?: string;
   /** Ship size in world units for rendering (optional, uses template default if not specified) */
   size?: number;
+  /** Ship's docking port position relative to ship center ('nose' or 'port' or 'starboard') */
+  dockingPortLocation?: 'nose' | 'port' | 'starboard';
 }
 
 /**
@@ -75,6 +77,7 @@ export const DEFAULT_SHIP: Ship = {
   cargoBay: { ...DEFAULT_CARGO_BAY },
   templateId: 'firefly', // Player ship uses Serenity-inspired template
   size: 40, // Default player ship size in world units
+  dockingPortLocation: 'nose', // Ship's docking port is at the nose
 };
 
 /**

@@ -34,58 +34,66 @@ const isInDockingRange = computed(() => {
   return nearestStation.value.distance <= nearestStationData.value.dockingRange;
 });
 
-const canDock = computed(() => {
-  return isInDockingRange.value && Math.abs(shipStore.speed) <= 5 && !shipStore.isDocked;
-});
-
-const dockingStatus = computed(() => {
-  if (shipStore.isDocked) return 'docked';
-  if (!nearestStation.value) return 'no-station';
-  if (!isInDockingRange.value) return 'out-of-range';
-  if (Math.abs(shipStore.speed) > 5) return 'too-fast';
-  return 'ready';
-});
-
 const dockedStation = computed(() => {
   if (!shipStore.dockedAtId) return null;
   return navStore.stations.find(s => s.id === shipStore.dockedAtId);
 });
 
-// T049: Docking port status for selected station
-const selectedStationDockingStatus = computed(() => {
-  const station = navStore.selectedStation;
-  if (!station) return null;
-  
-  return navStore.checkDockingPortAvailability(
-    station,
+// Find nearest docking port across ALL stations (no selection required)
+const nearestDockingPortStatus = computed(() => {
+  return navStore.findNearestDockingPort(
     shipStore.position,
     shipStore.heading
   );
+});
+
+// T049: Docking port status - prefer selected station, fall back to nearest
+const activeDockingStatus = computed(() => {
+  // If a station is selected, use its docking status
+  const station = navStore.selectedStation;
+  if (station) {
+    return {
+      ...navStore.checkDockingPortAvailability(
+        station,
+        shipStore.position,
+        shipStore.heading
+      ),
+      station,
+    };
+  }
+  
+  // Otherwise, find the nearest docking port across all stations
+  return nearestDockingPortStatus.value;
 });
 
 // Updated canDock that considers port alignment (T050)
 const canDockAtPort = computed(() => {
   if (shipStore.isDocked) return false;
   if (Math.abs(shipStore.speed) > 5) return false;
-  if (!selectedStationDockingStatus.value) return false;
-  return selectedStationDockingStatus.value.available;
+  if (!activeDockingStatus.value) return false;
+  return activeDockingStatus.value.available;
 });
 
-// Enhanced docking status message
+// Enhanced docking status message - simplified since ship auto-rotates
 const dockingStatusMessage = computed(() => {
   if (shipStore.isDocked) return 'DOCKED';
   
-  const status = selectedStationDockingStatus.value;
-  if (!status) return dockingStatus.value === 'no-station' ? 'NO STATION' : 'SELECT STATION';
+  const status = activeDockingStatus.value;
   
-  if (status.available) return 'READY TO DOCK';
-  if (status.reason) return status.reason.toUpperCase();
-  return 'ALIGNING...';
+  // Check distance/range first
+  if (!status) return 'NO PORTS';
+  if (!status.inRange) return 'OUT OF RANGE';
+  
+  // Then check speed
+  if (Math.abs(shipStore.speed) > 5) return 'TOO FAST';
+  
+  // If in range and slow enough, docking is available
+  return 'DOCK';
 });
 
 // Docking port info for display
 const dockingPortInfo = computed(() => {
-  const status = selectedStationDockingStatus.value;
+  const status = activeDockingStatus.value;
   if (!status || !status.port) return null;
   
   return {
@@ -105,16 +113,16 @@ const dockingPortInfo = computed(() => {
 const isTractorBeamActive = computed(() => shipStore.isTractorBeamActive);
 
 function handleDock() {
-  // T050: Use port-based docking with tractor beam
-  if (canDockAtPort.value && navStore.selectedStation) {
-    const status = selectedStationDockingStatus.value;
-    if (status?.portWorldPosition && status.port) {
+  // T050: Use port-based docking with tractor beam - auto-rotates ship
+  const status = activeDockingStatus.value;
+  if (canDockAtPort.value && status?.station) {
+    if (status.portWorldPosition && status.port) {
       // Calculate docking position (60% of range along approach vector)
       const dockingRange = getDockingRange(status.port);
       const dockingPositionDistance = dockingRange * 0.6;
       
       // Get approach vector from port world position
-      const ports = navStore.getStationDockingPorts(navStore.selectedStation);
+      const ports = navStore.getStationDockingPorts(status.station);
       const portData = ports.find(p => p.port.id === status.port?.id);
       
       if (portData) {
@@ -123,13 +131,13 @@ function handleDock() {
           y: portData.worldPosition.y + portData.worldApproachVector.y * dockingPositionDistance,
         };
         
-        // Calculate required heading (opposite of approach vector)
-        const dockingHeading = Math.atan2(-portData.worldApproachVector.x, -portData.worldApproachVector.y) * (180 / Math.PI);
-        const normalizedHeading = (dockingHeading + 360) % 360;
+        // Use the pre-calculated required heading from docking status
+        // This rotates the ship so its docking port faces the station's port
+        const normalizedHeading = status.requiredHeading ?? 0;
         
-        // Engage tractor beam to pull ship to docking position
+        // Engage tractor beam to pull ship to docking position AND rotate to correct heading
         shipStore.engageTractorBeam(
-          navStore.selectedStation.id,
+          status.station.id,
           dockingPosition,
           normalizedHeading
         );
@@ -137,10 +145,7 @@ function handleDock() {
       }
     }
     // Fallback to instant docking if tractor beam calculation fails
-    shipStore.dock(navStore.selectedStation.id);
-  } else if (canDock.value && nearestStation.value) {
-    // Fallback to legacy docking
-    shipStore.dock(nearestStation.value.id);
+    shipStore.dock(status.station.id);
   }
 }
 
@@ -232,7 +237,7 @@ function handleRadarSelect(contactId: string) {
               @click="shipStore.disengageTractorBeam()" 
             />
           </template>
-          <!-- Dock Button - conditional display -->
+          <!-- Docked: show undock button -->
           <template v-else-if="shipStore.isDocked">
             <div class="helm-view__docked-info">
               <span class="helm-view__docked-label">DOCKED AT</span>
@@ -245,20 +250,14 @@ function handleRadarSelect(contactId: string) {
               @click="handleUndock" 
             />
           </template>
-          <template v-else-if="dockingStatus === 'ready'">
+          <!-- Not docked: always show dock button (enabled/disabled based on status) -->
+          <template v-else>
             <LcarsButton 
-              label="DOCK" 
-              color="success" 
+              :label="canDockAtPort ? 'DOCK' : dockingStatusMessage" 
+              :color="canDockAtPort ? 'success' : 'purple'" 
               full-width 
+              :disabled="!canDockAtPort"
               @click="handleDock" 
-            />
-          </template>
-          <template v-else-if="dockingStatus === 'too-fast'">
-            <LcarsButton 
-              label="TOO FAST" 
-              color="warning" 
-              full-width 
-              disabled
             />
           </template>
 

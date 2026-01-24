@@ -16,6 +16,10 @@ import {
   isPointInPolygon,
   checkCirclePolygonCollision,
   checkSweptCollision,
+  getAllStationModuleVertices,
+  checkStationCollision,
+  getDistanceToStation,
+  getStationVisualBoundingRadius,
 } from './collision';
 
 // Test helper: create a square centered at origin
@@ -468,6 +472,235 @@ describe('collision', () => {
       if (result !== null) {
         expect(result.time).toBeLessThanOrEqual(1);
       }
+    });
+  });
+
+  // =============================================================================
+  // Station Module Collision Tests
+  // =============================================================================
+  
+  describe('getAllStationModuleVertices', () => {
+    it('should return empty array for station without template', () => {
+      const station = {
+        id: 'test-station',
+        name: 'Test Station',
+        type: 'trading-hub' as const,
+        position: { x: 0, y: 0 },
+        services: [],
+        dockingRange: 100,
+        templateId: 'non-existent-template',
+      };
+      
+      const result = getAllStationModuleVertices(station);
+      expect(result).toEqual([]);
+    });
+
+    it('should return vertices for all station modules', () => {
+      const station = {
+        id: 'trading-station',
+        name: 'Trading Hub Alpha',
+        type: 'trading-hub' as const,
+        position: { x: 1000, y: 2000 },
+        services: [],
+        dockingRange: 200,
+        templateId: 'trading-hub',
+        rotation: 0,
+      };
+      
+      const result = getAllStationModuleVertices(station);
+      
+      // Trading hub should have multiple modules
+      expect(result.length).toBeGreaterThan(1);
+      
+      // Each result should have vertices
+      for (const module of result) {
+        expect(module.vertices.length).toBeGreaterThanOrEqual(3);
+        expect(module.modulePlacement).toBeDefined();
+        expect(module.moduleIndex).toBeGreaterThanOrEqual(0);
+      }
+    });
+
+    it('should apply station rotation to module vertices', () => {
+      const stationNoRotation = {
+        id: 'test-station',
+        name: 'Test Station',
+        type: 'trading-hub' as const,
+        position: { x: 0, y: 0 },
+        services: [],
+        dockingRange: 100,
+        templateId: 'trading-hub',
+        rotation: 0,
+      };
+      
+      const stationRotated = {
+        ...stationNoRotation,
+        rotation: 90,
+      };
+      
+      const verticesNoRotation = getAllStationModuleVertices(stationNoRotation);
+      const verticesRotated = getAllStationModuleVertices(stationRotated);
+      
+      // Both should have modules
+      expect(verticesNoRotation.length).toBeGreaterThan(0);
+      expect(verticesRotated.length).toBe(verticesNoRotation.length);
+      
+      // Vertices should be different due to rotation
+      // Compare first module's first vertex
+      if (verticesNoRotation.length > 0 && verticesRotated.length > 0) {
+        const v1 = verticesNoRotation[0]!.vertices[0]!;
+        const v2 = verticesRotated[0]!.vertices[0]!;
+        
+        // After 90° rotation, x and y should swap (approximately)
+        // We just check they're different
+        const isDifferent = Math.abs(v1.x - v2.x) > 0.01 || Math.abs(v1.y - v2.y) > 0.01;
+        expect(isDifferent).toBe(true);
+      }
+    });
+  });
+
+  describe('checkStationCollision', () => {
+    it('should return null when no collision', () => {
+      const shipVertices = createSquare(10).map(v => ({ x: v.x + 5000, y: v.y + 5000 }));
+      const station = {
+        id: 'far-station',
+        name: 'Far Station',
+        type: 'trading-hub' as const,
+        position: { x: 0, y: 0 },
+        services: [],
+        dockingRange: 100,
+        templateId: 'trading-hub',
+        rotation: 0,
+      };
+      
+      const result = checkStationCollision(shipVertices, station);
+      expect(result).toBeNull();
+    });
+
+    it('should detect collision with station module', () => {
+      // Create a ship near station center
+      const station = {
+        id: 'test-station',
+        name: 'Test Station',
+        type: 'trading-hub' as const,
+        position: { x: 0, y: 0 },
+        services: [],
+        dockingRange: 100, // Station scale = 100 * 6 = 600
+        templateId: 'trading-hub',
+        rotation: 0,
+      };
+      
+      // Place ship right at station center (should overlap with core module)
+      const shipVertices = createSquare(50); // 50x50 ship at origin
+      
+      const result = checkStationCollision(shipVertices, station);
+      
+      // Should detect collision with core module
+      expect(result).not.toBeNull();
+      if (result) {
+        expect(result.collision.collides).toBe(true);
+        expect(result.modulePlacement).toBeDefined();
+        expect(result.moduleVertices.length).toBeGreaterThanOrEqual(3);
+      }
+    });
+  });
+
+  describe('getDistanceToStation', () => {
+    it('should return 0 when point is inside a module', () => {
+      const station = {
+        id: 'test-station',
+        name: 'Test Station',
+        type: 'trading-hub' as const,
+        position: { x: 0, y: 0 },
+        services: [],
+        dockingRange: 100,
+        templateId: 'trading-hub',
+        rotation: 0,
+      };
+      
+      // Point at station center (inside core module)
+      const result = getDistanceToStation({ x: 0, y: 0 }, station);
+      expect(result.distance).toBe(0);
+    });
+
+    it('should return positive distance when point is outside all modules', () => {
+      const station = {
+        id: 'test-station',
+        name: 'Test Station',
+        type: 'trading-hub' as const,
+        position: { x: 0, y: 0 },
+        services: [],
+        dockingRange: 100,
+        templateId: 'trading-hub',
+        rotation: 0,
+      };
+      
+      // Point far from station
+      const result = getDistanceToStation({ x: 5000, y: 5000 }, station);
+      expect(result.distance).toBeGreaterThan(0);
+    });
+  });
+
+  describe('getStationVisualBoundingRadius', () => {
+    it('should return visual bounding radius larger than docking range', () => {
+      const station = {
+        id: 'test-station',
+        name: 'Test Station',
+        type: 'trading-hub' as const,
+        position: { x: 0, y: 0 },
+        services: [],
+        dockingRange: 100,
+        templateId: 'trading-hub',
+        rotation: 0,
+      };
+      
+      const visualRadius = getStationVisualBoundingRadius(station);
+      
+      // Visual radius should be much larger than docking range (due to 6x multiplier + modules)
+      expect(visualRadius).toBeGreaterThan(station.dockingRange);
+      // Station scale = dockingRange * 6 = 600, so visual radius should be significant
+      expect(visualRadius).toBeGreaterThan(200);
+    });
+
+    it('should return docking range for station without template', () => {
+      const station = {
+        id: 'test-station',
+        name: 'Test Station',
+        type: 'trading-hub' as const,
+        position: { x: 0, y: 0 },
+        services: [],
+        dockingRange: 100,
+        templateId: 'non-existent-template',
+        rotation: 0,
+      };
+      
+      const visualRadius = getStationVisualBoundingRadius(station);
+      expect(visualRadius).toBe(station.dockingRange);
+    });
+
+    it('should account for station rotation', () => {
+      const station1 = {
+        id: 'test-station-1',
+        name: 'Test Station 1',
+        type: 'trading-hub' as const,
+        position: { x: 0, y: 0 },
+        services: [],
+        dockingRange: 100,
+        templateId: 'trading-hub',
+        rotation: 0,
+      };
+      
+      const station2 = {
+        ...station1,
+        id: 'test-station-2',
+        rotation: 45, // Rotated 45 degrees
+      };
+      
+      const radius1 = getStationVisualBoundingRadius(station1);
+      const radius2 = getStationVisualBoundingRadius(station2);
+      
+      // Both should have similar bounding radius (rotation doesn't change max distance)
+      // But small differences are expected due to non-circular shapes
+      expect(Math.abs(radius1 - radius2)).toBeLessThan(radius1 * 0.2);
     });
   });
 });

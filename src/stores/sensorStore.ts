@@ -8,6 +8,7 @@ import { useSettingsStore } from './settingsStore';
 import type { GameTime } from '@/core/game-loop';
 import { hasLineOfSight } from '@/core/physics/raycasting';
 import type { RaycastTarget } from '@/core/physics/raycasting';
+import { getStationVisualBoundingRadius } from '@/core/physics/collision';
 
 /**
  * Angular extent of an object as seen from the ship
@@ -338,10 +339,11 @@ export const useSensorStore = defineStore('sensor', () => {
 
     // Find max object radius for spatial culling (include star)
     const starRadius = navStore.currentSystem?.star?.radius ?? 0;
+    const stationVisualRadii = navStore.stations.map(s => getStationVisualBoundingRadius(s));
     const maxObjectRadius = Math.max(
       starRadius,
       ...navStore.planets.map(p => p.radius),
-      ...navStore.stations.map(s => s.dockingRange),
+      ...stationVisualRadii,
       50 // Default minimum
     );
     const cullRange = range + maxObjectRadius;
@@ -373,12 +375,15 @@ export const useSensorStore = defineStore('sensor', () => {
 
     // Add station contacts
     for (const station of navStore.stations) {
+      // Get the actual visual bounding radius of the station (includes all modules)
+      const visualRadius = getStationVisualBoundingRadius(station);
+      
       const dx = shipPosition.x - station.position.x;
       const dy = shipPosition.y - station.position.y;
       const distSq = dx * dx + dy * dy;
       
-      // Spatial culling: skip if center is beyond cull range
-      if (distSq > cullRange * cullRange) continue;
+      // Spatial culling: skip if center is beyond cull range (using visual radius)
+      if (distSq > (cullRange + visualRadius) * (cullRange + visualRadius)) continue;
 
       const existing = contacts.value.find(c => c.id === station.id);
       const contact = createContact({
@@ -387,7 +392,7 @@ export const useSensorStore = defineStore('sensor', () => {
         name: station.name,
         position: station.position,
         shipPosition,
-        radius: station.dockingRange, // Use docking range as station "size"
+        radius: visualRadius, // Use actual visual bounding radius, not just docking range
       });
       contact.isSelected = existing?.isSelected ?? false;
       newContacts.push(contact);

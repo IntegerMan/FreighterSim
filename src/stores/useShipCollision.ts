@@ -10,15 +10,13 @@
 import { computed, ref } from 'vue';
 import { useShipStore } from './shipStore';
 import { useNavigationStore } from './navigationStore';
-import { getShipTemplate, getStationTemplateById } from '@/data/shapes';
-import { getStationModule } from '@/data/shapes/stationModules';
+import { getShipTemplate } from '@/data/shapes';
 import {
   getWorldVertices,
-  checkBoundingBoxOverlap,
-  checkPolygonCollision,
-  getBoundingBox,
+  checkStationCollision,
+  getDistanceToStation,
 } from '@/core/physics/collision';
-import type { Vector2, CollisionResult, BoundingBox } from '@/models';
+import type { Vector2 } from '@/models';
 
 /**
  * Collision warning levels
@@ -82,52 +80,6 @@ export function useShipCollision() {
   }
   
   /**
-   * Get a station's world vertices
-   */
-  function getStationWorldVertices(
-    templateId: string | undefined,
-    position: Vector2,
-    rotation: number
-  ): Vector2[] | null {
-    const template = getStationTemplateById(templateId ?? 'trading-hub');
-    if (!template || template.modules.length === 0) return null;
-    
-    // For simplicity, use the first module's shape
-    // A more complete implementation would merge all module shapes
-    const modulePlacement = template.modules[0]!;
-    const moduleDefinition = getStationModule(modulePlacement.moduleType);
-    const stationScale = 15; // Default station scale
-    
-    return getWorldVertices(
-      moduleDefinition.shape,
-      position,
-      rotation + modulePlacement.rotation,
-      stationScale
-    );
-  }
-  
-  /**
-   * Check collision between ship and a convex polygon
-   */
-  function checkShipCollision(
-    targetVertices: Vector2[],
-    targetBounds: BoundingBox
-  ): CollisionResult | null {
-    const shipVertices = getShipWorldVertices();
-    if (!shipVertices) return null;
-    
-    const shipBounds = getBoundingBox(shipVertices);
-    
-    // Quick AABB check first
-    if (!checkBoundingBoxOverlap(shipBounds, targetBounds)) {
-      return null;
-    }
-    
-    // Full SAT check
-    return checkPolygonCollision(shipVertices, targetVertices);
-  }
-  
-  /**
    * Calculate distance between ship center and a point
    */
   function distanceToPoint(point: Vector2): number {
@@ -151,20 +103,20 @@ export function useShipCollision() {
    */
   function updateCollisionWarnings(): void {
     const newWarnings: CollisionWarning[] = [];
+    const shipVertices = getShipWorldVertices();
     
-    // Check stations
+    // Check stations - now checks ALL modules, not just the center
     for (const station of navStore.stations) {
-      const stationVertices = getStationWorldVertices(
-        station.templateId,
-        station.position,
-        station.rotation ?? 0
-      );
-      
-      if (stationVertices) {
-        const bounds = getBoundingBox(stationVertices);
-        const collision = checkShipCollision(stationVertices, bounds);
-        const distance = distanceToPoint(station.position);
-        const level = getWarningLevel(distance, collision?.collides ?? false);
+      // Try shape-based collision against all station modules
+      if (shipVertices) {
+        const stationCollision = checkStationCollision(shipVertices, station);
+        
+        // Also get distance to nearest module for proximity warnings
+        const distanceInfo = getDistanceToStation(shipStore.position, station);
+        const distance = distanceInfo.distance;
+        
+        const hasCollision = stationCollision !== null;
+        const level = getWarningLevel(distance, hasCollision);
         
         if (level !== 'none') {
           newWarnings.push({
@@ -173,13 +125,13 @@ export function useShipCollision() {
             objectName: station.name,
             objectType: 'station',
             distance,
-            collisionPoint: collision?.contactPoint,
-            penetrationDepth: collision?.penetration,
-            normal: collision?.normal,
+            collisionPoint: stationCollision?.collision.contactPoint,
+            penetrationDepth: stationCollision?.collision.penetration,
+            normal: stationCollision?.collision.normal,
           });
         }
       } else {
-        // Fallback to simple distance check
+        // Fallback to simple distance check if ship has no shape
         const distance = distanceToPoint(station.position) - station.dockingRange;
         const level = getWarningLevel(distance, distance < 0);
         

@@ -40,6 +40,13 @@ export {
   isPointInPolygon,
   checkCirclePolygonCollision,
   checkSweptCollision,
+  // Station module collision utilities
+  getModuleWorldVertices,
+  getAllStationModuleVertices,
+  checkStationCollision,
+  getDistanceToStation,
+  getStationVisualBoundingRadius,
+  type StationModuleCollision,
 } from './collision';
 
 // T053: Raycasting utilities
