@@ -7,12 +7,36 @@ vi.mock('@/stores/shipStore', () => ({ useShipStore: vi.fn() }));
 vi.mock('@/stores/navigationStore', () => ({ useNavigationStore: vi.fn() }));
 vi.mock('@/stores/sensorStore', () => ({ useSensorStore: vi.fn() }));
 vi.mock('@/stores/settingsStore', () => ({ useSettingsStore: vi.fn() }));
-vi.mock('@/stores', () => ({ useShipCollision: vi.fn(() => ({ updateCollisionWarnings: vi.fn(), warnings: { value: [] }, highestWarningLevel: { value: 'none' } })) }));
+vi.mock('@/stores', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    useShipCollision: vi.fn(() => ({ updateCollisionWarnings: vi.fn(), warnings: { value: [] }, highestWarningLevel: { value: 'none' } })),
+    useSettingsStore: vi.fn(() => ({ showRadarOverlay: false, toggleRadarOverlay: vi.fn() })),
+  };
+});
 
 // Mock shape helpers
 vi.mock('@/data/shapes', () => ({
   getStationTemplateById: vi.fn(),
   getStationModule: vi.fn(),
+}));
+
+// Stub heavy rendering functions to prevent full shape rendering during tests
+vi.mock('@/core/rendering', () => ({
+  MAP_COLORS: { background: '#000', fill: '#fff', dockingPort: '#0f0', dockingPortRange: '#0a0', dockingPortUnavailable: '#555', jumpGate: '#0ff', selected: '#ff0' },
+  drawGrid: vi.fn(),
+  worldToScreen: vi.fn((pos: any) => ({ x: pos.x, y: pos.y })),
+  drawOrbit: vi.fn(),
+  drawStation: vi.fn(),
+  drawJumpGate: vi.fn(),
+  drawDockingPorts: vi.fn(),
+  drawRunwayLightsForPort: vi.fn(),
+  drawRunwayLabel: vi.fn(),
+  drawRunwayBoundingBox: vi.fn(),
+  getDockingRange: vi.fn(() => 10),
+  getVisualDockingRange: vi.fn((r: number) => r),
+  RUNWAY_LENGTH_FACTOR: 60,
 }));
 
 import HelmMap from './HelmMap.vue';
@@ -50,7 +74,8 @@ describe('HelmMap docking indicator', () => {
         inRange: true,
       })),
       selectedStation: null,
-      stations: [ { id: 'station-1', name: 'Station Alpha', templateId: 'trading-hub', rotation: 0 } ],
+      stations: [ { id: 'station-1', name: 'Station Alpha', templateId: 'trading-hub', rotation: 0, position: { x: 100, y: 0 } } ],
+      planets: [],
     } as any;
 
     // Mock station template and module so drawDockingApproachGuidance doesn't early-return
@@ -108,7 +133,8 @@ describe('HelmMap docking indicator', () => {
         nearLights: true,
       })),
       selectedStation: null,
-      stations: [ { id: 'station-1', name: 'Station Alpha', templateId: 'trading-hub', rotation: 0 } ],
+      stations: [ { id: 'station-1', name: 'Station Alpha', templateId: 'trading-hub', rotation: 0, position: { x: 100, y: 0 } } ],
+      planets: [],
     } as any;
 
     const mockTemplate = {
@@ -171,7 +197,8 @@ describe('HelmMap docking indicator', () => {
         nearLights: true,
       })),
       selectedStation: null,
-      stations: [ { id: 'station-1', name: 'Station Alpha', templateId: 'trading-hub', rotation: 0 } ],
+      stations: [ { id: 'station-1', name: 'Station Alpha', templateId: 'trading-hub', rotation: 0, position: { x: 100, y: 0 } } ],
+      planets: [],
     } as any;
 
     const mockTemplate = {
@@ -221,7 +248,8 @@ describe('HelmMap docking indicator', () => {
         nearLights: false,
       })),
       selectedStation: null,
-      stations: [ { id: 'station-2', name: 'Station Beta', templateId: 'trading-hub', rotation: 0 } ],
+      stations: [ { id: 'station-2', name: 'Station Beta', templateId: 'trading-hub', rotation: 0, position: { x: 200, y: 0 } } ],
+      planets: [],
     } as any;
 
     const mockTemplate = {

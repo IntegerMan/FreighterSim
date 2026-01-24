@@ -28,6 +28,14 @@ test-output.txt
 test-results/*
 playwright-report/index.html
 
+# Environment files
+.env*
+.env.*
+
+# Coverage
+coverage/
+coverage-*
+
 nul
 
 coverage/

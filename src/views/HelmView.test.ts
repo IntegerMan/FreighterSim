@@ -5,6 +5,13 @@ import { setActivePinia, createPinia } from 'pinia';
 vi.mock('@/stores/shipStore', () => ({ useShipStore: vi.fn() }));
 vi.mock('@/stores/navigationStore', () => ({ useNavigationStore: vi.fn() }));
 vi.mock('@/stores/sensorStore', () => ({ useSensorStore: vi.fn() }));
+vi.mock('@/stores', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    useSensorStore: vi.fn(() => ({ stationContacts: [], radarSegments: [], contacts: [], sensorRange: 100, selectContact: vi.fn() })),
+  };
+});
 
 import HelmView from './HelmView.vue';
 import { useShipStore } from '@/stores/shipStore';
@@ -18,6 +25,7 @@ describe('HelmView docking behavior with runway lights', () => {
 
   it('enables dock when nearLights and speed <= 5', async () => {
     const mockShipStore: any = {
+      position: { x: 0, y: 0 },
       isDocked: false,
       speed: 4,
       heading: 0,
@@ -41,6 +49,8 @@ describe('HelmView docking behavior with runway lights', () => {
         nearLights: true,
         available: false,
       })),
+      planets: [],
+      stations: [],
     };
 
     (useShipStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue(mockShipStore);

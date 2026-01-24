@@ -17,6 +17,9 @@ This directory contains Architecture Decision Records (ADRs) for the Space Freig
 | [0009](0009-proximity-tracing.md) | Proximity Tracing & Radar | Accepted |
 | [0010](0010-waypoint-navigation-autopilot.md) | Waypoint Navigation & Autopilot | Accepted |
 | [0011](0011-coordinate-system-standardization.md) | Coordinate System Standardization | Accepted |
+| [0012](0012-2d-polygon-shape-system.md) | 2D Polygon Shape System for Ships and Stations | Proposed |
+| [0013](0013-pixijs-rendering-engine.md) | Migrate to Pixi.js Rendering Engine | Proposed |
+| [0014](0014-docking-ports-and-state-machine.md) | Docking & Docking Lights (As‑Is) | Accepted |
 
 ## ADR Template
 
