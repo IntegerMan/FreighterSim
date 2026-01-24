@@ -8,7 +8,10 @@ const formattedCredits = computed(() => gameStore.formattedCredits);
 </script>
 
 <template>
-  <LcarsFrame title="Status" color="gold">
+  <LcarsFrame
+    title="Status"
+    color="gold"
+  >
     <div class="status-panel">
       <div class="status-panel__row">
         <span class="status-panel__label">BALANCE</span>

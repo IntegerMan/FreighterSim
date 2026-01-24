@@ -19,8 +19,8 @@ describe('CreditsPanel', () => {
   });
 
   it('should display zero credits correctly', () => {
-    const store = useGameStore();
-    // Don't initialize, credits should be 0
+    // Don't initialize store, credits should be 0
+    useGameStore();
 
     const wrapper = mount(CreditsPanel);
     expect(wrapper.text()).toContain('0');
