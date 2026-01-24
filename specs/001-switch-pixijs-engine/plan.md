@@ -27,11 +27,11 @@
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
 - Test-First Development: Unit tests before implementation; E2E (Playwright) and ESLint must pass to mark feature complete. Plan aligns with III. Test-First Development.
-- Rendering Technology: Constitution specifies HTML5 Canvas for system map (IV). ADR-0013 proposes PixiJS engine. This plan proceeds under ADR-0013 with documented justification; Constitution update pending. Gate allowed with justification.
+- Rendering Technology: Constitution specifies HTML5 Canvas for system map (IV). ADR-0013 proposes PixiJS (WebGL-based) engine. This plan proceeds under ADR-0013 with documented justification; Constitution update pending. No Canvas fallback retained—WebGL requirement enforced. Gate allowed with justification.
 - Type Safety & Composition API: Uses TypeScript strict mode and Vue 3 Composition API with Pinia, compliant with II.
 - UI/UX Consistency: LCARS design preserved; effects implemented within performance budgets, compliant with V.
 
-Result: Proceed with Phase 0. One justified divergence (Rendering engine per ADR-0013).
+Result: Proceed with Phase 0. One justified divergence (Rendering engine per ADR-0013: WebGL-only via PixiJS, no Canvas fallback).
 
 Post-Design Re-check: Phase 1 artifacts (research.md, data-model.md, contracts, quickstart) maintain compliance with all principles except the rendering technology clause, which remains justified by ADR-0013. Tests and lint gates will be enforced in Phase 2.
 
@@ -71,4 +71,4 @@ tests/
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
-| Rendering tech divergence from Constitution IV | ADR-0013 mandates PixiJS for GPU acceleration and effects | Canvas paths cannot meet performance/effects goals at scale; ADR accepted |
+| Rendering tech divergence from Constitution IV | ADR-0013 mandates PixiJS (WebGL) for GPU acceleration and effects; no Canvas fallback | Canvas rendering cannot meet performance/effects goals at scale; WebGL requirement enforced; ADR accepted |

@@ -12,7 +12,7 @@
 - Q: What is the throttling/scaling priority when performance dips? → A: Combination priority: particles → effects intensity → resolution (last resort)
 - Q: What triggers auto-throttling activation? → A: Avg FPS <58 for 2s OR 95th percentile frame time >25 ms for 5s
 - Q: Which PixiJS version should production target? → A: PixiJS v8.15.0 (latest stable)
-- Q: What is the runtime fallback policy (WebGL2/WebGL1/Canvas)? → A: Prefer WebGL2; fallback to WebGL1; if no WebGL, fallback to Canvas with degraded features.
+- Q: What is the runtime fallback policy (WebGL2/WebGL1/Canvas)? → A: Prefer WebGL2; fallback to WebGL1; if no WebGL available, halt with clear, actionable error message.
 - Q: How should WebGL context loss be handled mid-session? → A: One automatic recovery attempt with state restore; if recovery fails or repeats within 30 seconds, halt with a clear message.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -43,8 +43,7 @@ QA can validate the Pixi-only renderer meets visual and interaction parity throu
 **Acceptance Scenarios**:
 
 1. **Given** a baseline capture set from pre-cutover visuals, **When** executing the Pixi-only build, **Then** parity checks confirm expected layers and elements are present for core screens (navigation/map, cargo, bridge overlays, selections, tooltips).
-2. **Given** Pixi fails to initialize (e.g., no WebGL), **When** the app starts, **Then** the user receives a clear, actionable message and the session halts safely without attempting to run legacy rendering.
-2. **Given** Pixi fails to initialize (e.g., no WebGL), **When** the app starts, **Then** the user receives a clear, actionable message and the app falls back to Canvas with degraded features; no dual runtime toggle is exposed.
+2. **Given** Pixi fails to initialize (e.g., no WebGL), **When** the app starts, **Then** the user receives a clear, actionable message explaining WebGL requirement and the app halts gracefully without rendering.
 
 ---
 
@@ -63,7 +62,7 @@ Designers can enable LCARS-style effects (glow, trails, particles) to improve po
 
 ### Edge Cases
 
-- Startup on browsers or environments without WebGL/GPU support; the app presents a clear message and falls back to Canvas with degraded features, avoiding partial launches.
+- Startup on browsers or environments without WebGL/GPU support; the app presents a clear, actionable error message and halts gracefully, avoiding partial launches or degraded rendering.
 - Low-power or thermally throttled devices that cannot sustain target frame rates; effects density and resolution must scale down gracefully.
 	The system reduces particle counts first, then effects intensity, and only lowers resolution as a last resort.
 - Very high-resolution or HiDPI displays; resolution scaling must avoid blurring while keeping frame times within targets.
@@ -74,7 +73,7 @@ Designers can enable LCARS-style effects (glow, trails, particles) to improve po
 ## Assumptions
 
 - Legacy Canvas rendering will be fully removed after validation; no runtime toggle or fallback is retained.
- - Runtime fallback policy: Prefer WebGL2; fallback to WebGL1; if no WebGL, fallback to Canvas with degraded features. No dual-runtime toggle is exposed to users.
+ - Runtime fallback policy: Prefer WebGL2; fallback to WebGL1; if no WebGL available, halt with clear error message. No dual-runtime toggle is exposed to users.
 - Baseline captures from pre-cutover visuals are available for parity comparison during QA but are not shipped or used at runtime.
 - Performance targets reference current QA midrange hardware; higher-end machines may exceed targets, lower-end may require effect scaling.
 - Asset formats (PNG/SVG-derived textures) and visual design guidelines stay consistent with existing pipelines.
@@ -86,7 +85,7 @@ Designers can enable LCARS-style effects (glow, trails, particles) to improve po
 
 - **FR-001**: Provide a GPU-accelerated rendering pipeline using PixiJS v8.15.0 aligned with ADR-0013 as the sole production renderer, replacing Canvas runtime paths.
 - **FR-002**: Achieve visual and interaction parity for current core screens (navigation/map, cargo, bridge overlays, selections, tooltips) prior to removing legacy rendering code.
-- **FR-003**: Implement startup capability checks and select renderer path: prefer WebGL2; fallback to WebGL1; if no WebGL, fallback to Canvas with degraded features. Present a clear, actionable message describing the chosen mode.
+- **FR-003**: Implement startup capability checks and select renderer path: prefer WebGL2; fallback to WebGL1; if no WebGL available, halt with clear, actionable error message explaining WebGL requirement.
 - **FR-004**: Expose performance indicators (frame rate, frame time, memory use) in a debug/test view to validate success criteria during QA.
 - **FR-005**: Render particle and effect systems (engine trails, thrusters, starfield) at scale with configurable caps and auto-throttling to protect frame rate targets.
 	Scaling priority: reduce particle counts first; then effects intensity; and lower resolution as a last resort.
@@ -111,5 +110,5 @@ Designers can enable LCARS-style effects (glow, trails, particles) to improve po
 - **SC-001**: Busy scenes with 500+ renderable objects and active UI overlays sustain an average of ≥60 fps with 95th percentile frame times under 25 ms during 5 minutes of continuous camera pan/zoom.
 - **SC-002**: Particle-heavy scenes with at least 5,000 active particles sustain ≥60 fps for 60 seconds without visible stutter and without memory growth exceeding 5% over the session.
 - **SC-003**: Visual parity checks show 95% of compared screens have no missing elements or incorrect layering relative to captured baselines; remaining discrepancies are documented and resolved before release.
-- **SC-004**: When WebGL/GPU is unavailable at startup, the app presents a clear, actionable message within 2 seconds and falls back to Canvas with degraded features; no dual runtime toggle is exposed.
+- **SC-004**: When WebGL/GPU is unavailable at startup, the app presents a clear, actionable error message within 2 seconds explaining WebGL requirement and halts gracefully; no rendering occurs and no dual runtime toggle is exposed.
 - **SC-005**: LCARS-style effects enabled on core screens do not increase input latency beyond 100 ms and do not allow frame rate to drop below 55 fps during normal interactions.
