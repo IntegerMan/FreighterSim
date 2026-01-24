@@ -6,9 +6,9 @@ vi.mock('@/stores/shipStore', () => ({ useShipStore: vi.fn() }));
 vi.mock('@/stores/navigationStore', () => ({ useNavigationStore: vi.fn() }));
 vi.mock('@/stores/sensorStore', () => ({ useSensorStore: vi.fn() }));
 vi.mock('@/stores', async (importOriginal) => {
-  const actual = await importOriginal();
+  const actual = await importOriginal<Record<string, any>>();
   return {
-    ...actual,
+    ...(actual as Record<string, any>),
     useSensorStore: vi.fn(() => ({ stationContacts: [], radarSegments: [], contacts: [], sensorRange: 100, selectContact: vi.fn() })),
   };
 });

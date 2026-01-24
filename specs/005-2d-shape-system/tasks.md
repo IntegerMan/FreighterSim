@@ -272,32 +272,40 @@
 ### Parallel Opportunities
 
 **Phase 1 (Setup)**:
+
 - T002, T003 can run in parallel (different model files)
 
 **Phase 2 (Foundational)**:
+
 - T005a, T006a, T007a can run in parallel (different test files)
 - T006, T007 can run in parallel (different utility files)
 - T010, T011 can run in parallel (different model files)
 
 **Phase 3 (US1)**:
+
 - T012-T018 can all run in parallel (different shape data files)
 - T021, T022 can run in parallel (different registry files)
 
 **Phase 4 (US2)**:
+
 - T029a (unit tests) before T027-T029 implementation
 
 **Phase 5 (US3)**:
+
 - T036a, T039a (unit tests) can run in parallel
 - T034-T036 can run in parallel as utility functions
 
 **Phase 6 (US4)**:
+
 - T043-T046 can run in parallel as validation functions
 
 **Phase 7 (US5)**:
+
 - T051a, T052a (unit tests) before implementation
 - T056a tests sensor integration
 
 **Phase 7 (US5)**:
+
 - T051, T052 are sequential (raycasting depends on intersection)
 
 ---
@@ -340,6 +348,7 @@ Task T018: "Create station module shapes in src/data/shapes/stationModules.ts"
 ### Suggested MVP Scope
 
 **Minimum Viable Product = User Story 1 only**
+
 - Ships and stations render as detailed 2D shapes
 - Player ship appears as Serenity-inspired silhouette
 - Distinct visual identity for different ship types

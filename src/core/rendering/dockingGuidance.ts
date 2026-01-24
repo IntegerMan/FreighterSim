@@ -3,7 +3,7 @@ import type { DockingPort } from '@/models/DockingPort';
 
 /** Determines whether a port should be considered "nearby" (active) */
 export function isPortNearby(
-  portStatus: { port?: DockingPort; inRange?: boolean; nearLights?: boolean; distance?: number } | null | undefined,
+  portStatus: { port?: DockingPort | null; inRange?: boolean; nearLights?: boolean; distance?: number } | null | undefined,
   getDockingRange: (port: DockingPort) => number,
   runwayLengthFactor: number
 ): boolean {
@@ -16,8 +16,8 @@ export function isPortNearby(
 
 /** Determines whether guidance overlay should show colored landing lights */
 export function shouldShowColoredLandingLights(
-  nearestPortForGuidance: { port?: DockingPort } | null | undefined,
-  dockingStatus: { port?: DockingPort; distance?: number } | null | undefined,
+  nearestPortForGuidance: { port?: DockingPort | null } | null | undefined,
+  dockingStatus: { port?: DockingPort | null; distance?: number } | null | undefined,
   getDockingRange: (port: DockingPort) => number
 ): boolean {
   if (!nearestPortForGuidance || !dockingStatus || !dockingStatus.port) return false;

@@ -201,6 +201,8 @@ export const useNavigationStore = defineStore('navigation', () => {
     requiredHeading?: number;
     /** Whether the ship is within the approach runway lights corridor */
     nearLights?: boolean;
+    /** Optional axis-aligned bounding box of the runway corridor */
+    runwayRect?: { minX: number; minY: number; maxX: number; maxY: number };
     /** Reason if not available */
     reason: string | null;
   }

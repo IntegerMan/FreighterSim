@@ -8,7 +8,7 @@ vi.mock('@/stores/navigationStore', () => ({ useNavigationStore: vi.fn() }));
 vi.mock('@/stores/sensorStore', () => ({ useSensorStore: vi.fn() }));
 vi.mock('@/stores/settingsStore', () => ({ useSettingsStore: vi.fn() }));
 vi.mock('@/stores', async (importOriginal) => {
-  const actual = await importOriginal();
+  const actual: Record<string, unknown> = await importOriginal();
   return {
     ...actual,
     useShipCollision: vi.fn(() => ({ updateCollisionWarnings: vi.fn(), warnings: { value: [] }, highestWarningLevel: { value: 'none' } })),
@@ -106,13 +106,13 @@ describe('HelmMap docking indicator', () => {
     });
 
     // The global test setup defines a mock canvas context returned by getContext
-    const ctx = (HTMLCanvasElement.prototype.getContext as unknown as ReturnType<typeof vi.fn>)();
+    const ctx = (HTMLCanvasElement.prototype.getContext as unknown as any)();
 
     // Wait a tick for mounted hooks and render to execute
     await wrapper.vm.$nextTick();
 
     // Assert that fillText was called with 'DOCKED'
-    const calls = (ctx.fillText as unknown as jest.Mock).mock.calls;
+    const calls = (ctx.fillText as unknown as ReturnType<typeof vi.fn>).mock.calls;
     const calledWithDocked = calls.some((c: any[]) => c[0] === 'DOCKED');
     expect(calledWithDocked).toBe(true);
   });
@@ -162,11 +162,11 @@ describe('HelmMap docking indicator', () => {
     const lightsSpy = vi.spyOn(rendering, 'drawRunwayLightsForPort');
 
     const wrapper = mount(HelmMap, { global: { plugins: [createPinia()] } });
-    const ctx = (HTMLCanvasElement.prototype.getContext as unknown as ReturnType<typeof vi.fn>)();
+    const ctx = (HTMLCanvasElement.prototype.getContext as unknown as any)();
 
     await wrapper.vm.$nextTick();
 
-    const calls = (ctx.fillText as unknown as jest.Mock).mock.calls;
+    const calls = (ctx.fillText as unknown as ReturnType<typeof vi.fn>).mock.calls;
     const hasRunwayLabel = calls.some((c: any[]) => c[0] === 'RUNWAY');
 
     expect(hasRunwayLabel).toBe(true);

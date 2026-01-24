@@ -21,6 +21,7 @@ Accepted
 ## Context
 
 Currently, ships and stations in the game are rendered as simple geometric primitives:
+
 - Ships: Triangle icons pointing in heading direction
 - Stations: Circles with a docking range indicator
 
@@ -109,6 +110,7 @@ interface StationTemplate {
 ```
 
 **Why modular composition for stations:**
+
 - Stations are larger and more complex than ships
 - Different station types share common modules (many need docking capabilities)
 - Reduces art/design effort: 8 module types can create dozens of station variants
@@ -127,6 +129,7 @@ function checkPolygonCollision(
 ```
 
 SAT provides:
+
 - Accurate collision detection for any convex polygon
 - Penetration depth for collision response
 - Normal vector for push-out direction
@@ -182,6 +185,7 @@ To maintain performance the renderer uses configurable LOD thresholds:
 Use bitmap images for ships/stations instead of polygons.
 
 **Rejected because:**
+
 - Rotation requires pre-rendered angles or expensive runtime rotation
 - Collision still needs polygon bounds or pixel-perfect collision
 - Doesn't integrate with existing Canvas 2D rendering pipeline
@@ -192,6 +196,7 @@ Use bitmap images for ships/stations instead of polygons.
 Define each station type as a single complex polygon.
 
 **Rejected because:**
+
 - Every station variant needs unique artwork
 - No code reuse between station types
 - Docking port positions are arbitrary per design
@@ -202,6 +207,7 @@ Define each station type as a single complex polygon.
 Use a full 2D physics engine for collision.
 
 **Rejected because:**
+
 - Overkill for our simple collision needs (no rigid body dynamics)
 - Adds significant dependency
 - Our ships don't need realistic physics (they turn and stop instantly)
@@ -212,6 +218,7 @@ Use a full 2D physics engine for collision.
 Use multiple overlapping circles to approximate shapes.
 
 **Rejected because:**
+
 - Poor approximation for angular shapes (ship wings, station arms)
 - More circles = worse performance than polygons
 - Still imprecise for collision
