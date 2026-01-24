@@ -657,8 +657,8 @@ describe('collision', () => {
       
       // Visual radius should be much larger than docking range (due to 6x multiplier + modules)
       expect(visualRadius).toBeGreaterThan(station.dockingRange);
-      // Station scale = dockingRange * 6 = 600, so visual radius should be significant
-      expect(visualRadius).toBeGreaterThan(200);
+      // Visual radius should be larger than docking range by a comfortable margin
+      expect(visualRadius).toBeGreaterThan(station.dockingRange * 1.5);
     });
 
     it('should return docking range for station without template', () => {

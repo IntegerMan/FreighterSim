@@ -273,7 +273,7 @@ function drawOrbit(ctx: CanvasRenderingContext2D, planet: Planet) {
 
 function drawPlanet(ctx: CanvasRenderingContext2D, planet: Planet) {
   const screenPos = worldToScreen(planet.position);
-  const screenRadius = Math.max(planet.radius * zoom.value, 6);
+  const screenRadius = Math.max(planet.radius * zoom.value, 12);
   const isSelected = navStore.selectedObjectId === planet.id;
 
   // Selection highlight

@@ -139,13 +139,18 @@ export const useShipStore = defineStore('ship', () => {
     // Stop current movement
     targetSpeed.value = 0;
     speed.value = 0;
+
+    // Ensure the ship's set heading follows the docking heading so that undocking
+    // doesn't immediately rotate the ship back toward a previously-set heading.
+    const normalizedHeading = normalizeAngle(dockingHeading);
+    targetHeading.value = normalizedHeading;
     
     tractorBeam.value = {
       active: true,
       stationId,
       portId,
       targetPosition: { ...dockingPosition },
-      targetHeading: normalizeAngle(dockingHeading),
+      targetHeading: normalizedHeading,
       onComplete: onComplete ?? null,
     };
   }

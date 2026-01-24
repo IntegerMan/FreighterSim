@@ -37,7 +37,7 @@ export const DEFAULT_ENGINES: ShipEngines = {
  * Default sensor configuration
  */
 export const DEFAULT_SENSORS: ShipSensors = {
-  range: 2000,
+  range: 20000,
   segmentCount: 36,
 };
 

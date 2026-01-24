@@ -102,6 +102,12 @@ export function useShipCollision() {
    * Update collision warnings for all nearby objects
    */
   function updateCollisionWarnings(): void {
+    // Don't check collisions when docked - ship is safely secured
+    if (shipStore.isDocked) {
+      warnings.value = [];
+      return;
+    }
+    
     const newWarnings: CollisionWarning[] = [];
     const shipVertices = getShipWorldVertices();
     

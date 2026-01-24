@@ -261,9 +261,9 @@ export const useSensorStore = defineStore('sensor', () => {
     const shipStore = useShipStore();
     const segmentCount = shipStore.sensors.segmentCount;
     const segmentSize = 360 / segmentCount;
-    const range = sensorRange.value;
     const shipPosition = shipStore.position;
     const segments: RadarSegment[] = [];
+    const proxRange = proximityDisplayRange.value;
 
     // Pre-compute angular extents for all contacts (spatial culling already done in contacts)
     const contactExtents = contacts.value.map(contact => ({
@@ -299,8 +299,10 @@ export const useSensorStore = defineStore('sensor', () => {
         startAngle,
         endAngle,
         nearestContact,
+        // Use proximity display range for threat calculation so objects within
+        // proximity range are always visible on the radar overlay
         threatLevel: nearestContact
-          ? getThreatLevelFromDistance(nearestContact.distance, range)
+          ? getThreatLevelFromDistance(nearestContact.distance, proxRange)
           : 'none',
       });
     }

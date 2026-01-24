@@ -46,7 +46,7 @@ export function createPlanet(config: {
     orbitRadius: config.orbitRadius,
     orbitSpeed: config.orbitSpeed,
     orbitAngle: angle,
-    radius: config.radius ?? 20,
+    radius: config.radius ?? 60,
     color: config.color ?? '#888888',
     description: config.description,
     isScannable: true,

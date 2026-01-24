@@ -270,7 +270,7 @@ const STATION_MODULE_SCALE_FACTOR = 0.12;
  * Station visual multiplier - must match SystemMap.vue calculation (6x)
  * Station scale = dockingRange * 6 for proper visual sizing
  */
-const STATION_VISUAL_MULTIPLIER = 6;
+const STATION_VISUAL_MULTIPLIER = 3;
 
 /**
  * Get world vertices for a single station module

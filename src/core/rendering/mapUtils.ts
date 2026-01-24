@@ -37,7 +37,7 @@ export const MAP_COLORS = {
  * Station visual = dockingRange * STATION_VISUAL_MULTIPLIER
  * This ensures consistent station sizes across all views
  */
-export const STATION_VISUAL_MULTIPLIER = 6;
+export const STATION_VISUAL_MULTIPLIER = 3;
 
 /**
  * Module scale factor - converts module shape coordinates (-1 to 1) to station coordinates

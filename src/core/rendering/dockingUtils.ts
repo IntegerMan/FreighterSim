@@ -222,14 +222,21 @@ export function drawDockingPorts(
 
     // Draw runway lights (if enabled and not the active port)
     if (drawRunwayLights && port.id !== activePortId) {
-      drawRunwayLightsForPort(ctx, worldPosition, worldApproachVector, baseDockingRange, camera, animationTime);
+      // white mode for non-active ports (appearance matches approach guidance placement)
+      drawRunwayLightsForPort(ctx, worldPosition, worldApproachVector, baseDockingRange, camera, animationTime, 'white');
     }
   }
 }
 
+// Runway & lighting configuration - single source of truth for length / width / spacing
+export const RUNWAY_LENGTH_FACTOR = 10; // runway length = dockingRange * RUNWAY_LENGTH_FACTOR
+export const RUNWAY_WIDTH = 40;        // wider hitbox to make lining up easier
+export const LIGHT_SPACING = 30;       // distance between light pairs in world units
+
 /**
  * Draw runway lights along a docking approach corridor.
- * Creates pulsing white lights that guide ships toward the port.
+ * Supports both 'white' (default) runway marker lights and 'colored' landing lights
+ * used for the active runway (green/amber/red chasing effect).
  */
 export function drawRunwayLightsForPort(
   ctx: CanvasRenderingContext2D,
@@ -238,11 +245,11 @@ export function drawRunwayLightsForPort(
   dockingRange: number,
   camera: CameraState,
   animationTime: number = Date.now() / 1000,
-  lightColor?: string
+  mode: 'white' | 'colored' = 'white'
 ): void {
-  const runwayLength = dockingRange * 8;
-  const runwayWidth = 15;
-  const lightSpacing = 30;
+  const runwayLength = dockingRange * RUNWAY_LENGTH_FACTOR;
+  const runwayWidth = RUNWAY_WIDTH;
+  const lightSpacing = LIGHT_SPACING;
   const numLights = Math.floor(runwayLength / lightSpacing);
   const zoom = camera.zoom;
 
@@ -264,18 +271,45 @@ export function drawRunwayLightsForPort(
     const leftScreen = worldToScreen({ x: leftWorldX, y: leftWorldY }, camera);
     const rightScreen = worldToScreen({ x: rightWorldX, y: rightWorldY }, camera);
 
-    // Pulsing effect
-    const pulsePhase = (Math.sin(animationTime * Math.PI) + 1) / 2;
-    const lightBrightness = 0.4 + pulsePhase * 0.6;
-    const color = lightColor ?? `rgba(255, 255, 255, ${lightBrightness})`;
+    if (mode === 'white') {
+      // Pulsing white marker lights (subtle guidance)
+      const pulsePhase = (Math.sin(animationTime * Math.PI) + 1) / 2;
+      const lightBrightness = 0.4 + pulsePhase * 0.6;
+      const color = `rgba(255, 255, 255, ${lightBrightness})`;
 
-    const lightSize = Math.max(2, 3 * zoom);
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(leftScreen.x, leftScreen.y, lightSize, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(rightScreen.x, rightScreen.y, lightSize, 0, Math.PI * 2);
-    ctx.fill();
+      const lightSize = Math.max(2, 3 * zoom);
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(leftScreen.x, leftScreen.y, lightSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(rightScreen.x, rightScreen.y, lightSize, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Colored landing lights with chasing/phase effect
+      const time = animationTime * 1000 / 200; // match previous animation speed
+      const lightIndex = i;
+      const phase = (lightIndex + time) % 4;
+      const brightness = phase < 1 ? 1 : 0.3;
+
+      const distanceRatio = distanceFromPort / runwayLength;
+      let lightColor: string;
+      if (distanceRatio > 0.7) {
+        lightColor = `rgba(0, 255, 128, ${brightness})`; // Green
+      } else if (distanceRatio > 0.3) {
+        lightColor = `rgba(255, 200, 0, ${brightness})`; // Amber
+      } else {
+        lightColor = `rgba(255, 80, 80, ${brightness})`; // Red
+      }
+
+      const lightSize = Math.max(3, 5 * zoom);
+      ctx.fillStyle = lightColor;
+      ctx.beginPath();
+      ctx.arc(leftScreen.x, leftScreen.y, lightSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(rightScreen.x, rightScreen.y, lightSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 }

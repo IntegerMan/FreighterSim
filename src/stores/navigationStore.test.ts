@@ -251,5 +251,95 @@ describe('navigationStore', () => {
             collision.updateCollisionWarnings();
             expect(['caution', 'warning', 'danger']).toContain(collision.highestWarningLevel.value);
         });
+
+        it('should not show proximity warnings when docked', () => {
+            const navStore = useNavigationStore();
+            const shipStore = useShipStore();
+            const collision = useShipCollision();
+
+            navStore.loadSystem(createTestSystem());
+
+            // Position ship very close to station to trigger warnings
+            shipStore.setPosition({ x: 190, y: 0 }); // Only 10 units from station
+            collision.updateCollisionWarnings();
+            
+            // Verify warnings exist when not docked
+            expect(collision.warnings.value.length).toBeGreaterThan(0);
+            const initialWarningCount = collision.warnings.value.length;
+            expect(collision.highestWarningLevel.value).not.toBe('none');
+
+            // Dock the ship at the station
+            shipStore.dock('station-1');
+            
+            // Update collision warnings while docked
+            collision.updateCollisionWarnings();
+
+            // Should have no warnings while docked
+            expect(collision.warnings.value.length).toBe(0);
+            expect(collision.highestWarningLevel.value).toBe('none');
+            
+            // Undock and verify warnings return
+            shipStore.undock();
+            collision.updateCollisionWarnings();
+            expect(collision.warnings.value.length).toBe(initialWarningCount);
+        });
+    });
+
+    describe('Docking availability near lights', () => {
+        it('reports available when ship is within runway lights corridor (nearLights) even if not inRange', () => {
+            const nav = useNavigationStore();
+            // Create a simple station using a known template so shared utility returns ports
+            const station: any = { id: 'station-1', position: { x: 0, y: 0 }, templateId: 'trading-hub', dockingRange: 20, rotation: 0 };
+
+            // Get real port data for deterministic positions
+            const ports = nav.getStationDockingPorts(station);
+            expect(ports.length).toBeGreaterThan(0);
+            const port = ports[0]!;
+
+            // Choose a point along the approach vector at distance halfway into the runway (runwayLength = base * 8)
+            const baseRange = port.port.dockingRange ?? 25;
+            const runwayLength = baseRange * 10;
+            const distanceFromPort = Math.min(120, runwayLength - 10);
+
+            const shipPosition = {
+                x: port.worldPosition.x + port.worldApproachVector.x * distanceFromPort,
+                y: port.worldPosition.y + port.worldApproachVector.y * distanceFromPort,
+            };
+
+            const status = nav.checkDockingPortAvailability(station, shipPosition, 0);
+
+            // Availability remains tied to the tight docking circle; nearLights is reported
+            expect(status.available).toBe(false);
+            expect(status.nearLights).toBe(true);
+            expect(status.inRange).toBe(false);
+        });
+
+        it('reports not available when ship is outside corridor (too far off-center)', () => {
+            const nav = useNavigationStore();
+            const station: any = { id: 'station-1', position: { x: 0, y: 0 }, templateId: 'trading-hub', dockingRange: 20, rotation: 0 };
+            const ports = nav.getStationDockingPorts(station);
+            const port = ports[0]!;
+
+            // Place ship along approach vector but far off the side (perp distance >> runway width)
+            const baseRange = port.port.dockingRange ?? 25;
+            const distanceFromPort = Math.min(120, baseRange * 8 - 10);
+
+            // Create a large perpendicular offset to guarantee we're well outside the runway width
+            const perpX = -port.worldApproachVector.y;
+            const perpY = port.worldApproachVector.x;
+            const perpLength = Math.hypot(perpX, perpY) || 1;
+            const perpUnit = { x: perpX / perpLength, y: perpY / perpLength };
+            const shipPosition = {
+                x: port.worldPosition.x + port.worldApproachVector.x * distanceFromPort + perpUnit.x * 200,
+                y: port.worldPosition.y + port.worldApproachVector.y * distanceFromPort + perpUnit.y * 200,
+            };
+
+            const status = nav.checkDockingPortAvailability(station, shipPosition, 0);
+
+            expect(status.available).toBe(false);
+            expect(status.nearLights).toBe(false);
+            expect(status.inRange).toBe(false);
+            expect(status.reason).toBe('Out of range');
+        });
     });
 });

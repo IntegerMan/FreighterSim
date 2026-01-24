@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { StarSystem, Waypoint, Vector2, Station, DockingPort } from '@/models';
 import { updatePlanetOrbit, getAlignmentTolerance } from '@/models';
-import { SHIP_DOCKING_BUFFER, getStationDockingPorts as getStationDockingPortsShared, getDockingRange } from '@/core/rendering';
+import { SHIP_DOCKING_BUFFER, getStationDockingPorts as getStationDockingPortsShared, getDockingRange, RUNWAY_LENGTH_FACTOR, RUNWAY_WIDTH } from '@/core/rendering';
 import type { GameTime } from '@/core/game-loop';
 
 // Distance threshold for waypoint reached detection (world units)
@@ -199,6 +199,8 @@ export const useNavigationStore = defineStore('navigation', () => {
     approachAligned: boolean;
     /** Required heading for ship to dock (ship will rotate to this during docking) */
     requiredHeading?: number;
+    /** Whether the ship is within the approach runway lights corridor */
+    nearLights?: boolean;
     /** Reason if not available */
     reason: string | null;
   }
@@ -317,14 +319,44 @@ export const useNavigationStore = defineStore('navigation', () => {
     const tolerance = getAlignmentTolerance(port.port);
     const headingAligned = alignmentAngle <= tolerance;
 
-    // Docking is available if in range - ship will auto-rotate during docking sequence
-    // No more "wrong approach" requirement - tractor beam handles rotation
-    const available = inRange;
+    // Define runway parameters (same as visual runway) and compute a bounding box
+    const baseDockingRange = getDockingRange(port.port);
+    // Make runway slightly longer and wider to better cover lights visually
+    const runwayLength = baseDockingRange * RUNWAY_LENGTH_FACTOR; // extended for approach
+    const runwayWidth = RUNWAY_WIDTH; // world units (wider)
+
+    // Vector from port to ship
+    const relX = shipPosition.x - port.worldPosition.x;
+    const relY = shipPosition.y - port.worldPosition.y;
+
+    // Project ship vector onto approach vector (approach vector is normalized)
+    const projDist = relX * port.worldApproachVector.x + relY * port.worldApproachVector.y;
+
+    // Perpendicular distance from approach centerline
+    const perpX = relX - projDist * port.worldApproachVector.x;
+    const perpY = relY - projDist * port.worldApproachVector.y;
+    const perpDist = Math.hypot(perpX, perpY);
+
+    // Ship is near lights if it is in front of the port along the approach vector, within the runway length,
+    // and close enough to the approach corridor width
+    const nearLights = projDist > 0 && projDist <= runwayLength && perpDist <= runwayWidth;
+
+    // Compute axis-aligned bounding box for runway corridor so UI code can highlight it
+    // Four corners (in world coords) of the runway corridor rectangle
+    const p1 = { x: port.worldPosition.x + port.worldApproachVector.x * 0 + (-port.worldApproachVector.y) * runwayWidth, y: port.worldPosition.y + port.worldApproachVector.y * 0 + (port.worldApproachVector.x) * runwayWidth };
+    const p2 = { x: port.worldPosition.x + port.worldApproachVector.x * runwayLength + (-port.worldApproachVector.y) * runwayWidth, y: port.worldPosition.y + port.worldApproachVector.y * runwayLength + (port.worldApproachVector.x) * runwayWidth };
+    const p3 = { x: port.worldPosition.x + port.worldApproachVector.x * runwayLength - (-port.worldApproachVector.y) * runwayWidth, y: port.worldPosition.y + port.worldApproachVector.y * runwayLength - (port.worldApproachVector.x) * runwayWidth };
+    const p4 = { x: port.worldPosition.x + port.worldApproachVector.x * 0 - (-port.worldApproachVector.y) * runwayWidth, y: port.worldPosition.y + port.worldApproachVector.y * 0 - (port.worldApproachVector.x) * runwayWidth };
+
+    const minX = Math.min(p1.x, p2.x, p3.x, p4.x);
+    const maxX = Math.max(p1.x, p2.x, p3.x, p4.x);
+    const minY = Math.min(p1.y, p2.y, p3.y, p4.y);
+    const maxY = Math.max(p1.y, p2.y, p3.y, p4.y);
+
+    // Docking availability remains based on tight in-range check only to avoid moving visuals
+    const available = inRange; // <-- REVERTED: do NOT change availability here
     let reason: string | null = null;
-    
-    if (!inRange) {
-      reason = 'Out of range';
-    }
+    if (!inRange) reason = 'Out of range';
 
     return {
       available,
@@ -336,6 +368,8 @@ export const useNavigationStore = defineStore('navigation', () => {
       headingAligned,
       approachAligned: true, // Always true now - no approach requirement
       requiredHeading, // New: heading ship needs to rotate to for docking
+      nearLights,
+      runwayRect: { minX, minY, maxX, maxY },
       reason,
     };
   }
@@ -479,7 +513,32 @@ export const useNavigationStore = defineStore('navigation', () => {
       const tolerance = getAlignmentTolerance(portData.port);
       const headingAligned = alignmentAngle <= tolerance;
       
-      // Available if in range - ship will auto-rotate during docking
+      // Near-lights detection + runway rect (mirrors checkDockingPortAvailability)
+      const baseDockingRange = getDockingRange(portData.port);
+      // Slightly extended runway to match visual guidance area
+      const runwayLength = baseDockingRange * RUNWAY_LENGTH_FACTOR;
+      const runwayWidth = RUNWAY_WIDTH;
+
+      const relX = shipPosition.x - portData.worldPosition.x;
+      const relY = shipPosition.y - portData.worldPosition.y;
+      const projDist = relX * portData.worldApproachVector.x + relY * portData.worldApproachVector.y;
+      const perpX = relX - projDist * portData.worldApproachVector.x;
+      const perpY = relY - projDist * portData.worldApproachVector.y;
+      const perpDist = Math.hypot(perpX, perpY);
+      const nearLights = projDist > 0 && projDist <= runwayLength && perpDist <= runwayWidth;
+
+      // Compute runway bbox corners
+      const p1 = { x: portData.worldPosition.x + portData.worldApproachVector.x * 0 + (-portData.worldApproachVector.y) * runwayWidth, y: portData.worldPosition.y + portData.worldApproachVector.y * 0 + (portData.worldApproachVector.x) * runwayWidth };
+      const p2 = { x: portData.worldPosition.x + portData.worldApproachVector.x * runwayLength + (-portData.worldApproachVector.y) * runwayWidth, y: portData.worldPosition.y + portData.worldApproachVector.y * runwayLength + (portData.worldApproachVector.x) * runwayWidth };
+      const p3 = { x: portData.worldPosition.x + portData.worldApproachVector.x * runwayLength - (-portData.worldApproachVector.y) * runwayWidth, y: portData.worldPosition.y + portData.worldApproachVector.y * runwayLength - (portData.worldApproachVector.x) * runwayWidth };
+      const p4 = { x: portData.worldPosition.x + portData.worldApproachVector.x * 0 - (-portData.worldApproachVector.y) * runwayWidth, y: portData.worldPosition.y + portData.worldApproachVector.y * 0 - (portData.worldApproachVector.x) * runwayWidth };
+
+      const minX = Math.min(p1.x, p2.x, p3.x, p4.x);
+      const maxX = Math.max(p1.x, p2.x, p3.x, p4.x);
+      const minY = Math.min(p1.y, p2.y, p3.y, p4.y);
+      const maxY = Math.max(p1.y, p2.y, p3.y, p4.y);
+
+      // Available only when inRange (do not toggle availability here)
       const available = inRange;
       let reason: string | null = null;
       if (!inRange) reason = 'Out of range';
@@ -496,6 +555,7 @@ export const useNavigationStore = defineStore('navigation', () => {
         approachAligned: true, // No longer enforced
         requiredHeading,
         reason,
+        nearLights,
       };
     });
   }

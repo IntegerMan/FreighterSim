@@ -20,7 +20,9 @@ import {
   STATION_VISUAL_MULTIPLIER,
   getVisualDockingRange,
   drawDockingPorts as drawDockingPortsShared,
+  drawRunwayLightsForPort,
   getDockingRange,
+  RUNWAY_LENGTH_FACTOR,
   type CameraState,
 } from '@/core/rendering';
 import { Starfield, createDefaultStarfieldConfig } from '@/core/starfield';
@@ -149,8 +151,9 @@ function render() {
     drawPlanet(ctx, planet);
   }
 
-  // Determine the active docking port (for colored lights)
-  // This port will NOT get white lights - it gets colored lights in drawDockingApproachGuidance
+  // Determine the active docking port (for colored landing lights)
+  // Only set an active port when that port is IN-RANGE and is the nearest port.
+  // When not set, ports will show the default white runway lights.
   let activePortId: string | null = null;
   const selectedStation = navStore.selectedStation;
   if (selectedStation) {
@@ -159,13 +162,28 @@ function render() {
       shipStore.position,
       shipStore.heading
     );
+
+    // Treat selected port as active when it is either in-range, within the approach corridor
+    // (nearLights), or otherwise 'nearby' based on runway length. This makes the active
+    // runway feel responsive when the player is approaching the station.
     if (dockingStatus?.port) {
-      activePortId = dockingStatus.port.id;
+      const portRange = getDockingRange(dockingStatus.port);
+      const isNearby = dockingStatus.inRange || dockingStatus.nearLights || dockingStatus.distance <= portRange * RUNWAY_LENGTH_FACTOR;
+      if (isNearby) {
+        const nearestPort = navStore.findNearestDockingPort(shipStore.position, shipStore.heading);
+        if (nearestPort?.port?.id === dockingStatus.port.id) {
+          activePortId = dockingStatus.port.id;
+        }
+      }
     }
   } else {
     const nearestPort = navStore.findNearestDockingPort(shipStore.position, shipStore.heading);
+    // Nearest port becomes active when the ship is in-range, inside the approach corridor, or
+    // otherwise near the runway (based on runway length)
     if (nearestPort?.port) {
-      activePortId = nearestPort.port.id;
+      const portRange = getDockingRange(nearestPort.port);
+      const isNearby = nearestPort.inRange || nearestPort.nearLights || nearestPort.distance <= portRange * RUNWAY_LENGTH_FACTOR;
+      if (isNearby) activePortId = nearestPort.port.id;
     }
   }
 
@@ -304,7 +322,7 @@ function drawOrbit(ctx: CanvasRenderingContext2D, planet: Planet) {
 
 function drawPlanet(ctx: CanvasRenderingContext2D, planet: Planet) {
   const screenPos = worldToScreen(planet.position, camera.value);
-  const screenRadius = Math.max(planet.radius * zoom.value, 6);
+  const screenRadius = Math.max(planet.radius * zoom.value, 12);
   const isSelected = navStore.selectedObjectId === planet.id;
 
   // Selection highlight
@@ -487,62 +505,66 @@ function drawDockingApproachGuidance(ctx: CanvasRenderingContext2D) {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Draw runway lights along the approach corridor
-  // These are always-on visual guides like airport runway lights
-  const runwayLength = portRange * 8; // Extended runway for better visibility
-  const runwayWidth = 15; // Width between light pairs in world units
-  const lightSpacing = 30; // Distance between lights in world units
-  const numLights = Math.floor(runwayLength / lightSpacing);
-  
-  // Perpendicular vector for light positioning (rotate approach by 90 degrees)
+  // Draw runway bounding box so player can see the approach corridor
+  // These are calculated to match the visual runway lights (runwayLength and runwayWidth)
+  // Make the runway slightly longer and wider to match gameplay detection
+  const runwayLength = portRange * 10; // Extended runway for better visibility
+  const runwayWidth = 25; // Width between light pairs in world units (wider)
   const perpX = -worldApproachVector.y;
   const perpY = worldApproachVector.x;
-  
-  for (let i = 0; i < numLights; i++) {
-    const distanceFromPort = (i + 1) * lightSpacing;
-    
-    // Center point along approach vector
-    const centerWorldX = dockingStatus.portWorldPosition.x + worldApproachVector.x * distanceFromPort;
-    const centerWorldY = dockingStatus.portWorldPosition.y + worldApproachVector.y * distanceFromPort;
-    
-    // Left and right light positions
-    const leftWorldX = centerWorldX + perpX * runwayWidth;
-    const leftWorldY = centerWorldY + perpY * runwayWidth;
-    const rightWorldX = centerWorldX - perpX * runwayWidth;
-    const rightWorldY = centerWorldY - perpY * runwayWidth;
-    
-    const leftScreen = worldToScreen({ x: leftWorldX, y: leftWorldY }, camera.value);
-    const rightScreen = worldToScreen({ x: rightWorldX, y: rightWorldY }, camera.value);
-    
-    // Animate lights - create a "chasing" effect from far (green) toward dock (red)
-    // Animation flows inward toward the docking port
-    const time = Date.now() / 200; // Animation speed
-    const lightIndex = i; // Lights chase from far (high i) toward dock (low i)
-    const phase = (lightIndex + time) % 4;
-    const brightness = phase < 1 ? 1 : 0.3; // One light bright, others dim
-    
-    // Color based on distance like a speed indicator:
-    // GREEN = far from dock (go fast, you have room)
-    // RED = near dock (slow down, almost there)
-    const distanceRatio = distanceFromPort / runwayLength;
-    let lightColor: string;
-    if (distanceRatio > 0.7) {
-      lightColor = `rgba(0, 255, 128, ${brightness})`; // Green - far (go)
-    } else if (distanceRatio > 0.3) {
-      lightColor = `rgba(255, 200, 0, ${brightness})`; // Amber - medium (caution)
-    } else {
-      lightColor = `rgba(255, 80, 80, ${brightness})`; // Red - near dock (slow)  
-    }
-    
-    // Draw lights
-    const lightSize = Math.max(3, 5 * zoom.value);
-    ctx.fillStyle = lightColor;
-    ctx.beginPath();
-    ctx.arc(leftScreen.x, leftScreen.y, lightSize, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(rightScreen.x, rightScreen.y, lightSize, 0, Math.PI * 2);
-    ctx.fill();
+
+  // Rectangle corners in world space
+  const startWorld = { x: dockingStatus.portWorldPosition.x, y: dockingStatus.portWorldPosition.y };
+  const endWorld = { x: dockingStatus.portWorldPosition.x + worldApproachVector.x * runwayLength, y: dockingStatus.portWorldPosition.y + worldApproachVector.y * runwayLength };
+
+  const p1 = { x: startWorld.x + perpX * runwayWidth, y: startWorld.y + perpY * runwayWidth };
+  const p2 = { x: endWorld.x + perpX * runwayWidth, y: endWorld.y + perpY * runwayWidth };
+  const p3 = { x: endWorld.x - perpX * runwayWidth, y: endWorld.y - perpY * runwayWidth };
+  const p4 = { x: startWorld.x - perpX * runwayWidth, y: startWorld.y - perpY * runwayWidth };
+
+  const p1s = worldToScreen(p1, camera.value);
+  const p2s = worldToScreen(p2, camera.value);
+  const p3s = worldToScreen(p3, camera.value);
+  const p4s = worldToScreen(p4, camera.value);
+
+  // Fill the runway rectangle faintly, and stroke with stronger color when ship is within the corridor
+  ctx.fillStyle = dockingStatus.nearLights ? 'rgba(0, 255, 153, 0.12)' : 'rgba(0, 255, 153, 0.04)';
+  ctx.beginPath();
+  ctx.moveTo(p1s.x, p1s.y);
+  ctx.lineTo(p2s.x, p2s.y);
+  ctx.lineTo(p3s.x, p3s.y);
+  ctx.lineTo(p4s.x, p4s.y);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = dockingStatus.nearLights ? 'rgba(0, 255, 153, 0.6)' : 'rgba(0, 255, 153, 0.25)';
+  ctx.lineWidth = dockingStatus.nearLights ? 2 : 1;
+  ctx.stroke();
+
+  // Draw RUNWAY label when the ship is within the corridor so it's obvious
+  if (dockingStatus.nearLights) {
+    const labelScreen = worldToScreen({ x: (startWorld.x + endWorld.x) / 2, y: (startWorld.y + endWorld.y) / 2 }, camera.value);
+    ctx.fillStyle = 'rgba(0, 255, 153, 0.9)';
+    ctx.font = '12px "Share Tech Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('RUNWAY', labelScreen.x, labelScreen.y - 8);
+  }
+
+  // Draw runway lights along the approach corridor
+  // Use shared drawing helper so white and colored lights line up exactly.
+  const nearestPortForGuidance = navStore.findNearestDockingPort(shipStore.position, shipStore.heading);
+  // Landing lights should be colored starting at the same point the runway preview appears
+  // (i.e. when the runway preview is visible — dockingStatus.distance <= portRange * 60)
+  const showColoredLandingLights = nearestPortForGuidance?.port?.id === dockingStatus.port.id &&
+    dockingStatus.distance <= portRange * 60;
+
+  // Always draw runway lights in guidance overlay to match placement; choose colored mode
+  // for the active runway when the player is nearby.
+  if (showColoredLandingLights) {
+    drawRunwayLightsForPort(ctx, dockingStatus.portWorldPosition, worldApproachVector, portRange, camera.value, Date.now() / 1000, 'colored');
+  } else {
+    // Draw white marker lights for inactive/remote runways (keeps placement consistent)
+    drawRunwayLightsForPort(ctx, dockingStatus.portWorldPosition, worldApproachVector, portRange, camera.value, Date.now() / 1000, 'white');
   }
 
   // Draw center approach line (fainter, behind runway lights)
@@ -567,7 +589,12 @@ function drawDockingApproachGuidance(ctx: CanvasRenderingContext2D) {
   ctx.fill();
 
   // Draw status text
-  if (dockingStatus.reason) {
+  if (shipStore.isDocked && shipStore.dockedAtId === targetStation.id) {
+    ctx.fillStyle = MAP_COLORS.dockingPort;
+    ctx.font = '10px "Share Tech Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('DOCKED', portScreenPos.x, portScreenPos.y - screenRange - 10);
+  } else if (dockingStatus.reason) {
     ctx.fillStyle = MAP_COLORS.dockingPortUnavailable;
     ctx.font = '10px "Share Tech Mono", monospace';
     ctx.textAlign = 'center';

@@ -69,9 +69,10 @@ const activeDockingStatus = computed(() => {
 // Updated canDock that considers port alignment (T050)
 const canDockAtPort = computed(() => {
   if (shipStore.isDocked) return false;
-  if (Math.abs(shipStore.speed) > 5) return false;
+  if (Math.abs(shipStore.speed) > 5) return false; // speed gating still enforced in UI
   if (!activeDockingStatus.value) return false;
-  return activeDockingStatus.value.available;
+  // Allow docking when port is in-range OR when ship is near the runway lights AND slow enough
+  return activeDockingStatus.value.available || !!activeDockingStatus.value.nearLights;
 });
 
 // Enhanced docking status message - simplified since ship auto-rotates
@@ -82,13 +83,21 @@ const dockingStatusMessage = computed(() => {
   
   // Check distance/range first
   if (!status) return 'NO PORTS';
-  if (!status.inRange) return 'OUT OF RANGE';
-  
-  // Then check speed
-  if (Math.abs(shipStore.speed) > 5) return 'TOO FAST';
-  
-  // If in range and slow enough, docking is available
-  return 'DOCK';
+
+  // If in the tight docking circle, prefer immediate dock
+  if (status.inRange) {
+    if (Math.abs(shipStore.speed) > 5) return 'TOO FAST';
+    return 'DOCK';
+  }
+
+  // If not in-range, but within runway lights corridor and slow enough, allow dock (runway approach)
+  if (status.nearLights) {
+    if (Math.abs(shipStore.speed) > 5) return 'TOO FAST';
+    return 'DOCK (RUNWAY)';
+  }
+
+  // Otherwise not available
+  return 'OUT OF RANGE';
 });
 
 // Docking port info for display
