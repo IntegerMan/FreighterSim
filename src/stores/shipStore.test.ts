@@ -129,6 +129,25 @@ describe('shipStore', () => {
     });
   });
 
+  describe('tractor beam', () => {
+    it('should set target heading when engaging', () => {
+      const store = useShipStore();
+      store.setTargetHeading(90);
+      store.engageTractorBeam('station-1', 'port-1', { x: 0, y: 0 }, 180);
+      expect(store.targetHeading).toBe(180);
+    });
+
+    it('should retain set heading after docking and undocking', () => {
+      const store = useShipStore();
+      store.setTargetHeading(90);
+      store.engageTractorBeam('station-1', 'port-1', { x: 100, y: 100 }, 180);
+      // Simulate docking completion and undocking
+      store.dock('station-1');
+      store.undock();
+      expect(store.targetHeading).toBe(180);
+    });
+  });
+
   describe('update', () => {
     it('should not update when docked', () => {
       const store = useShipStore();

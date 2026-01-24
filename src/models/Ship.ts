@@ -37,7 +37,7 @@ export const DEFAULT_ENGINES: ShipEngines = {
  * Default sensor configuration
  */
 export const DEFAULT_SENSORS: ShipSensors = {
-  range: 2000,
+  range: 20000,
   segmentCount: 36,
 };
 
@@ -54,6 +54,12 @@ export interface Ship {
   engines: ShipEngines;
   sensors: ShipSensors;
   cargoBay: CargoBay;
+  /** Ship template ID for 2D shape rendering (optional for backward compatibility) */
+  templateId?: string;
+  /** Ship size in world units for rendering (optional, uses template default if not specified) */
+  size?: number;
+  /** Ship's docking port position relative to ship center ('nose' or 'port' or 'starboard') */
+  dockingPortLocation?: 'nose' | 'port' | 'starboard';
 }
 
 /**
@@ -69,6 +75,9 @@ export const DEFAULT_SHIP: Ship = {
   engines: { ...DEFAULT_ENGINES },
   sensors: { ...DEFAULT_SENSORS },
   cargoBay: { ...DEFAULT_CARGO_BAY },
+  templateId: 'firefly', // Player ship uses Serenity-inspired template
+  size: 40, // Default player ship size in world units
+  dockingPortLocation: 'nose', // Ship's docking port is at the nose
 };
 
 /**

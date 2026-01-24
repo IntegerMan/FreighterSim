@@ -3,29 +3,27 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useShipStore, useNavigationStore, useSensorStore } from '@/stores';
 import { useGameLoop } from '@/core/game-loop';
 import {
+  MAP_COLORS,
+  STATION_VISUAL_MULTIPLIER,
   drawCourseProjection,
   drawShipIcon,
   drawWaypoint,
   drawWaypointPath,
   type CameraState,
+  renderShapeWithLOD,
+  renderEngineMounts,
+  getShapeScreenSize,
+  renderStationWithLOD,
+  findModuleAtScreenPosition,
+  drawDockingPorts as drawDockingPortsShared,
 } from '@/core/rendering';
 import { Starfield, createDefaultStarfieldConfig } from '@/core/starfield';
+import { getShipTemplate, getStationTemplateById, calculateStationBoundingRadius } from '@/data/shapes';
 import type { Vector2, Station, Planet, JumpGate } from '@/models';
 
-// Colors matching our design system
+// Extended colors for SystemMap (inherits from MAP_COLORS)
 const COLORS = {
-  background: '#000000',
-  grid: '#1a1a1a',
-  gridMajor: '#333333',
-  star: '#FFB347',
-  ship: '#FFFFFF',
-  shipHeading: '#FFCC00',
-  station: '#FFCC00',
-  planet: '#66CCFF',
-  jumpGate: '#BB99FF',
-  orbit: '#333333',
-  selected: '#9966FF',
-  dockingRange: 'rgba(153, 102, 255, 0.2)',
+  ...MAP_COLORS,
 };
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -60,6 +58,29 @@ const zoom = ref(0.5);
 const panOffset = ref<Vector2>({ x: 0, y: 0 });
 const isDragging = ref(false);
 const dragStart = ref<Vector2>({ x: 0, y: 0 });
+
+// Module tooltip state
+const tooltipVisible = ref(false);
+const tooltipX = ref(0);
+const tooltipY = ref(0);
+const tooltipContent = ref<{
+  stationName: string;
+  moduleName: string;
+  moduleType: string;
+  moduleStatus: string;
+} | null>(null);
+
+// Format module type for display
+function formatModuleType(type: string): string {
+  return type.split('-').map(word => 
+    word.charAt(0).toUpperCase() + word.slice(1)
+  ).join(' ');
+}
+
+// Get module status (could be extended with actual status data)
+function getModuleStatus(_moduleType: string): string {
+  return 'Operational';
+}
 
 // Computed camera center (follows ship by default)
 const cameraCenter = computed(() => ({
@@ -251,7 +272,7 @@ function drawOrbit(ctx: CanvasRenderingContext2D, planet: Planet) {
 
 function drawPlanet(ctx: CanvasRenderingContext2D, planet: Planet) {
   const screenPos = worldToScreen(planet.position);
-  const screenRadius = Math.max(planet.radius * zoom.value, 6);
+  const screenRadius = Math.max(planet.radius * zoom.value, 12);
   const isSelected = navStore.selectedObjectId === planet.id;
 
   // Selection highlight
@@ -278,40 +299,90 @@ function drawPlanet(ctx: CanvasRenderingContext2D, planet: Planet) {
 
 function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
   const screenPos = worldToScreen(station.position);
-  const size = 10;
   const isSelected = navStore.selectedObjectId === station.id;
+  const cameraPos = { x: cameraCenter.value.x, y: cameraCenter.value.y };
+  const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
 
-  // Docking range circle
+  // Station-wide docking range circle (dotted outline) - shows approximate approach area
   const screenDockingRange = station.dockingRange * zoom.value;
-  ctx.fillStyle = COLORS.dockingRange;
+  ctx.strokeStyle = 'rgba(153, 102, 255, 0.5)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
   ctx.beginPath();
   ctx.arc(screenPos.x, screenPos.y, screenDockingRange, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.stroke();
+  ctx.setLineDash([]);
 
-  // Selection highlight
-  if (isSelected) {
-    ctx.strokeStyle = COLORS.selected;
-    ctx.lineWidth = 2;
+  // Get station template for shape rendering
+  const templateId = station.templateId ?? station.type;
+  const template = getStationTemplateById(templateId);
+  
+  // Calculate station render size using shared constant
+  const stationScale = station.dockingRange * STATION_VISUAL_MULTIPLIER;
+  const stationRotation = station.rotation ?? 0;
+
+  if (template) {
+    // Selection highlight
+    if (isSelected) {
+      const boundingRadius = (template.boundingRadius ?? calculateStationBoundingRadius(template.modules));
+      const selectionRadius = boundingRadius * stationScale * zoom.value + 6;
+      ctx.strokeStyle = COLORS.selected;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(screenPos.x, screenPos.y, selectionRadius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Render station shape with LOD
+    renderStationWithLOD(
+      ctx,
+      template,
+      station.position,
+      stationRotation,
+      stationScale,
+      cameraPos,
+      screenCenter,
+      zoom.value,
+      COLORS.station,   // fillColor
+      '#CC9900',        // strokeColor (darker gold outline)
+      8                 // minSize for LOD fallback
+    );
+  } else {
+    // Fallback to simple diamond if template not found
+    const size = 10;
+    
+    // Selection highlight
+    if (isSelected) {
+      ctx.strokeStyle = COLORS.selected;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(screenPos.x, screenPos.y, size + 8, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Station icon (diamond shape)
+    ctx.fillStyle = COLORS.station;
     ctx.beginPath();
-    ctx.arc(screenPos.x, screenPos.y, size + 8, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.moveTo(screenPos.x, screenPos.y - size);
+    ctx.lineTo(screenPos.x + size, screenPos.y);
+    ctx.lineTo(screenPos.x, screenPos.y + size);
+    ctx.lineTo(screenPos.x - size, screenPos.y);
+    ctx.closePath();
+    ctx.fill();
   }
-
-  // Station icon (diamond shape)
-  ctx.fillStyle = COLORS.station;
-  ctx.beginPath();
-  ctx.moveTo(screenPos.x, screenPos.y - size);
-  ctx.lineTo(screenPos.x + size, screenPos.y);
-  ctx.lineTo(screenPos.x, screenPos.y + size);
-  ctx.lineTo(screenPos.x - size, screenPos.y);
-  ctx.closePath();
-  ctx.fill();
 
   // Label
   ctx.fillStyle = COLORS.station;
   ctx.font = '11px "Share Tech Mono", monospace';
   ctx.textAlign = 'center';
-  ctx.fillText(station.name, screenPos.x, screenPos.y + size + 14);
+  const effectiveRadius = template ? (template.boundingRadius ?? calculateStationBoundingRadius(template.modules)) : 10;
+  ctx.fillText(station.name, screenPos.x, screenPos.y + (effectiveRadius * stationScale * zoom.value) + 14);
+
+  // Draw docking port indicators (T047) - always show when zoomed in enough
+  const screenSize = template ? (template.boundingRadius ?? calculateStationBoundingRadius(template.modules)) * stationScale * zoom.value : 10;
+  if (template && screenSize > 20) {
+    drawDockingPortsShared(ctx, station, camera.value, { isSelected });
+  }
 }
 
 function drawJumpGate(ctx: CanvasRenderingContext2D, gate: JumpGate) {
@@ -362,8 +433,48 @@ function drawShip(ctx: CanvasRenderingContext2D) {
     canvasHeight: canvasHeight.value,
   }, 20, isReversing);
 
-  // Ship icon
-  drawShipIcon(ctx, screenPos, shipStore.heading, 8, COLORS.ship);
+  // Get ship template for shape rendering
+  const template = getShipTemplate(shipStore.templateId);
+  
+  if (template) {
+    const camera = { x: cameraCenter.value.x, y: cameraCenter.value.y };
+    const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
+    
+    // Render ship shape with LOD (falls back to point when zoomed out)
+    renderShapeWithLOD(
+      ctx,
+      template.shape,
+      shipStore.position,
+      shipStore.heading,
+      shipStore.size,
+      camera,
+      screenCenter,
+      zoom.value,
+      COLORS.ship,      // fillColor
+      COLORS.shipHeading, // strokeColor
+      1,                // lineWidth
+      6                 // minSize for LOD fallback
+    );
+
+    // Show engine mounts when zoomed in enough
+    const screenSize = getShapeScreenSize(template.shape, shipStore.size, zoom.value);
+    if (screenSize > 30 && template.engineMounts.length > 0) {
+      renderEngineMounts(
+        ctx,
+        template.engineMounts,
+        shipStore.position,
+        shipStore.heading,
+        shipStore.size,
+        camera,
+        screenCenter,
+        zoom.value,
+        '#FF6600'
+      );
+    }
+  } else {
+    // Fallback to simple icon if template not found
+    drawShipIcon(ctx, screenPos, shipStore.heading, 8, COLORS.ship);
+  }
 }
 
 // Event handlers
@@ -450,11 +561,62 @@ function handleMouseMove(event: MouseEvent) {
       y: panOffset.value.y + dy, // Flip Y
     };
     dragStart.value = { x: event.clientX, y: event.clientY };
+  } else {
+    // Check for module hover
+    handleModuleHover(event);
+  }
+}
+
+function handleModuleHover(event: MouseEvent) {
+  const canvas = canvasRef.value;
+  if (!canvas) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const screenPoint = {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top,
+  };
+
+  const camera = { x: cameraCenter.value.x, y: cameraCenter.value.y };
+  const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
+
+  // Station scale function using shared constant (matches drawStation)
+  const getStationScale = (station: Station) => station.dockingRange * STATION_VISUAL_MULTIPLIER;
+
+  const result = findModuleAtScreenPosition(
+    screenPoint,
+    navStore.stations,
+    getStationTemplateById,
+    camera,
+    screenCenter,
+    zoom.value,
+    getStationScale
+  );
+
+  if (result.hit && result.station && result.moduleType) {
+    tooltipContent.value = {
+      stationName: result.station.name,
+      moduleName: formatModuleType(result.moduleType),
+      moduleType: result.moduleType,
+      moduleStatus: getModuleStatus(result.moduleType),
+    };
+    tooltipX.value = event.clientX + 15;
+    tooltipY.value = event.clientY + 15;
+    tooltipVisible.value = true;
+  } else {
+    tooltipVisible.value = false;
+    tooltipContent.value = null;
   }
 }
 
 function handleMouseUp() {
   isDragging.value = false;
+}
+
+function handleMouseLeave() {
+  handleMouseUp();
+  tooltipVisible.value = false;
+  tooltipContent.value = null;
 }
 
 function handleContextMenu(event: MouseEvent) {
@@ -503,19 +665,39 @@ onMounted(() => {
   >
     <canvas
       ref="canvasRef"
+      class="system-map__canvas"
       :width="canvasWidth"
       :height="canvasHeight"
       @wheel="handleWheel"
       @mousedown="handleMouseDown"
       @mousemove="handleMouseMove"
       @mouseup="handleMouseUp"
-      @mouseleave="handleMouseUp"
+      @mouseleave="handleMouseLeave"
       @contextmenu="handleContextMenu"
     />
     <div class="system-map__overlay">
       <div class="system-map__info">
         <span class="system-map__system-name">{{ navStore.systemName }}</span>
         <span class="system-map__zoom">{{ (zoom * 100).toFixed(0) }}%</span>
+      </div>
+    </div>
+    <!-- Module tooltip -->
+    <div
+      v-if="tooltipVisible && tooltipContent"
+      class="system-map__tooltip"
+      :style="{ left: tooltipX + 'px', top: tooltipY + 'px' }"
+    >
+      <div class="system-map__tooltip-station">
+        {{ tooltipContent.stationName }}
+      </div>
+      <div class="system-map__tooltip-module">
+        {{ tooltipContent.moduleName }}
+      </div>
+      <div class="system-map__tooltip-type">
+        {{ tooltipContent.moduleType.toUpperCase() }}
+      </div>
+      <div class="system-map__tooltip-status">
+        {{ tooltipContent.moduleStatus }}
       </div>
     </div>
   </div>
@@ -565,6 +747,44 @@ onMounted(() => {
     font-family: $font-mono;
     font-size: $font-size-xs;
     color: $color-gray;
+  }
+
+  &__tooltip {
+    position: fixed;
+    z-index: 1000;
+    background-color: rgba(0, 0, 0, 0.95);
+    border: 1px solid $color-gold;
+    border-radius: $radius-sm;
+    padding: $space-xs $space-sm;
+    pointer-events: none;
+    max-width: 250px;
+    font-family: $font-mono;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  &__tooltip-station {
+    color: $color-gold;
+    font-weight: bold;
+    margin-bottom: 2px;
+  }
+
+  &__tooltip-module {
+    color: $color-white;
+    margin-bottom: 2px;
+  }
+
+  &__tooltip-type {
+    color: $color-gray;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+  }
+
+  &__tooltip-status {
+    color: $color-success;
+    font-size: 10px;
   }
 }
 </style>

@@ -26,4 +26,16 @@ all-tests.txt
 lint-output.txt
 test-output.txt
 test-results/*
-playwright-report/index.html
+
+# Environment files
+.env*
+.env.*
+
+# Coverage
+coverage/
+coverage-*
+
+nul
+
+coverage/
+playwright-report/*

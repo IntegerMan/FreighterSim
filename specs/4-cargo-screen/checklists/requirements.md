@@ -34,6 +34,7 @@
 **Status**: ✅ READY FOR PLANNING
 
 All quality criteria have been satisfied. The specification:
+
 - Clearly defines the user need (see cargo, understand available space)
 - Provides three prioritized user stories (P1: view cargo, P1: view space, P2: visual indicator)
 - Contains 9 functional requirements with clear acceptance criteria

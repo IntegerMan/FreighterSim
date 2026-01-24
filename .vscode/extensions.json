@@ -4,6 +4,7 @@
     "vue.volar",
     "dbaeumer.vscode-eslint",
     "davidanson.vscode-markdownlint",
-    "vitest.explorer"
+    "vitest.explorer",
+    "ms-playwright.playwright"
   ]
 }

@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useNavigationStore } from './navigationStore';
+import { useShipStore } from './shipStore';
+import { useShipCollision } from './useShipCollision';
 import { vec2 } from '@/models';
+import type { StarSystem } from '@/models';
 
 describe('navigationStore', () => {
     beforeEach(() => {
@@ -99,6 +102,247 @@ describe('navigationStore', () => {
 
             store.clearSelection();
             expect(store.selectedObjectId).toBeNull();
+        });
+    });
+
+    describe('Shape-based Collision Detection', () => {
+        /**
+         * Create a minimal star system for testing
+         */
+        function createTestSystem(): StarSystem {
+            return {
+                id: 'test-system',
+                name: 'Test System',
+                description: 'Test system',
+                star: {
+                    id: 'star-1',
+                    name: 'Test Star',
+                    radius: 100,
+                    color: '#ffff00',
+                },
+                stations: [
+                    {
+                        id: 'station-1',
+                        name: 'Test Station',
+                        type: 'trading-hub',
+                        position: { x: 200, y: 0 },
+                        templateId: 'trading-hub',
+                        rotation: 0,
+                        dockingRange: 50,
+                        services: [],
+                    },
+                ],
+                planets: [
+                    {
+                        id: 'planet-1',
+                        name: 'Test Planet',
+                        type: 'terrestrial',
+                        position: { x: -300, y: 0 },
+                        radius: 80,
+                        color: '#4444ff',
+                        orbitRadius: 300,
+                        orbitSpeed: 0,
+                        orbitAngle: 180,
+                        isScannable: true,
+                    },
+                ],
+                jumpGates: [],
+            };
+        }
+
+        it('should detect collision warnings when ship approaches station', () => {
+            const navStore = useNavigationStore();
+            const shipStore = useShipStore();
+            const collision = useShipCollision();
+
+            // Load test system
+            navStore.loadSystem(createTestSystem());
+
+            // Position ship close to station (station is at x=200)
+            shipStore.setPosition({ x: 150, y: 0 }); // ~50 units from station
+
+            // Update collision warnings
+            collision.updateCollisionWarnings();
+
+            // Should have at least one warning
+            expect(collision.warnings.value.length).toBeGreaterThan(0);
+            expect(collision.warnings.value[0]?.objectId).toBe('station-1');
+            // At 50 units distance, should be at least 'warning' level
+            expect(['warning', 'danger', 'caution']).toContain(collision.warnings.value[0]?.level);
+        });
+
+        it('should provide push-out vector on collision', () => {
+            const navStore = useNavigationStore();
+            const shipStore = useShipStore();
+            const collision = useShipCollision();
+
+            navStore.loadSystem(createTestSystem());
+
+            // Position ship overlapping with station
+            shipStore.setPosition({ x: 200, y: 0 }); // Same position as station
+
+            collision.updateCollisionWarnings();
+
+            // Should have danger warning
+            const dangerWarning = collision.warnings.value.find(w => w.level === 'danger');
+            expect(dangerWarning).toBeTruthy();
+
+            // Should provide push-out vector
+            const pushOut = collision.getCollisionPushOut();
+            if (dangerWarning?.normal && dangerWarning?.penetrationDepth) {
+                expect(pushOut).not.toBeNull();
+                // Push-out magnitude should equal penetration depth
+                if (pushOut) {
+                    const magnitude = Math.hypot(pushOut.x, pushOut.y);
+                    expect(magnitude).toBeGreaterThan(0);
+                }
+            }
+        });
+
+        it('should clear warnings when ship moves away', () => {
+            const navStore = useNavigationStore();
+            const shipStore = useShipStore();
+            const collision = useShipCollision();
+
+            navStore.loadSystem(createTestSystem());
+
+            // First, position ship close to station
+            shipStore.setPosition({ x: 160, y: 0 });
+            collision.updateCollisionWarnings();
+            expect(collision.warnings.value.length).toBeGreaterThan(0);
+
+            // Move ship far away
+            shipStore.setPosition({ x: -500, y: -500 });
+            collision.updateCollisionWarnings();
+
+            // Should have no station warnings (but might have planet warning)
+            const stationWarnings = collision.warnings.value.filter(w => w.objectType === 'station');
+            expect(stationWarnings.length).toBe(0);
+        });
+
+        it('should detect planet proximity warnings', () => {
+            const navStore = useNavigationStore();
+            const shipStore = useShipStore();
+            const collision = useShipCollision();
+
+            navStore.loadSystem(createTestSystem());
+
+            // Position ship close to planet (planet at x=-300, radius=80)
+            shipStore.setPosition({ x: -220, y: 0 }); // Edge of planet
+
+            collision.updateCollisionWarnings();
+
+            const planetWarning = collision.warnings.value.find(w => w.objectType === 'planet');
+            expect(planetWarning).toBeTruthy();
+            expect(planetWarning?.objectId).toBe('planet-1');
+        });
+
+        it('should report highest warning level correctly', () => {
+            const navStore = useNavigationStore();
+            const shipStore = useShipStore();
+            const collision = useShipCollision();
+
+            navStore.loadSystem(createTestSystem());
+
+            // Far from everything
+            shipStore.setPosition({ x: 0, y: 500 });
+            collision.updateCollisionWarnings();
+            expect(collision.highestWarningLevel.value).toBe('none');
+
+            // In caution range of station (100 units)
+            shipStore.setPosition({ x: 100, y: 0 }); // ~100 units from station at x=200
+            collision.updateCollisionWarnings();
+            expect(['caution', 'warning', 'danger']).toContain(collision.highestWarningLevel.value);
+        });
+
+        it('should not show proximity warnings when docked', () => {
+            const navStore = useNavigationStore();
+            const shipStore = useShipStore();
+            const collision = useShipCollision();
+
+            navStore.loadSystem(createTestSystem());
+
+            // Position ship very close to station to trigger warnings
+            shipStore.setPosition({ x: 190, y: 0 }); // Only 10 units from station
+            collision.updateCollisionWarnings();
+            
+            // Verify warnings exist when not docked
+            expect(collision.warnings.value.length).toBeGreaterThan(0);
+            const initialWarningCount = collision.warnings.value.length;
+            expect(collision.highestWarningLevel.value).not.toBe('none');
+
+            // Dock the ship at the station
+            shipStore.dock('station-1');
+            
+            // Update collision warnings while docked
+            collision.updateCollisionWarnings();
+
+            // Should have no warnings while docked
+            expect(collision.warnings.value.length).toBe(0);
+            expect(collision.highestWarningLevel.value).toBe('none');
+            
+            // Undock and verify warnings return
+            shipStore.undock();
+            collision.updateCollisionWarnings();
+            expect(collision.warnings.value.length).toBe(initialWarningCount);
+        });
+    });
+
+    describe('Docking availability near lights', () => {
+        it('reports available when ship is within runway lights corridor (nearLights) even if not inRange', () => {
+            const nav = useNavigationStore();
+            // Create a simple station using a known template so shared utility returns ports
+            const station: any = { id: 'station-1', position: { x: 0, y: 0 }, templateId: 'trading-hub', dockingRange: 20, rotation: 0 };
+
+            // Get real port data for deterministic positions
+            const ports = nav.getStationDockingPorts(station);
+            expect(ports.length).toBeGreaterThan(0);
+            const port = ports[0]!;
+
+            // Choose a point along the approach vector at distance halfway into the runway (runwayLength = base * 8)
+            const baseRange = port.port.dockingRange ?? 25;
+            const runwayLength = baseRange * 10;
+            const distanceFromPort = Math.min(120, runwayLength - 10);
+
+            const shipPosition = {
+                x: port.worldPosition.x + port.worldApproachVector.x * distanceFromPort,
+                y: port.worldPosition.y + port.worldApproachVector.y * distanceFromPort,
+            };
+
+            const status = nav.checkDockingPortAvailability(station, shipPosition, 0);
+
+            // Availability remains tied to the tight docking circle; nearLights is reported
+            expect(status.available).toBe(false);
+            expect(status.nearLights).toBe(true);
+            expect(status.inRange).toBe(false);
+        });
+
+        it('reports not available when ship is outside corridor (too far off-center)', () => {
+            const nav = useNavigationStore();
+            const station: any = { id: 'station-1', position: { x: 0, y: 0 }, templateId: 'trading-hub', dockingRange: 20, rotation: 0 };
+            const ports = nav.getStationDockingPorts(station);
+            const port = ports[0]!;
+
+            // Place ship along approach vector but far off the side (perp distance >> runway width)
+            const baseRange = port.port.dockingRange ?? 25;
+            const distanceFromPort = Math.min(120, baseRange * 8 - 10);
+
+            // Create a large perpendicular offset to guarantee we're well outside the runway width
+            const perpX = -port.worldApproachVector.y;
+            const perpY = port.worldApproachVector.x;
+            const perpLength = Math.hypot(perpX, perpY) || 1;
+            const perpUnit = { x: perpX / perpLength, y: perpY / perpLength };
+            const shipPosition = {
+                x: port.worldPosition.x + port.worldApproachVector.x * distanceFromPort + perpUnit.x * 200,
+                y: port.worldPosition.y + port.worldApproachVector.y * distanceFromPort + perpUnit.y * 200,
+            };
+
+            const status = nav.checkDockingPortAvailability(station, shipPosition, 0);
+
+            expect(status.available).toBe(false);
+            expect(status.nearLights).toBe(false);
+            expect(status.inRange).toBe(false);
+            expect(status.reason).toBe('Out of range');
         });
     });
 });

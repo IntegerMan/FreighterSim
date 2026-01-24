@@ -44,9 +44,13 @@ export default tseslint.config(
                 vi: 'readonly',
             },
         },
+        rules: {
+            // Allow any in tests for pragmatic mocking
+            '@typescript-eslint/no-explicit-any': 'off',
+        },
     },
     {
-        ignores: ['dist/**', 'node_modules/**', 'coverage/**'],
+        ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'build/**', '*.min.js', '*.log', '.env*'],
     },
     {
         rules: {

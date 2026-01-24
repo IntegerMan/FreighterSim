@@ -1,11 +1,20 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
-import type { RadarSegment } from '@/models';
-import { getThreatLevelColor } from '@/models';
+import type { RadarSegment, Contact } from '@/models';
 import { useGameLoop } from '@/core/game-loop';
+import {
+  RADAR_COLORS,
+  drawRangeRings,
+  drawSegmentDividers,
+  drawThreatSegments,
+  drawHeadingIndicator,
+  drawRadarShipIcon,
+  getSegmentAtPosition,
+} from '@/core/rendering';
 
 interface Props {
   segments: RadarSegment[];
+  contacts?: Contact[]; // Optional contacts with visibility data for occlusion rendering
   range: number;
   displayRange: number; // The scaled range for proximity display
   shipHeading: number;
@@ -14,6 +23,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   size: 120,
+  contacts: () => [],
 });
 
 const emit = defineEmits<{
@@ -21,18 +31,13 @@ const emit = defineEmits<{
 }>();
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
+const tooltipVisible = ref(false);
+const tooltipX = ref(0);
+const tooltipY = ref(0);
+const tooltipText = ref('');
 
 // Ring distances (as fraction of maxRadius)
 const RING_FRACTIONS = [0.5, 1];
-
-// Colors
-const COLORS = {
-  background: '#000000',
-  ring: 'rgba(153, 102, 255, 0.3)',
-  segmentLine: 'rgba(153, 102, 255, 0.15)',
-  ship: '#44FF44',
-  heading: '#D4AF37',
-};
 
 const center = computed(() => props.size / 2);
 const maxRadius = computed(() => (props.size / 2) - 10);
@@ -56,78 +61,62 @@ function drawRadar() {
   const r = maxRadius.value;
 
   // Clear background
-  ctx.fillStyle = COLORS.background;
+  ctx.fillStyle = RADAR_COLORS.background;
   ctx.fillRect(0, 0, size, size);
 
   // Draw range rings
-  ctx.strokeStyle = COLORS.ring;
-  ctx.lineWidth = 1;
-  for (const fraction of RING_FRACTIONS) {
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * fraction, 0, Math.PI * 2);
-    ctx.stroke();
-  }
+  drawRangeRings(ctx, cx, cy, r, RING_FRACTIONS);
 
   // Draw segment divider lines (every 45 degrees for compact view)
-  ctx.strokeStyle = COLORS.segmentLine;
-  ctx.lineWidth = 1;
-  for (let deg = 0; deg < 360; deg += 45) {
-    const rad = (deg * Math.PI) / 180;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + Math.cos(rad) * r, cy + Math.sin(rad) * r);
-    ctx.stroke();
-  }
+  drawSegmentDividers(ctx, cx, cy, r, 45, RADAR_COLORS.segmentLineLight);
 
-  // Draw threat segments
-  for (const segment of props.segments) {
-    if (segment.threatLevel === 'none' || !segment.nearestContact) continue;
-
-    const startRad = (segment.startAngle * Math.PI) / 180;
-    const endRad = (segment.endAngle * Math.PI) / 180;
-
-    // Calculate segment radius based on distance relative to display range
-    const distanceRatio = Math.min(segment.nearestContact.distance / props.displayRange, 1);
-    const segmentRadius = r * distanceRatio;
-
-    // Draw filled arc from center to contact distance
-    ctx.fillStyle = getThreatLevelColor(segment.threatLevel);
-    ctx.globalAlpha = 0.5;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, segmentRadius, startRad, endRad);
-    ctx.closePath();
-    ctx.fill();
-    ctx.globalAlpha = 1;
-  }
+  // Draw threat segments with occlusion support
+  drawThreatSegments({ ctx, cx, cy, segments: props.segments, displayRange: props.displayRange, maxRadius: r, contacts: props.contacts });
 
   // Draw ship heading indicator
-  const headingRad = (props.shipHeading * Math.PI) / 180;
-  ctx.strokeStyle = COLORS.heading;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.lineTo(cx + Math.cos(headingRad) * (r * 0.4), cy + Math.sin(headingRad) * (r * 0.4));
-  ctx.stroke();
+  drawHeadingIndicator(ctx, cx, cy, props.shipHeading, r * 0.4);
 
   // Draw ship icon at center
-  ctx.fillStyle = COLORS.ship;
-  ctx.beginPath();
-  ctx.arc(cx, cy, 4, 0, Math.PI * 2);
-  ctx.fill();
+  drawRadarShipIcon(ctx, cx, cy, props.shipHeading, 4, 7);
+}
 
-  // Draw ship triangle pointing in heading direction
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(headingRad);
-  ctx.fillStyle = COLORS.ship;
-  ctx.beginPath();
-  ctx.moveTo(7, 0);
-  ctx.lineTo(-3, -3);
-  ctx.lineTo(-3, 3);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
+function handleCanvasHover(event: MouseEvent) {
+  const canvas = canvasRef.value;
+  if (!canvas) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+
+  const { segment, contact } = getSegmentAtPosition(x, y, center.value, center.value, props.segments, props.contacts);
+  
+  // Show tooltip for any segment with a contact
+  if (segment?.nearestContact) {
+    const visibility = contact?.visibility ?? 1;
+    let text = `${segment.nearestContact.name}\nDistance: ${segment.nearestContact.distance.toFixed(0)}u`;
+    
+    if (visibility < 1) {
+      text += `\nVisibility: ${(visibility * 100).toFixed(0)}%`;
+      if (contact?.occludedBy) {
+        const blocker = props.contacts.find(c => c.id === contact.occludedBy);
+        text += `\nOccluded by: ${blocker?.name || contact.occludedBy}`;
+      }
+      if (visibility === 0) {
+        text += '\n⚠️ FULLY OCCLUDED';
+      }
+    }
+    
+    tooltipText.value = text;
+    tooltipX.value = event.clientX + 10;
+    tooltipY.value = event.clientY + 10;
+    tooltipVisible.value = true;
+  } else {
+    tooltipVisible.value = false;
+  }
+}
+
+function handleCanvasLeave() {
+  tooltipVisible.value = false;
 }
 
 function handleCanvasClick(event: MouseEvent) {
@@ -138,18 +127,7 @@ function handleCanvasClick(event: MouseEvent) {
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
 
-  const cx = center.value;
-  const cy = center.value;
-
-  // Calculate angle from center
-  const dx = x - cx;
-  const dy = y - cy;
-  let angle = Math.atan2(dy, dx) * (180 / Math.PI);
-  if (angle < 0) angle += 360;
-
-  // Find segment at this angle
-  const segmentIndex = Math.floor(angle / 10) % 36;
-  const segment = props.segments[segmentIndex];
+  const { segment } = getSegmentAtPosition(x, y, center.value, center.value, props.segments, props.contacts);
 
   if (segment?.nearestContact) {
     emit('selectContact', segment.nearestContact.id);
@@ -173,7 +151,7 @@ onUnmounted(() => {
   }
 });
 
-watch([() => props.segments, () => props.shipHeading], () => {
+watch([() => props.segments, () => props.contacts, () => props.shipHeading], () => {
   drawRadar();
 });
 </script>
@@ -186,7 +164,16 @@ watch([() => props.segments, () => props.shipHeading], () => {
       :width="size"
       :height="size"
       @click="handleCanvasClick"
+      @mousemove="handleCanvasHover"
+      @mouseleave="handleCanvasLeave"
     />
+    <div
+      v-if="tooltipVisible"
+      class="compact-radar__tooltip"
+      :style="{ left: tooltipX + 'px', top: tooltipY + 'px' }"
+    >
+      <pre>{{ tooltipText }}</pre>
+    </div>
   </div>
 </template>
 
@@ -197,9 +184,28 @@ watch([() => props.segments, () => props.shipHeading], () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 
   &__canvas {
     cursor: crosshair;
+  }
+
+  &__tooltip {
+    position: fixed;
+    z-index: 1000;
+    background-color: rgba(0, 0, 0, 0.9);
+    border: 1px solid $color-purple;
+    border-radius: $radius-sm;
+    padding: $space-xs $space-sm;
+    pointer-events: none;
+    
+    pre {
+      margin: 0;
+      font-family: $font-mono;
+      font-size: 10px;
+      color: $color-white;
+      white-space: pre-wrap;
+    }
   }
 }
 </style>

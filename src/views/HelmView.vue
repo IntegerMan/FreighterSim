@@ -4,7 +4,7 @@ import { useShipStore, useSensorStore, useNavigationStore } from '@/stores';
 import { HelmMap } from '@/components/map';
 import { LcarsButton, HeadingGauge, SpeedSlider } from '@/components/ui';
 import { CompactRadar } from '@/components/sensors';
-import { formatDistance } from '@/models';
+import { formatDistance, getDockingRange, getAlignmentTolerance } from '@/models';
 
 const shipStore = useShipStore();
 const sensorStore = useSensorStore();
@@ -34,26 +34,128 @@ const isInDockingRange = computed(() => {
   return nearestStation.value.distance <= nearestStationData.value.dockingRange;
 });
 
-const canDock = computed(() => {
-  return isInDockingRange.value && Math.abs(shipStore.speed) <= 5 && !shipStore.isDocked;
-});
-
-const dockingStatus = computed(() => {
-  if (shipStore.isDocked) return 'docked';
-  if (!nearestStation.value) return 'no-station';
-  if (!isInDockingRange.value) return 'out-of-range';
-  if (Math.abs(shipStore.speed) > 5) return 'too-fast';
-  return 'ready';
-});
-
 const dockedStation = computed(() => {
   if (!shipStore.dockedAtId) return null;
   return navStore.stations.find(s => s.id === shipStore.dockedAtId);
 });
 
+// Find nearest docking port across ALL stations (no selection required)
+const nearestDockingPortStatus = computed(() => {
+  return navStore.findNearestDockingPort(
+    shipStore.position,
+    shipStore.heading
+  );
+});
+
+// T049: Docking port status - prefer selected station, fall back to nearest
+const activeDockingStatus = computed(() => {
+  // If a station is selected, use its docking status
+  const station = navStore.selectedStation;
+  if (station) {
+    return {
+      ...navStore.checkDockingPortAvailability(
+        station,
+        shipStore.position,
+        shipStore.heading
+      ),
+      station,
+    };
+  }
+  
+  // Otherwise, find the nearest docking port across all stations
+  return nearestDockingPortStatus.value;
+});
+
+// Updated canDock that considers port alignment (T050)
+const canDockAtPort = computed(() => {
+  if (shipStore.isDocked) return false;
+  if (Math.abs(shipStore.speed) > 5) return false; // speed gating still enforced in UI
+  if (!activeDockingStatus.value) return false;
+  // Allow docking when port is in-range OR when ship is near the runway lights AND slow enough
+  return activeDockingStatus.value.available || !!activeDockingStatus.value.nearLights;
+});
+
+// Enhanced docking status message - simplified since ship auto-rotates
+const dockingStatusMessage = computed(() => {
+  if (shipStore.isDocked) return 'DOCKED';
+  
+  const status = activeDockingStatus.value;
+  
+  // Check distance/range first
+  if (!status) return 'NO PORTS';
+
+  // If in the tight docking circle, prefer immediate dock
+  if (status.inRange) {
+    if (Math.abs(shipStore.speed) > 5) return 'TOO FAST';
+    return 'DOCK';
+  }
+
+  // If not in-range, but within runway lights corridor and slow enough, allow dock (runway approach)
+  if (status.nearLights) {
+    if (Math.abs(shipStore.speed) > 5) return 'TOO FAST';
+    return 'DOCK (RUNWAY)';
+  }
+
+  // Otherwise not available
+  return 'OUT OF RANGE';
+});
+
+// Docking port info for display
+const dockingPortInfo = computed(() => {
+  const status = activeDockingStatus.value;
+  if (!status || !status.port) return null;
+  
+  return {
+    portId: status.port.id,
+    distance: status.distance,
+    range: getDockingRange(status.port),
+    alignmentAngle: status.alignmentAngle,
+    tolerance: getAlignmentTolerance(status.port),
+    inRange: status.inRange,
+    headingAligned: status.headingAligned,
+    approachAligned: status.approachAligned,
+    available: status.available,
+  };
+});
+
+// Check if tractor beam is active
+const isTractorBeamActive = computed(() => shipStore.isTractorBeamActive);
+
 function handleDock() {
-  if (canDock.value && nearestStation.value) {
-    shipStore.dock(nearestStation.value.id);
+  // T050: Use port-based docking with tractor beam - auto-rotates ship
+  const status = activeDockingStatus.value;
+  if (canDockAtPort.value && status?.station) {
+    if (status.portWorldPosition && status.port) {
+      // Calculate docking position (60% of range along approach vector)
+      const dockingRange = getDockingRange(status.port);
+      const dockingPositionDistance = dockingRange * 0.6;
+      
+      // Get approach vector from port world position
+      const ports = navStore.getStationDockingPorts(status.station);
+      const portData = ports.find(p => p.port.id === status.port?.id);
+      
+      if (portData) {
+        const dockingPosition = {
+          x: portData.worldPosition.x + portData.worldApproachVector.x * dockingPositionDistance,
+          y: portData.worldPosition.y + portData.worldApproachVector.y * dockingPositionDistance,
+        };
+        
+        // Use the pre-calculated required heading from docking status
+        // This rotates the ship so its docking port faces the station's port
+        const normalizedHeading = status.requiredHeading ?? 0;
+        
+        // Engage tractor beam to pull ship to docking position AND rotate to correct heading
+        shipStore.engageTractorBeam(
+          status.station.id,
+          status.port.id,
+          dockingPosition,
+          normalizedHeading
+        );
+        return;
+      }
+    }
+    // Fallback to instant docking if tractor beam calculation fails
+    shipStore.dock(status.station.id);
   }
 }
 
@@ -114,7 +216,7 @@ function handleRadarSelect(contactId: string) {
             :target-speed="shipStore.targetSpeed"
             :max-speed="shipStore.engines.maxSpeed"
             :min-speed="shipStore.minSpeed"
-            :disabled="shipStore.isDocked"
+            :disabled="shipStore.isDocked || isTractorBeamActive"
             @set-speed="setSpeed"
           />
         </div>
@@ -128,12 +230,25 @@ function handleRadarSelect(contactId: string) {
             label="ALL STOP" 
             color="danger" 
             full-width 
-            :disabled="shipStore.isDocked"
+            :disabled="shipStore.isDocked || isTractorBeamActive"
             @click="shipStore.allStop()" 
           />
           
-          <!-- Dock Button - conditional display -->
-          <template v-if="shipStore.isDocked">
+          <!-- Tractor Beam Active Status -->
+          <template v-if="isTractorBeamActive">
+            <div class="helm-view__tractor-beam-info">
+              <span class="helm-view__tractor-beam-label">TRACTOR BEAM</span>
+              <span class="helm-view__tractor-beam-status">ENGAGED</span>
+            </div>
+            <LcarsButton 
+              label="CANCEL DOCK" 
+              color="warning" 
+              full-width 
+              @click="shipStore.disengageTractorBeam()" 
+            />
+          </template>
+          <!-- Docked: show undock button -->
+          <template v-else-if="shipStore.isDocked">
             <div class="helm-view__docked-info">
               <span class="helm-view__docked-label">DOCKED AT</span>
               <span class="helm-view__docked-station">{{ dockedStation?.name }}</span>
@@ -145,20 +260,14 @@ function handleRadarSelect(contactId: string) {
               @click="handleUndock" 
             />
           </template>
-          <template v-else-if="dockingStatus === 'ready'">
+          <!-- Not docked: always show dock button (enabled/disabled based on status) -->
+          <template v-else>
             <LcarsButton 
-              label="DOCK" 
-              color="success" 
+              :label="canDockAtPort ? 'DOCK' : dockingStatusMessage" 
+              :color="canDockAtPort ? 'success' : 'purple'" 
               full-width 
+              :disabled="!canDockAtPort"
               @click="handleDock" 
-            />
-          </template>
-          <template v-else-if="dockingStatus === 'too-fast'">
-            <LcarsButton 
-              label="TOO FAST" 
-              color="warning" 
-              full-width 
-              disabled
             />
           </template>
 
@@ -182,6 +291,7 @@ function handleRadarSelect(contactId: string) {
           <div class="helm-view__radar-container">
             <CompactRadar
               :segments="sensorStore.radarSegments"
+              :contacts="sensorStore.contacts"
               :range="sensorStore.sensorRange"
               :display-range="sensorStore.proximityDisplayRange"
               :ship-heading="shipStore.heading"
@@ -200,6 +310,69 @@ function handleRadarSelect(contactId: string) {
             >
               {{ formatDistance(nearestStation.distance) }}
             </span>
+          </div>
+        </div>
+
+        <!-- T049: Docking Status Indicator -->
+        <div
+          v-if="navStore.selectedStation && !shipStore.isDocked"
+          class="helm-view__section"
+        >
+          <div class="helm-view__section-header">
+            Docking Status
+          </div>
+          <div class="helm-view__docking-status">
+            <div class="helm-view__docking-station">
+              {{ navStore.selectedStation.name }}
+            </div>
+            <div
+              class="helm-view__docking-message"
+              :class="{
+                'helm-view__docking-message--ready': dockingPortInfo?.available,
+                'helm-view__docking-message--warning': !dockingPortInfo?.available && dockingPortInfo
+              }"
+            >
+              {{ dockingStatusMessage }}
+            </div>
+            <div
+              v-if="dockingPortInfo"
+              class="helm-view__docking-details"
+            >
+              <div class="helm-view__docking-row">
+                <span class="helm-view__docking-label">Distance:</span>
+                <span
+                  class="helm-view__docking-value"
+                  :class="{ 'helm-view__docking-value--ok': dockingPortInfo.inRange }"
+                >
+                  {{ Math.round(dockingPortInfo.distance) }} / {{ dockingPortInfo.range }}
+                </span>
+              </div>
+              <div class="helm-view__docking-row">
+                <span class="helm-view__docking-label">Alignment:</span>
+                <span
+                  class="helm-view__docking-value"
+                  :class="{ 'helm-view__docking-value--ok': dockingPortInfo.headingAligned }"
+                >
+                  {{ Math.round(dockingPortInfo.alignmentAngle) }}° / {{ dockingPortInfo.tolerance }}°
+                </span>
+              </div>
+              <div class="helm-view__docking-row">
+                <span class="helm-view__docking-label">Approach:</span>
+                <span
+                  class="helm-view__docking-value"
+                  :class="{ 'helm-view__docking-value--ok': dockingPortInfo.approachAligned }"
+                >
+                  {{ dockingPortInfo.approachAligned ? 'OK' : 'ADJUST' }}
+                </span>
+              </div>
+            </div>
+            <LcarsButton
+              v-if="canDockAtPort"
+              label="DOCK"
+              color="success"
+              full-width
+              @click="handleDock"
+            />
           </div>
         </div>
 
@@ -371,6 +544,52 @@ function handleRadarSelect(contactId: string) {
     color: $color-gold;
   }
 
+  &__tractor-beam-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: $space-xs;
+    background-color: rgba($color-purple, 0.2);
+    border-radius: $radius-sm;
+    animation: tractor-pulse 1s ease-in-out infinite;
+  }
+
+  &__tractor-beam-label {
+    font-family: $font-display;
+    font-size: 10px;
+    color: $color-purple;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  &__tractor-beam-status {
+    font-family: $font-mono;
+    font-size: $font-size-xs;
+    color: $color-gold;
+    animation: tractor-text-pulse 0.5s ease-in-out infinite;
+  }
+
+  @keyframes tractor-pulse {
+    0%, 100% {
+      background-color: rgba($color-purple, 0.1);
+      box-shadow: 0 0 5px rgba($color-purple, 0.3);
+    }
+    50% {
+      background-color: rgba($color-purple, 0.3);
+      box-shadow: 0 0 15px rgba($color-purple, 0.6);
+    }
+  }
+
+  @keyframes tractor-text-pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+
   &__radar-container {
     display: flex;
     justify-content: center;
@@ -401,6 +620,76 @@ function handleRadarSelect(contactId: string) {
     color: $color-warning;
 
     &--in-range {
+      color: $color-success;
+    }
+  }
+
+  // T049: Docking Status Indicator styles
+  &__docking-status {
+    display: flex;
+    flex-direction: column;
+    gap: $space-xs;
+  }
+
+  &__docking-station {
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $color-gold;
+    text-align: center;
+    padding-bottom: $space-xs;
+    border-bottom: 1px solid rgba($color-gold, 0.3);
+  }
+
+  &__docking-message {
+    font-family: $font-display;
+    font-size: 10px;
+    text-align: center;
+    padding: $space-xs;
+    border-radius: $radius-sm;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background-color: rgba($color-purple, 0.2);
+    color: $color-purple;
+
+    &--ready {
+      background-color: rgba($color-success, 0.2);
+      color: $color-success;
+    }
+
+    &--warning {
+      background-color: rgba($color-warning, 0.2);
+      color: $color-warning;
+    }
+  }
+
+  &__docking-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: $space-xs;
+    background-color: rgba($color-black, 0.3);
+    border-radius: $radius-sm;
+  }
+
+  &__docking-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  &__docking-label {
+    font-family: $font-display;
+    font-size: 9px;
+    color: $color-gray;
+    text-transform: uppercase;
+  }
+
+  &__docking-value {
+    font-family: $font-mono;
+    font-size: 10px;
+    color: $color-warning;
+
+    &--ok {
       color: $color-success;
     }
   }

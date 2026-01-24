@@ -22,6 +22,10 @@ export interface Contact {
   distance: number;
   bearing: number;
   isSelected: boolean;
+  /** Visibility percentage (0-1): 1 = fully visible, 0 = fully occluded */
+  visibility: number;
+  /** ID of the object blocking this contact (if partially or fully occluded) */
+  occludedBy?: string;
 }
 
 /**
@@ -39,7 +43,9 @@ export function createContact(config: {
   const dy = config.position.y - config.shipPosition.y;
   const distance = Math.sqrt(dx * dx + dy * dy);
   
-  let bearing = Math.atan2(dy, dx) * (180 / Math.PI);
+  // Use atan2(dx, dy) for North-Up coordinate system per ADR-0011
+  // 0° = North (+Y), 90° = East (+X), 180° = South, 270° = West
+  let bearing = Math.atan2(dx, dy) * (180 / Math.PI);
   if (bearing < 0) bearing += 360;
   
   return {
@@ -51,6 +57,7 @@ export function createContact(config: {
     distance,
     bearing,
     isSelected: false,
+    visibility: 1, // Default to fully visible
   };
 }
 
@@ -62,7 +69,8 @@ export function updateContactRelative(contact: Contact, shipPosition: Vector2): 
   const dy = contact.position.y - shipPosition.y;
   const distance = Math.sqrt(dx * dx + dy * dy);
   
-  let bearing = Math.atan2(dy, dx) * (180 / Math.PI);
+  // Use atan2(dx, dy) for North-Up coordinate system per ADR-0011
+  let bearing = Math.atan2(dx, dy) * (180 / Math.PI);
   if (bearing < 0) bearing += 360;
   
   return {
