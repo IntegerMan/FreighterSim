@@ -2,7 +2,21 @@
 
 ## Status
 
-Proposed
+Accepted
+
+## Implementation Notes (summary)
+
+- The 2D polygon shape system described here has been implemented on branch `005-2d-shape-system` and is now the canonical shape/collision system for ships and stations.
+- Notable implemented details:
+  - `Shape`, `EngineMount`, and `ShipTemplate` interfaces: `src/models/Shape.ts`
+  - Player ship template (`firefly`) and engines: `src/data/shapes/playerShip.ts` (20-vertex hull, 3 engine mounts; `defaultSize` 40)
+  - Engine particles are registered via `useShipEngineParticles` / `particleStore` for per-engine emission
+  - SAT collision and utilities: `src/core/physics/collision.ts` (includes SAT, AABB pre-checks, swept collision, and circle-polygon fallback)
+  - Station modules and docking ports are defined in `src/data/shapes/stationModules.ts` — docking ports live on specific module types (e.g., `habitat`, `cargo`, `refinery`); `docking-ring` is visual-only
+  - Station visual scale = `dockingRange * 3`; module scale factor = `0.12`
+  - Sensor raytracing and occlusion implemented in `src/stores/sensorStore.ts` (uses polygon/circle approximations for contacts and `hasLineOfSight` raycasts)
+  - LOD is configurable (renderer default `minSize` = 4px; `HelmMap` uses `6px` for ships and `8px` for stations)
+  - Approach vector validation is exposed for UI (runway/heading UI) but is currently not required for port availability — availability is primarily range + outward-facing port check
 
 ## Context
 
@@ -96,10 +110,10 @@ interface StationTemplate {
 
 **Why modular composition for stations:**
 - Stations are larger and more complex than ships
-- Different station types share common modules (all need docking, many need cargo)
+- Different station types share common modules (many need docking capabilities)
 - Reduces art/design effort: 8 module types can create dozens of station variants
 - Enables future station building/expansion mechanics
-- Docking ports are always on `docking-ring` modules, creating consistent player expectations
+- Docking ports are placed on specific module types (for example: `habitat`, `cargo`, `refinery`); the `docking-ring` in the current implementation is primarily visual and does not itself provide docking ports
 
 ### 4. Collision Detection: Separating Axis Theorem (SAT)
 
@@ -134,13 +148,11 @@ Position callbacks transform local engine mount coords to world coords based on 
 
 ### 6. Level of Detail (LOD)
 
-To maintain 60 FPS with many objects, implement distance-based LOD:
+To maintain performance the renderer uses configurable LOD thresholds:
 
-| Screen Size | Rendering |
-|-------------|-----------|
-| < 3 pixels | Single dot |
-| 3-15 pixels | Simple outline (4-8 verts) |
-| > 15 pixels | Full detail polygon |
+- Shapes smaller than a configurable `minSize` (renderer default: 4 pixels) render as a single point.
+- `HelmMap` uses `minSize = 6px` for ships and `8px` for stations to tune visibility on the map view.
+- Shapes larger than `minSize` may render simplified outlines (reduced vertex detail); full polygon detail is used beyond the detail threshold.
 
 ## Consequences
 
