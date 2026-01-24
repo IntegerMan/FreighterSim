@@ -30,7 +30,7 @@ const selectedObject = computed(() => {
 <template>
   <LcarsFrame
     title="Navigation"
-    color="purple"
+    color="gold"
   >
     <div class="nav-panel">
       <!-- Ship Status Summary -->

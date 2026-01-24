@@ -1,3 +1,24 @@
+<!--
+SYNC IMPACT REPORT - v1.1.0 (2026-01-23)
+
+Version change: 1.0.0 → 1.1.0 (MINOR)
+Rationale: Materially expanded guidance in existing principle
+
+Modified principles:
+- III. Test-First Development: Added "Feature Completion Gates" clause requiring
+  E2E tests (Playwright) and lint checks (ESLint) to pass before marking features complete
+
+Added sections: None
+Removed sections: None
+
+Templates verified:
+- .specify/templates/plan-template.md ✅ (no updates needed - Constitution Check is dynamic)
+- .specify/templates/spec-template.md ✅ (no updates needed - requirements agnostic)
+- .specify/templates/tasks-template.md ✅ (no updates needed - task structure unchanged)
+
+Follow-up TODOs: None
+-->
+
 # Space Freighter Sim Constitution
 
 ## Core Principles
@@ -9,7 +30,7 @@ The game loop, physics, and rendering are the foundation. All features must resp
 TypeScript is mandatory with strict mode enabled. All state must use Vue 3 Composition API with reactive references. Pinia stores are the single source of truth for game state. No prop drilling; use stores for cross-component communication.
 
 ### III. Test-First Development (NON-NEGOTIABLE)
-Unit tests written before implementation. Component and integration tests for complex interactions. Tests must verify game behavior, not implementation details. Coverage target: core game systems ≥90%, components ≥70%. Failing tests gate PR merges.
+Unit tests written before implementation. Component and integration tests for complex interactions. Tests must verify game behavior, not implementation details. Coverage target: core game systems ≥90%, components ≥70%. **Feature Completion Gates**: E2E tests (Playwright) and lint checks (ESLint) MUST pass before any feature is marked complete. Failing tests gate PR merges.
 
 ### IV. Canvas Rendering Optimization
 Canvas rendering for the system map MUST be performant at 60 FPS. All render operations batched per frame. Object transformations pre-calculated. No DOM mutations in hot paths. Rendering code isolated in dedicated systems separate from game logic.
@@ -52,4 +73,4 @@ This constitution supersedes all other project guidelines. Non-compliance with c
 
 **Runtime Guidance**: See [ARCHITECTURE.md](ARCHITECTURE.md) and [STYLE_GUIDE.md](STYLE_GUIDE.md) for implementation details.
 
-**Version**: 1.0.0 | **Ratified**: 2026-01-22 | **Last Amended**: 2026-01-22
+**Version**: 1.1.0 | **Ratified**: 2026-01-22 | **Last Amended**: 2026-01-23

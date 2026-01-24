@@ -194,7 +194,7 @@ function getTypeName(type: CargoType): string {
   &__stat-label {
     font-family: $font-display;
     font-size: $font-size-xs;
-    color: $color-info;
+    color: $color-purple;
     letter-spacing: 0.05em;
   }
 
@@ -228,7 +228,7 @@ function getTypeName(type: CargoType): string {
   &__types-label {
     font-family: $font-display;
     font-size: $font-size-xs;
-    color: $color-info;
+    color: $color-purple;
     letter-spacing: 0.05em;
   }
 

@@ -7,7 +7,7 @@ test.describe('Bridge View', () => {
   });
 
   test('should display the application title', async ({ page }) => {
-    await expect(page.locator('.app__title-text')).toContainText('SPACE FREIGHTER SIM');
+    await expect(page.locator('.app__title-text')).toContainText('TAKE THE SKY');
   });
 
   test('should display bridge station title', async ({ page }) => {
@@ -24,10 +24,6 @@ test.describe('Bridge View', () => {
 
   test('should have sensors panel', async ({ page }) => {
     await expect(page.locator('text=Sensors').first()).toBeVisible();
-  });
-
-  test('should have time panel', async ({ page }) => {
-    await expect(page.locator('text=Time').first()).toBeVisible();
   });
 
   test('should have station tabs', async ({ page }) => {

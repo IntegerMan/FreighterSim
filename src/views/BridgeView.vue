@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useShipStore, useNavigationStore } from '@/stores';
 import { SystemMap } from '@/components/map';
-import { NavigationPanel, SensorPanel } from '@/components/panels';
+import { NavigationPanel, SensorPanel, CreditsPanel } from '@/components/panels';
 import { LcarsFrame, HeadingGauge, SpeedSlider } from '@/components/ui';
 
 const shipStore = useShipStore();
@@ -24,6 +24,9 @@ const waypointHeading = computed(() => {
 
     <!-- Left Panel Column -->
     <div class="bridge-view__left-panels">
+      <div class="bridge-view__panel">
+        <CreditsPanel />
+      </div>
       <div class="bridge-view__panel">
         <NavigationPanel />
       </div>
@@ -176,7 +179,7 @@ const waypointHeading = computed(() => {
     font-family: $font-display;
     font-size: $font-size-xs;
     font-weight: $font-weight-medium;
-    color: $color-gold;
+    color: $color-purple;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     text-align: center;

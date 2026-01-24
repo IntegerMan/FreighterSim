@@ -41,9 +41,12 @@ test.describe('Sensors View', () => {
     await expect(page.locator('.sensors-view__title-text')).toContainText('SENSOR STATION');
   });
 
-  test('should show radar placeholder', async ({ page }) => {
-    await expect(page.locator('text=RADAR DISPLAY')).toBeVisible();
-    await expect(page.locator('text=Coming Soon')).toBeVisible();
+  test('should show proximity radar display', async ({ page }) => {
+    await expect(page.locator('text=Proximity Radar')).toBeVisible();
+  });
+
+  test('should show particle traces display', async ({ page }) => {
+    await expect(page.locator('text=Particle Traces')).toBeVisible();
   });
 
   test('should have sensor panel', async ({ page }) => {
