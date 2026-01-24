@@ -50,7 +50,7 @@ As a player, I want my credit balance to be clearly formatted with appropriate v
 **Acceptance Scenarios**:
 
 1. **Given** a credit balance of 10,000, **When** displayed, **Then** the amount shows with thousands separators (e.g., "10,000")
-2. **Given** the credit display, **When** rendered, **Then** a currency indicator (e.g., "CR" or "Credits") is shown alongside the amount
+2. **Given** the credit display, **When** rendered, **Then** the full word "Credits" is shown after the amount (e.g., "10,000 Credits")
 3. **Given** the credit display, **When** rendered, **Then** the styling is consistent with the LCARS design system used throughout the game
 
 ---
@@ -66,18 +66,18 @@ As a player, I want my credit balance to be clearly formatted with appropriate v
 ### Functional Requirements
 
 - **FR-001**: System MUST initialize player credits to exactly 10,000 when a new game session begins
-- **FR-002**: System MUST display the current credit balance on the Bridge screen in a visible summary area
-- **FR-003**: System MUST display the current credit balance on the Cargo screen in a visible summary area
+- **FR-002**: System MUST display the current credit balance on the Bridge screen in a dedicated panel in the left column, positioned above the NavigationPanel
+- **FR-003**: System MUST display the current credit balance on the Cargo screen in a dedicated panel in the left column, positioned above the CargoPanel (consistent with Bridge layout)
 - **FR-004**: System MUST persist credit balance across screen navigation within the same session
-- **FR-005**: Credit display MUST include a currency indicator (e.g., "CR" or "Credits")
+- **FR-005**: Credit display MUST include the full word "Credits" as the currency indicator (e.g., "10,000 Credits")
 - **FR-006**: Credit display MUST format large numbers with thousands separators for readability
 - **FR-007**: System MUST handle credit values from 0 to at least 999,999,999 (to support future economy features)
 - **FR-008**: Credit balance MUST be stored in a way that allows future features to modify it (spending, earning)
 
 ### Key Entities
 
-- **Credits**: The player's available currency balance. Represented as a non-negative integer value. Associated with the player/game session. Will be modified by future features (trading, contracts, repairs, upgrades).
-- **Credit Display**: A UI component that renders the formatted credit amount with currency indicator. Used on multiple screens with consistent appearance.
+- **Credits**: The player's available currency balance. Represented as a non-negative integer value. Associated with the player/game session. Will be modified by future features (trading, contracts, repairs, upgrades). **Stored in `gameStore.ts`** as session-level state alongside existing session data (`isInitialized`, `elapsedTime`, `currentSystemId`).
+- **Credit Display**: A reusable UI component (`CreditsPanel.vue`) that renders the formatted credit amount with the "Credits" label. Implemented as a single shared component in `src/components/panels/` and used on both Bridge and Cargo screens for visual consistency.
 
 ## Success Criteria *(mandatory)*
 
@@ -96,4 +96,14 @@ As a player, I want my credit balance to be clearly formatted with appropriate v
 - The credit display location on each screen will follow existing panel/summary patterns
 - Integer values are sufficient for credits (no fractional currency)
 - The LCARS design system's gold/amber color scheme is appropriate for financial information display
+
+## Clarifications
+
+### Session 2026-01-23
+
+- Q: Where should the player credits be stored in the application state architecture? → A: Extend `gameStore.ts` - add credits as session-level state alongside existing session data
+- Q: What currency indicator format should be used for the credit display? → A: Full word format: "10,000 Credits"
+- Q: Where exactly should the credit display appear on the Bridge screen? → A: New dedicated panel in the left column, positioned above the NavigationPanel
+- Q: Where exactly should the credit display appear on the Cargo screen? → A: New dedicated panel in the left column, above the CargoPanel (mirrors Bridge layout)
+- Q: Should the Credit Display be a reusable component shared across screens, or separate implementations per view? → A: Single reusable `CreditsPanel.vue` component used on both screens
 
