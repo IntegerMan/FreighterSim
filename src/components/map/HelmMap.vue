@@ -36,6 +36,8 @@ watch(
     if (system) {
       const config = createDefaultStarfieldConfig(system.id);
       starfield.value = new Starfield(config);
+    } else {
+      starfield.value = null;
     }
   },
   { immediate: true }
