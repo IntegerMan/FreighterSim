@@ -1,18 +1,19 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useShipStore, useNavigationStore, useSensorStore, useSettingsStore } from '@/stores';
 import { useGameLoop } from '@/core/game-loop';
-import { 
-  MAP_COLORS, 
-  worldToScreen, 
-  screenToWorld, 
-  drawGrid, 
+import {
+  MAP_COLORS,
+  worldToScreen,
+  screenToWorld,
+  drawGrid,
   drawShipIcon,
   drawCourseProjection,
   drawWaypoint,
   drawWaypointPath,
-  type CameraState 
+  type CameraState
 } from '@/core/rendering';
+import { Starfield, createDefaultStarfieldConfig } from '@/core/starfield';
 import type { Vector2, Station, Planet, JumpGate } from '@/models';
 import { getThreatLevelColor } from '@/models';
 
@@ -24,6 +25,21 @@ const navStore = useNavigationStore();
 const sensorStore = useSensorStore();
 const settingsStore = useSettingsStore();
 const { subscribe } = useGameLoop();
+
+// Starfield background
+const starfield = ref<Starfield | null>(null);
+
+// Initialize starfield when system is available
+watch(
+  () => navStore.currentSystem,
+  (system) => {
+    if (system) {
+      const config = createDefaultStarfieldConfig(system.id);
+      starfield.value = new Starfield(config);
+    }
+  },
+  { immediate: true }
+);
 
 // Canvas state - higher default zoom for helm, ship-centric
 const canvasWidth = ref(800);
@@ -58,6 +74,11 @@ function render() {
   // Clear canvas
   ctx.fillStyle = MAP_COLORS.background;
   ctx.fillRect(0, 0, canvasWidth.value, canvasHeight.value);
+
+  // Draw starfield background (before grid, behind everything)
+  if (starfield.value) {
+    starfield.value.render(ctx, camera.value);
+  }
 
   // Draw grid
   drawGrid(ctx, camera.value);
