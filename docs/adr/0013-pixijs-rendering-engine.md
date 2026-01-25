@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted (2026-01-25)
 
 ## Context
 
@@ -26,7 +26,7 @@ The game currently uses the HTML5 Canvas 2D API for all rendering, as establishe
 
 ## Decision
 
-We will migrate the rendering layer from HTML5 Canvas 2D to **Pixi.js v8**, a mature, GPU-accelerated 2D rendering library.
+Use **Pixi.js v8.15.x** as the sole rendering engine for the system map and effects. Rendering is WebGL-first: attempt WebGL2, fall back to WebGL1; Canvas 2D is *not* supported for this path (the app halts with an actionable error when WebGL is unavailable).
 
 ### Why Pixi.js?
 
@@ -41,103 +41,33 @@ We will migrate the rendering layer from HTML5 Canvas 2D to **Pixi.js v8**, a ma
 
 ### Core Architecture Changes
 
-#### 1. Rendering Abstraction Layer
+#### 1. Rendering Abstraction Layer (implemented)
 
-Create a rendering abstraction that isolates game logic from Pixi.js specifics:
+`PixiRenderer` ([src/core/rendering/pixiRenderer.ts](../../src/core/rendering/pixiRenderer.ts)) owns the Pixi `Application`, initializes four layers (`background`, `game`, `effects`, `ui`), and exposes resize/destroy accessors. It maps capability detection to Pixi renderer preference (WebGL only).
 
-```typescript
-// src/core/rendering/PixiRenderer.ts
-export class PixiRenderer {
-  private app: Application;
-  private layers: Map<string, Container>;
+#### 2. Capability Detection (implemented)
 
-  async initialize(canvas: HTMLCanvasElement): Promise<void> {
-    this.app = new Application();
-    await this.app.init({
-      canvas,
-      backgroundColor: 0x0a0a1a,
-      resolution: window.devicePixelRatio,
-      autoDensity: true,
-    });
+`detectCapabilities` and `meetsMinimumRequirements` ([src/core/rendering/capabilities.ts](../../src/core/rendering/capabilities.ts)) select WebGL2 → WebGL1 → halt. Canvas is detected only to craft the user-facing error; it is not used for rendering fallback.
 
-    // Establish render layer hierarchy
-    this.layers.set('background', new Container()); // Stars, grid
-    this.layers.set('game', new Container());       // Ships, stations
-    this.layers.set('effects', new Container());    // Particles, trails
-    this.layers.set('ui', new Container());         // HUD, selection
-  }
-}
-```
+#### 3. Scene Composition (implemented)
 
-#### 2. Game Object Base Class
+`HelmMap` ([src/components/map/HelmMap.vue](../../src/components/map/HelmMap.vue)) renders the system map using Pixi Graphics/Containers for grid, starfield, stations, ship, docking guidance, selection highlights, and labels. Layering aligns to the abstraction above.
 
-All renderable entities extend a common base:
+#### 4. Particle System (in progress)
 
-```typescript
-// src/core/rendering/GameObject.ts
-export abstract class GameObject extends Container {
-  abstract update(deltaTime: number): void;
-  abstract render(): void;
-}
-```
+Particles currently use `ParticleContainer` via `particleStore` for efficient sprites; higher-fidelity emitters (e.g., exhaust plumes) are planned but not yet using `@pixi/particle-emitter`.
 
-#### 3. Particle System Upgrade
+### Migration Status
 
-Replace the current particle grid renderer with Pixi's particle system:
-
-```typescript
-// Enhanced particle emission using @pixi/particle-emitter
-const engineEmitter = new Emitter(container, {
-  emit: true,
-  autoUpdate: true,
-  lifetime: { min: 0.5, max: 1.5 },
-  frequency: 0.001,
-  particlesPerWave: 3,
-  // ... configuration for engine exhaust visual
-});
-```
-
-#### 4. Filter Effects
-
-Apply visual filters for sci-fi aesthetic:
-
-```typescript
-// Glow effect on active elements
-import { GlowFilter } from 'pixi-filters';
-
-ship.filters = [new GlowFilter({
-  color: 0x9966FF,
-  distance: 15,
-  outerStrength: 2,
-})];
-```
-
-### Migration Strategy
-
-The migration will be **incremental**, maintaining functionality throughout:
-
-| Phase | Duration | Scope |
-|-------|----------|-------|
-| Foundation | 1-2 weeks | Pixi setup, parallel rendering, asset pipeline |
-| Core Systems | 2-3 weeks | Ship/station rendering, UI elements, input handling |
-| Enhancement | 1-2 weeks | Particle effects, filters, animations |
-| Polish | 1 week | Optimization, cleanup, documentation |
-
-During Phase 1-2, both Canvas 2D and Pixi.js renderers will run in parallel, allowing feature-by-feature validation before removing Canvas code.
+- Canvas renderer removed from the system map path; PixiJS is the only renderer.
+- Capability gate in HelmMap blocks startup when WebGL is unavailable and surfaces actionable guidance.
+- Core map features (grid, starfield, planets, stations, ship, docking guidance, selections, highlights) run on Pixi Graphics/Containers.
+- Pending: richer particles and filters, performance tuning, texture atlas pipeline.
 
 ### Dependencies
 
-```json
-{
-  "dependencies": {
-    "pixi.js": "^8.0.0",
-    "@pixi/particle-emitter": "^5.0.0"
-  },
-  "devDependencies": {
-    "pixi-filters": "^6.0.0"
-  }
-}
-```
+- Runtime: `pixi.js@^8.15.0`
+- Dev: none specific to Pixi beyond existing toolchain
 
 ## Consequences
 
@@ -155,8 +85,7 @@ During Phase 1-2, both Canvas 2D and Pixi.js renderers will run in parallel, all
 
 - **New dependency**: Adds ~150KB to bundle (gzipped)
 - **Learning curve**: Team must learn Pixi.js patterns and API
-- **Migration effort**: 4-6 weeks of focused development
-- **Testing changes**: Canvas snapshot tests need rethinking
+- **WebGL requirement**: Users without WebGL cannot run the map (app halts with guidance)
 - **Debugging**: WebGL errors can be less intuitive than Canvas 2D
 
 ### Neutral
