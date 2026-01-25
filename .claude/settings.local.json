@@ -4,7 +4,8 @@
       "Bash(npm test:*)",
       "Bash(npx vue-tsc:*)",
       "Bash(node node_modules/typescript/bin/tsc:*)",
-      "Bash(powershell -ExecutionPolicy Bypass -File:*)"
+      "Bash(powershell -ExecutionPolicy Bypass -File:*)",
+      "Bash(if not exist \"D:\\\\Dev\\\\TakeTheSky\\\\e2e\\\\parity\\\\baselines\" mkdir \"D:\\\\Dev\\\\TakeTheSky\\\\e2e\\\\parity\\\\baselines\")"
     ]
   }
 }

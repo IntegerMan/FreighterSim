@@ -1,11 +1,25 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { useGameStore, useShipStore, useNavigationStore, useSensorStore, useParticleStore, usePlayerShipEngines } from '@/stores';
 import { useRendererStore } from '@/stores/rendererStore';
 import { useGameLoop } from '@/core/game-loop';
 import { KESTREL_REACH, KESTREL_REACH_SPAWN } from '@/data';
 import { LcarsTabBar } from '@/components/ui';
-import { PerformanceMonitor, ThrottlingController, DEFAULT_THROTTLING_CONFIG } from '@/core/rendering';
+import CapabilityError from '@/components/errors/CapabilityError.vue';
+import {
+  PerformanceMonitor,
+  ThrottlingController,
+  DEFAULT_THROTTLING_CONFIG,
+  detectCapabilities,
+  getCapabilityError,
+  meetsMinimumRequirements,
+  type CapabilityError as CapabilityErrorType
+} from '@/core/rendering';
+
+// Check rendering capabilities first (before any game initialization)
+const capabilityResult = detectCapabilities();
+const capabilityError = ref<CapabilityErrorType | null>(getCapabilityError(capabilityResult.selected));
+const canRender = meetsMinimumRequirements(capabilityResult.selected);
 
 const gameStore = useGameStore();
 const shipStore = useShipStore();
@@ -33,6 +47,12 @@ function mapThrottlingState(state: string): 'none' | 'particles' | 'effects' | '
 }
 
 onMounted(() => {
+  // If capabilities don't meet requirements, don't initialize the game
+  if (!canRender) {
+    console.error('Rendering capabilities insufficient:', capabilityResult);
+    return;
+  }
+
   // Initialize game state (shared across all station views)
   navStore.loadSystem(KESTREL_REACH);
   shipStore.reset(KESTREL_REACH_SPAWN);
@@ -91,7 +111,14 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="app">
+  <CapabilityError
+    v-if="capabilityError"
+    :error="capabilityError"
+  />
+  <div
+    v-else
+    class="app"
+  >
     <header class="app__header">
       <div class="app__title">
         <span class="app__title-text">TAKE THE SKY</span>

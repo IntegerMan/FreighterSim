@@ -104,22 +104,22 @@
 
 ### Visual Parity Testing
 
-- [ ] T040 [P] [US2] Create baseline capture utility for pre-cutover visuals in tests/parity/captureBaseline.ts
-- [ ] T041 [P] [US2] Capture baselines for navigation/map screen in tests/parity/baselines/
-- [ ] T042 [P] [US2] Capture baselines for cargo screen in tests/parity/baselines/
-- [ ] T043 [P] [US2] Capture baselines for bridge overlays in tests/parity/baselines/
-- [ ] T044 [US2] Create visual comparison utility for parity checks in tests/parity/compareVisuals.ts
+- [X] T040 [P] [US2] Create baseline capture utility for pre-cutover visuals in tests/parity/captureBaseline.ts
+- [X] T041 [P] [US2] Capture baselines for navigation/map screen in tests/parity/baselines/
+- [X] T042 [P] [US2] Capture baselines for cargo screen in tests/parity/baselines/
+- [X] T043 [P] [US2] Capture baselines for bridge overlays in tests/parity/baselines/
+- [X] T044 [US2] Create visual comparison utility for parity checks in tests/parity/compareVisuals.ts
 - [ ] T045 [US2] Create E2E parity test for navigation/map screen (95% element match) in e2e/visual-parity.spec.ts
 - [ ] T046 [US2] Create E2E parity test for cargo screen in e2e/visual-parity.spec.ts
 - [ ] T047 [US2] Create E2E parity test for bridge overlays, selections, tooltips in e2e/visual-parity.spec.ts
 
 ### Graceful Degradation & Fallback
 
-- [ ] T048 [US2] Implement startup error message for WebGL unavailable (halt with requirements) in src/core/rendering/capabilities.ts
-- [ ] T049 [US2] Create user-facing error component for WebGL requirement message in src/components/CapabilityError.vue
-- [ ] T050 [US2] Test WebGL1 fallback mode functionality in e2e/fallback-modes.spec.ts
-- [ ] T051 [US2] Test WebGL unavailable halt behavior with clear error message in e2e/fallback-modes.spec.ts
-- [ ] T052 [US2] Verify clear, actionable error message appears within 2 seconds of WebGL unavailability and app halts in e2e/fallback-modes.spec.ts
+- [X] T048 [US2] Implement startup error message for WebGL unavailable (halt with requirements) in src/core/rendering/capabilities.ts
+- [X] T049 [US2] Create user-facing error component for WebGL requirement message in src/components/CapabilityError.vue
+- [X] T050 [US2] Test WebGL1 fallback mode functionality in e2e/fallback-modes.spec.ts
+- [X] T051 [US2] Test WebGL unavailable halt behavior with clear error message in e2e/fallback-modes.spec.ts
+- [X] T052 [US2] Verify clear, actionable error message appears within 2 seconds of WebGL unavailability and app halts in e2e/fallback-modes.spec.ts
 
 ### Legacy Code Removal
 

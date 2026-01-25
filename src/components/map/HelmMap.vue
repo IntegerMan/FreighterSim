@@ -1,59 +1,52 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
+import { Container, Graphics } from 'pixi.js';
 import { useShipStore, useNavigationStore, useSensorStore, useSettingsStore, useShipCollision, type CollisionWarningLevel } from '@/stores';
+import { useRendererStore } from '@/stores/rendererStore';
 import { useGameLoop } from '@/core/game-loop';
 import {
   MAP_COLORS,
   worldToScreen,
   screenToWorld,
-  drawGrid,
-  drawShipIcon,
-  drawCourseProjection,
-  drawWaypoint,
-  drawWaypointPath,
-  renderShapeWithLOD,
-  renderEngineMounts,
-  getShapeScreenSize,
-  renderStationWithLOD,
-  northUpToCanvasArcRad,
+  renderPixiShapeWithLOD,
   findModuleAtScreenPosition,
   STATION_VISUAL_MULTIPLIER,
   getVisualDockingRange,
-  drawDockingPorts as drawDockingPortsShared,
-  drawRunwayLightsForPort,
   getDockingRange,
   RUNWAY_LENGTH_FACTOR,
   type CameraState,
 } from '@/core/rendering';
-import { Starfield, createDefaultStarfieldConfig } from '@/core/starfield';
+import {
+  PixiRenderer,
+  detectCapabilities,
+  meetsMinimumRequirements,
+} from '@/core/rendering';
+import { createDefaultStarfieldConfig, generateStarsForCell, getVisibleCells, starToScreen } from '@/core/starfield';
 import { isPortNearby, shouldShowColoredLandingLights, computeRunwayCorners } from '@/core/rendering/dockingGuidance';
 import { getShipTemplate, getStationTemplateById, getStationModule } from '@/data/shapes';
-import type { Vector2, Station, Planet, JumpGate } from '@/models';
-import { getThreatLevelColor } from '@/models';
+import type { Vector2, Station } from '@/models';
+import { getThreatLevelColor, northUpToCanvasRad } from '@/models';
+import type { StarfieldConfig } from '@/models/Starfield';
 
-const canvasRef = ref<HTMLCanvasElement | null>(null);
 const containerRef = ref<HTMLDivElement | null>(null);
 
 const shipStore = useShipStore();
 const navStore = useNavigationStore();
 const sensorStore = useSensorStore();
 const settingsStore = useSettingsStore();
+const rendererStore = useRendererStore();
 const collision = useShipCollision();
 const { subscribe } = useGameLoop();
 
-// Starfield background
-const starfield = ref<Starfield | null>(null);
+// Starfield config
+const starfieldConfig = ref<StarfieldConfig | null>(null);
+const rendererReady = ref(false);
+let loopUnsubscribe: (() => void) | null = null;
 
-// Initialize starfield when system is available
 watch(
   () => navStore.currentSystem,
   (system) => {
-    if (system) {
-      const config = createDefaultStarfieldConfig(system.id);
-      starfield.value = new Starfield(config);
-    } else {
-      starfield.value = null;
-    }
+    starfieldConfig.value = system ? createDefaultStarfieldConfig(system.id) : null;
   },
   { immediate: true }
 );
@@ -61,7 +54,7 @@ watch(
 // Canvas state - higher default zoom for helm, ship-centric
 const canvasWidth = ref(800);
 const canvasHeight = ref(600);
-const zoom = ref(1.8); // Higher default zoom for close navigation
+const zoom = ref(1.8);
 const panOffset = ref<Vector2>({ x: 0, y: 0 });
 const isDragging = ref(false);
 const dragStart = ref<Vector2>({ x: 0, y: 0 });
@@ -81,12 +74,12 @@ const camera = computed<CameraState>(() => ({
   canvasHeight: canvasHeight.value,
 }));
 
-// Collision warning colors
-const COLLISION_COLORS: Record<CollisionWarningLevel, string> = {
-  none: 'transparent',
-  caution: '#FFCC00',    // Yellow
-  warning: '#FF6600',    // Orange
-  danger: '#FF0000',     // Red
+// Collision warning colors (as hex for PixiJS)
+const COLLISION_COLORS: Record<CollisionWarningLevel, number> = {
+  none: 0x000000,
+  caution: 0xffcc00,
+  warning: 0xff6600,
+  danger: 0xff0000,
 };
 
 // Module tooltip state
@@ -100,60 +93,132 @@ const tooltipContent = ref<{
   moduleStatus: string;
 } | null>(null);
 
-// Format module type for display
+// PixiJS renderer and layers
+const pixiRenderer = new PixiRenderer();
+let backgroundLayer: Container | undefined;
+let gameLayer: Container | undefined;
+let effectsLayer: Container | undefined;
+let uiLayer: Container | undefined;
+
+// Graphics objects for each element type
+const graphics = {
+  starfield: new Graphics(),
+  grid: new Graphics(),
+  radarOverlay: new Graphics(),
+  star: new Graphics(),
+  orbits: new Graphics(),
+  planets: new Container(),
+  stations: new Container(),
+  jumpGates: new Graphics(),
+  dockingGuidance: new Graphics(),
+  waypoints: new Graphics(),
+  paths: new Graphics(),
+  courseProjection: new Graphics(),
+  tractorBeam: new Graphics(),
+  ship: new Graphics(),
+  engineMounts: new Graphics(),
+  collisionWarnings: new Graphics(),
+  highlights: new Graphics(),
+  labels: new Container(),
+};
+
+// Color constants (hex for PixiJS)
+const COLOR = {
+  background: 0x000000,
+  grid: 0x1a1a1a,
+  orbit: 0x333333,
+  star: 0xffb347,
+  planet: 0x66ccff,
+  station: 0xffcc00,
+  jumpGate: 0xbb99ff,
+  ship: 0xffffff,
+  shipHeading: 0xffcc00,
+  selected: 0x9966ff,
+  waypointActive: 0x9966ff,
+  waypointInactive: 0xffcc00,
+  courseProjection: 0xffcc00,
+  courseProjectionReverse: 0xff6666,
+  dockingPort: 0x00ff99,
+  dockingPortUnavailable: 0xff6666,
+  dockingPortRange: 0x00ff9966,
+  tractorBeamOuter: 0x9966ff,
+  tractorBeamMiddle: 0x9966ff,
+  tractorBeamCore: 0xc896ff,
+  tractorBeamTarget: 0x00ff99,
+  radarRange: 0x9966ff,
+};
+
 function formatModuleType(type: string): string {
-  return type.split('-').map(word => 
+  return type.split('-').map(word =>
     word.charAt(0).toUpperCase() + word.slice(1)
   ).join(' ');
 }
 
-// Get module status (could be extended with actual status data)
 function getModuleStatus(_moduleType: string): string {
-  // Could check against a station's module status if we track that
   return 'Operational';
 }
 
+function attachGraphics() {
+  backgroundLayer?.addChild(graphics.starfield);
+  backgroundLayer?.addChild(graphics.grid);
+  gameLayer?.addChild(graphics.radarOverlay);
+  gameLayer?.addChild(graphics.star);
+  gameLayer?.addChild(graphics.orbits);
+  gameLayer?.addChild(graphics.planets);
+  gameLayer?.addChild(graphics.stations);
+  gameLayer?.addChild(graphics.jumpGates);
+  gameLayer?.addChild(graphics.dockingGuidance);
+  uiLayer?.addChild(graphics.paths);
+  uiLayer?.addChild(graphics.waypoints);
+  uiLayer?.addChild(graphics.courseProjection);
+  effectsLayer?.addChild(graphics.tractorBeam);
+  gameLayer?.addChild(graphics.ship);
+  gameLayer?.addChild(graphics.engineMounts);
+  effectsLayer?.addChild(graphics.collisionWarnings);
+  effectsLayer?.addChild(graphics.highlights);
+  uiLayer?.addChild(graphics.labels);
+}
+
+function resetGraphics() {
+  graphics.starfield.clear();
+  graphics.grid.clear();
+  graphics.radarOverlay.clear();
+  graphics.star.clear();
+  graphics.orbits.clear();
+  graphics.jumpGates.clear();
+  graphics.dockingGuidance.clear();
+  graphics.waypoints.clear();
+  graphics.paths.clear();
+  graphics.courseProjection.clear();
+  graphics.tractorBeam.clear();
+  graphics.ship.clear();
+  graphics.engineMounts.clear();
+  graphics.collisionWarnings.clear();
+  graphics.highlights.clear();
+  graphics.labels.removeChildren();
+  graphics.planets.removeChildren();
+  graphics.stations.removeChildren();
+}
+
 function render() {
-  const canvas = canvasRef.value;
-  if (!canvas) return;
-  
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
+  if (!rendererReady.value) return;
+  resetGraphics();
 
-  // Clear canvas
-  ctx.fillStyle = MAP_COLORS.background;
-  ctx.fillRect(0, 0, canvasWidth.value, canvasHeight.value);
+  drawStarfield();
+  drawGrid();
 
-  // Draw starfield background (before grid, behind everything)
-  if (starfield.value) {
-    starfield.value.render(ctx, camera.value);
-  }
-
-  // Draw grid
-  drawGrid(ctx, camera.value);
-
-  // Draw radar overlay if enabled
   if (settingsStore.showRadarOverlay) {
-    drawRadarOverlay(ctx);
+    drawRadarOverlay();
   }
 
-  // Draw star (if visible)
   if (navStore.currentSystem?.star) {
-    drawStar(ctx);
+    drawStar();
   }
 
-  // Draw orbits
-  for (const planet of (navStore.planets ?? [])) {
-    drawOrbit(ctx, planet);
-  }
+  drawOrbits();
+  drawPlanets();
 
-  // Draw planets
-  for (const planet of (navStore.planets ?? [])) {
-    drawPlanet(ctx, planet);
-  }
-
-  // Determine the active docking port (for colored landing lights)
-  // Prefer selected station, otherwise nearest slot. Use helper to centralize logic.
+  // Determine active docking port
   let activePortId: string | null = null;
   const selectedStation = navStore.selectedStation;
   if (selectedStation) {
@@ -162,7 +227,6 @@ function render() {
       shipStore.position,
       shipStore.heading
     );
-
     if (dockingStatus?.port && isPortNearby(dockingStatus, getDockingRange, RUNWAY_LENGTH_FACTOR)) {
       const nearestPort = navStore.findNearestDockingPort(shipStore.position, shipStore.heading);
       if (nearestPort?.port?.id === dockingStatus.port.id) {
@@ -176,261 +240,311 @@ function render() {
     }
   }
 
-  // Draw stations
-  for (const station of (navStore.stations ?? [])) {
-    drawStation(ctx, station, activePortId);
-  }
+  drawStations(activePortId);
+  drawJumpGates();
+  drawCourseProjection();
+  drawWaypointsAndPaths();
 
-  // Draw jump gates
-  for (const gate of (navStore.jumpGates ?? [])) {
-    drawJumpGate(ctx, gate);
-  }
-
-  // Draw course projection (helm-specific) - color changes with reverse
-  const shipScreenPos = worldToScreen(shipStore.position, camera.value);
-  const isReversing = shipStore.speed < 0 || shipStore.targetSpeed < 0;
-  drawCourseProjection(ctx, shipScreenPos, shipStore.heading, shipStore.speed, camera.value, 20, isReversing);
-
-  // Draw waypoint paths
-  const waypoints = (navStore.waypoints ?? []);
-  if (waypoints.length > 0) {
-    // Line from ship to first waypoint
-    const firstWaypointScreenPos = worldToScreen(waypoints[0]!.position, camera.value);
-    drawWaypointPath(ctx, shipScreenPos, firstWaypointScreenPos);
-
-    // Lines between waypoints
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      const fromScreenPos = worldToScreen(waypoints[i]!.position, camera.value);
-      const toScreenPos = worldToScreen(waypoints[i + 1]!.position, camera.value);
-      drawWaypointPath(ctx, fromScreenPos, toScreenPos);
-    }
-  }
-
-  // Draw waypoints
-  for (let i = 0; i < waypoints.length; i++) {
-    const waypoint = waypoints[i]!;
-    const screenPos = worldToScreen(waypoint.position, camera.value);
-    drawWaypoint(ctx, screenPos, waypoint.name, i === 0);
-  }
-
-  // Draw tractor beam effect if active
   if (shipStore.isTractorBeamActive && shipStore.tractorBeam.targetPosition) {
-    drawTractorBeam(ctx);
+    drawTractorBeam();
   }
 
-  // Draw ship
-  drawShip(ctx);
+  drawShip();
 
-  // Update and draw collision warnings
   collision.updateCollisionWarnings();
-  drawCollisionWarnings(ctx);
+  drawCollisionWarnings();
 
-  // Draw docking approach guidance (T048)
-  drawDockingApproachGuidance(ctx);
+  drawDockingApproachGuidance();
 
-  // Check if waypoint reached
   navStore.checkWaypointReached(shipStore.position);
 }
 
-function drawRadarOverlay(ctx: CanvasRenderingContext2D) {
+function drawStarfield() {
+  if (!starfieldConfig.value) return;
+  graphics.starfield.clear();
+
+  const config = starfieldConfig.value;
+  const cam = camera.value;
+
+  config.layers.forEach((layer, layerIndex) => {
+    const cells = getVisibleCells(cam, config.cellSize, layer.parallaxFactor);
+    for (const cell of cells) {
+      const stars = generateStarsForCell(cell.x, cell.y, layerIndex, config);
+      for (const star of stars) {
+        const screenPos = starToScreen(star, cam, layer.parallaxFactor);
+        graphics.starfield.beginFill(COLOR.star, star.brightness);
+        graphics.starfield.drawCircle(screenPos.x, screenPos.y, star.radius);
+        graphics.starfield.endFill();
+      }
+    }
+  });
+}
+
+function drawGrid() {
+  const gridSize = 100;
+  const cam = camera.value;
+  const topLeft = screenToWorld({ x: 0, y: 0 }, cam);
+  const bottomRight = screenToWorld({ x: canvasWidth.value, y: canvasHeight.value }, cam);
+  const startX = Math.floor(topLeft.x / gridSize) * gridSize;
+  const startY = Math.floor(bottomRight.y / gridSize) * gridSize;
+  const endX = Math.ceil(bottomRight.x / gridSize) * gridSize;
+  const endY = Math.ceil(topLeft.y / gridSize) * gridSize;
+
+  if (gridSize * cam.zoom < 20) return;
+
+  graphics.grid.clear();
+  graphics.grid.lineStyle(1, COLOR.grid, 1);
+
+  for (let x = startX; x <= endX; x += gridSize) {
+    const screen = worldToScreen({ x, y: 0 }, cam);
+    graphics.grid.moveTo(screen.x, 0);
+    graphics.grid.lineTo(screen.x, canvasHeight.value);
+  }
+
+  for (let y = startY; y <= endY; y += gridSize) {
+    const screen = worldToScreen({ x: 0, y }, cam);
+    graphics.grid.moveTo(0, screen.y);
+    graphics.grid.lineTo(canvasWidth.value, screen.y);
+  }
+}
+
+function drawRadarOverlay() {
   const shipScreenPos = worldToScreen(shipStore.position, camera.value);
   const displayRange = sensorStore.proximityDisplayRange;
   const screenRange = displayRange * zoom.value;
 
+  graphics.radarOverlay.clear();
+
   for (const segment of sensorStore.radarSegments) {
     if (segment.threatLevel === 'none' || !segment.nearestContact) continue;
 
-    // Convert from North-Up (0°=N) to canvas arc (0°=E) per ADR-0011
-    const startRad = northUpToCanvasArcRad(segment.startAngle);
-    const endRad = northUpToCanvasArcRad(segment.endAngle);
+    const startRad = northUpToCanvasRad(segment.startAngle);
+    const endRad = northUpToCanvasRad(segment.endAngle);
     const distanceRatio = Math.min(segment.nearestContact.distance / displayRange, 1);
     const segmentRadius = screenRange * distanceRatio;
 
-    ctx.fillStyle = getThreatLevelColor(segment.threatLevel);
-    ctx.globalAlpha = 0.2;
-    ctx.beginPath();
-    ctx.moveTo(shipScreenPos.x, shipScreenPos.y);
-    ctx.arc(shipScreenPos.x, shipScreenPos.y, segmentRadius, startRad, endRad);
-    ctx.closePath();
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
+    const colorStr = getThreatLevelColor(segment.threatLevel);
+    const color = parseInt(colorStr.replace('#', ''), 16);
 
-  // Draw faint range circle at proximity display range
-  ctx.strokeStyle = 'rgba(153, 102, 255, 0.15)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.arc(shipScreenPos.x, shipScreenPos.y, screenRange, 0, Math.PI * 2);
-  ctx.stroke();
+    graphics.radarOverlay.beginFill(color, 0.2);
+    graphics.radarOverlay.moveTo(shipScreenPos.x, shipScreenPos.y);
+    graphics.radarOverlay.arc(shipScreenPos.x, shipScreenPos.y, segmentRadius, startRad, endRad);
+    graphics.radarOverlay.lineTo(shipScreenPos.x, shipScreenPos.y);
+    graphics.radarOverlay.endFill();
+  }
+
+  // Draw faint range circle
+  graphics.radarOverlay.lineStyle(1, COLOR.radarRange, 0.15);
+  graphics.radarOverlay.drawCircle(shipScreenPos.x, shipScreenPos.y, screenRange);
 }
 
-function drawStar(ctx: CanvasRenderingContext2D) {
+function drawStar() {
   const star = navStore.currentSystem!.star;
   const screenPos = worldToScreen({ x: 0, y: 0 }, camera.value);
   const screenRadius = star.radius * zoom.value;
 
-  // Only draw if visible
+  // Visibility check
   if (screenPos.x + screenRadius < 0 || screenPos.x - screenRadius > canvasWidth.value ||
       screenPos.y + screenRadius < 0 || screenPos.y - screenRadius > canvasHeight.value) {
     return;
   }
 
-  // Glow effect
-  const gradient = ctx.createRadialGradient(
-    screenPos.x, screenPos.y, 0,
-    screenPos.x, screenPos.y, screenRadius * 2
-  );
-  gradient.addColorStop(0, star.color);
-  gradient.addColorStop(0.5, `${star.color}44`);
-  gradient.addColorStop(1, 'transparent');
+  graphics.star.clear();
+  const starColor = parseInt(star.color.replace('#', ''), 16);
 
-  ctx.fillStyle = gradient;
-  ctx.beginPath();
-  ctx.arc(screenPos.x, screenPos.y, screenRadius * 2, 0, Math.PI * 2);
-  ctx.fill();
+  // Glow effect (outer)
+  graphics.star.beginFill(starColor, 0.25);
+  graphics.star.drawCircle(screenPos.x, screenPos.y, screenRadius * 2);
+  graphics.star.endFill();
 
   // Core
-  ctx.fillStyle = star.color;
-  ctx.beginPath();
-  ctx.arc(screenPos.x, screenPos.y, screenRadius, 0, Math.PI * 2);
-  ctx.fill();
+  graphics.star.beginFill(starColor, 1);
+  graphics.star.drawCircle(screenPos.x, screenPos.y, screenRadius);
+  graphics.star.endFill();
 }
 
-function drawOrbit(ctx: CanvasRenderingContext2D, planet: Planet) {
-  const screenPos = worldToScreen({ x: 0, y: 0 }, camera.value);
-  const screenRadius = planet.orbitRadius * zoom.value;
+function drawOrbits() {
+  graphics.orbits.clear();
+  graphics.orbits.lineStyle(1, COLOR.orbit, 1);
+  const center = worldToScreen({ x: 0, y: 0 }, camera.value);
 
-  ctx.strokeStyle = MAP_COLORS.orbit;
-  ctx.lineWidth = 1;
-  ctx.setLineDash([5, 5]);
-  ctx.beginPath();
-  ctx.arc(screenPos.x, screenPos.y, screenRadius, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
-}
-
-function drawPlanet(ctx: CanvasRenderingContext2D, planet: Planet) {
-  const screenPos = worldToScreen(planet.position, camera.value);
-  const screenRadius = Math.max(planet.radius * zoom.value, 12);
-  const isSelected = navStore.selectedObjectId === planet.id;
-
-  // Selection highlight
-  if (isSelected) {
-    ctx.strokeStyle = MAP_COLORS.selected;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(screenPos.x, screenPos.y, screenRadius + 6, 0, Math.PI * 2);
-    ctx.stroke();
+  for (const planet of navStore.planets ?? []) {
+    const screenRadius = planet.orbitRadius * zoom.value;
+    // Draw dashed orbit using segments
+    drawDashedCircle(graphics.orbits, center.x, center.y, screenRadius, 5, 5);
   }
-
-  // Planet body
-  ctx.fillStyle = planet.color;
-  ctx.beginPath();
-  ctx.arc(screenPos.x, screenPos.y, screenRadius, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Label
-  ctx.fillStyle = MAP_COLORS.planet;
-  ctx.font = '11px "Share Tech Mono", monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(planet.name, screenPos.x, screenPos.y + screenRadius + 14);
 }
 
-function drawStation(ctx: CanvasRenderingContext2D, station: Station, activePortId: string | null = null) {
-  const screenPos = worldToScreen(station.position, camera.value);
-  const isSelected = navStore.selectedObjectId === station.id;
-  const cameraVec = { x: cameraCenter.value.x, y: cameraCenter.value.y };
-  const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
+function drawDashedCircle(g: Graphics, cx: number, cy: number, radius: number, dashLength: number, gapLength: number) {
+  const circumference = 2 * Math.PI * radius;
+  const totalLength = dashLength + gapLength;
+  const segments = Math.floor(circumference / totalLength);
+  const anglePerSegment = (2 * Math.PI) / segments;
+  const dashAngle = (dashLength / circumference) * 2 * Math.PI;
 
-  // Get station template for shape rendering
-  const templateId = station.templateId ?? station.type;
-  const template = getStationTemplateById(templateId);
-  
-  // Calculate station render size using shared constant
-  const stationScale = station.dockingRange * STATION_VISUAL_MULTIPLIER;
-  const stationRotation = station.rotation ?? 0;
+  for (let i = 0; i < segments; i++) {
+    const startAngle = i * anglePerSegment;
+    const endAngle = startAngle + dashAngle;
+    g.arc(cx, cy, radius, startAngle, endAngle);
+    g.moveTo(cx + radius * Math.cos(endAngle + (anglePerSegment - dashAngle)), cy + radius * Math.sin(endAngle + (anglePerSegment - dashAngle)));
+  }
+}
 
-  if (template) {
+function drawPlanets() {
+  for (const planet of navStore.planets ?? []) {
+    const screenPos = worldToScreen(planet.position, camera.value);
+    const screenRadius = Math.max(planet.radius * zoom.value, 12);
+    const isSelected = navStore.selectedObjectId === planet.id;
+
     // Selection highlight
     if (isSelected) {
-      const selectionRadius = (template.boundingRadius ?? 1) * stationScale * zoom.value + 6;
-      ctx.strokeStyle = MAP_COLORS.selected;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(screenPos.x, screenPos.y, selectionRadius, 0, Math.PI * 2);
-      ctx.stroke();
+      graphics.highlights.lineStyle(2, COLOR.selected, 1);
+      graphics.highlights.drawCircle(screenPos.x, screenPos.y, screenRadius + 6);
     }
 
-    // Render station shape with LOD
-    renderStationWithLOD(
-      ctx,
-      template,
-      station.position,
-      stationRotation,
-      stationScale,
-      cameraVec,
-      screenCenter,
-      zoom.value,
-      MAP_COLORS.station,   // fillColor
-      '#CC9900',            // strokeColor (darker gold outline)
-      8                     // minSize for LOD fallback
-    );
-  } else {
-    // Fallback to simple diamond if template not found
-    const size = 10;
-    
-    // Selection highlight
-    if (isSelected) {
-      ctx.strokeStyle = MAP_COLORS.selected;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(screenPos.x, screenPos.y, size + 8, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    // Station icon (diamond shape)
-    ctx.fillStyle = MAP_COLORS.station;
-    ctx.beginPath();
-    ctx.moveTo(screenPos.x, screenPos.y - size);
-    ctx.lineTo(screenPos.x + size, screenPos.y);
-    ctx.lineTo(screenPos.x, screenPos.y + size);
-    ctx.lineTo(screenPos.x - size, screenPos.y);
-    ctx.closePath();
-    ctx.fill();
+    // Planet body
+    const planetColor = parseInt(planet.color.replace('#', ''), 16);
+    const planetGraphic = new Graphics();
+    planetGraphic.beginFill(planetColor, 1);
+    planetGraphic.drawCircle(screenPos.x, screenPos.y, screenRadius);
+    planetGraphic.endFill();
+    graphics.planets.addChild(planetGraphic);
   }
+}
 
-  // Docking port indicators - show circles around each port (helm needs this for navigation)
-  if (template) {
-    const screenSize = (template.boundingRadius ?? 1) * stationScale * zoom.value;
-    if (screenSize > 20) {
-      drawDockingPortsShared(ctx, station, camera.value, { 
-        isSelected, 
-        activePortId,
-        drawRunwayLights: true,
+function drawStations(activePortId: string | null = null) {
+  for (const station of navStore.stations ?? []) {
+    const screenPos = worldToScreen(station.position, camera.value);
+    const isSelected = navStore.selectedObjectId === station.id;
+
+    const templateId = station.templateId ?? station.type;
+    const template = getStationTemplateById(templateId);
+    const stationScale = station.dockingRange * STATION_VISUAL_MULTIPLIER;
+    const stationRotation = station.rotation ?? 0;
+
+    if (template) {
+      // Selection highlight
+      if (isSelected) {
+        const selectionRadius = (template.boundingRadius ?? 1) * stationScale * zoom.value + 6;
+        graphics.highlights.lineStyle(2, COLOR.selected, 1);
+        graphics.highlights.drawCircle(screenPos.x, screenPos.y, selectionRadius);
+      }
+
+      // Render station shape with LOD
+      const stationGraphic = new Graphics();
+      const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
+      const cameraVec = { x: cameraCenter.value.x, y: cameraCenter.value.y };
+
+      renderPixiShapeWithLOD(stationGraphic, {
+        shape: template.shape,
+        position: station.position,
+        rotation: stationRotation,
+        scale: stationScale,
+        camera: cameraVec,
+        screenCenter,
+        zoom: zoom.value,
+        fillColor: COLOR.station,
+        strokeColor: 0xcc9900,
+        lineWidth: 1,
+        minSize: 8,
       });
+      graphics.stations.addChild(stationGraphic);
+
+      // Docking ports
+      const screenSize = (template.boundingRadius ?? 1) * stationScale * zoom.value;
+      if (screenSize > 20) {
+        drawDockingPorts(station, activePortId);
+      }
+    } else {
+      // Fallback diamond
+      const size = 10;
+
+      if (isSelected) {
+        graphics.highlights.lineStyle(2, COLOR.selected, 1);
+        graphics.highlights.drawCircle(screenPos.x, screenPos.y, size + 8);
+      }
+
+      const stationGraphic = new Graphics();
+      stationGraphic.beginFill(COLOR.station, 1);
+      stationGraphic.moveTo(screenPos.x, screenPos.y - size);
+      stationGraphic.lineTo(screenPos.x + size, screenPos.y);
+      stationGraphic.lineTo(screenPos.x, screenPos.y + size);
+      stationGraphic.lineTo(screenPos.x - size, screenPos.y);
+      stationGraphic.closePath();
+      stationGraphic.endFill();
+      graphics.stations.addChild(stationGraphic);
     }
   }
-
-  // Label
-  ctx.fillStyle = MAP_COLORS.station;
-  ctx.font = '11px "Share Tech Mono", monospace';
-  ctx.textAlign = 'center';
-  const labelOffset = template?.boundingRadius ? template.boundingRadius * stationScale * zoom.value + 14 : 24;
-  ctx.fillText(station.name, screenPos.x, screenPos.y + labelOffset);
 }
 
-/**
- * T048: Draw docking approach guidance overlay
- * Shows approach guide lines and alignment indicators when near a station
- * Works for both selected station AND nearest station when no selection
- */
-function drawDockingApproachGuidance(ctx: CanvasRenderingContext2D) {
-  // Try to find a docking port to show guidance for:
-  // 1. If a station is selected, use it
-  // 2. Otherwise, find the nearest docking port automatically
+function drawDockingPorts(station: Station, activePortId: string | null) {
+  const ports = navStore.getStationDockingPorts(station);
+  const time = Date.now() / 1000;
+
+  for (const portInfo of ports) {
+    const portScreenPos = worldToScreen(portInfo.worldPosition, camera.value);
+    const portRange = getDockingRange(portInfo.port);
+    const visualRange = getVisualDockingRange(portRange);
+    const screenRange = visualRange * zoom.value;
+    const isActive = portInfo.port.id === activePortId;
+
+    // Port circle
+    graphics.dockingGuidance.lineStyle(1, isActive ? COLOR.dockingPort : COLOR.dockingPortUnavailable, 0.5);
+    graphics.dockingGuidance.drawCircle(portScreenPos.x, portScreenPos.y, screenRange);
+
+    // Port marker
+    const markerSize = isActive ? 6 : 4;
+    graphics.dockingGuidance.beginFill(isActive ? COLOR.dockingPort : COLOR.dockingPortRange, 1);
+    graphics.dockingGuidance.drawCircle(portScreenPos.x, portScreenPos.y, markerSize);
+    graphics.dockingGuidance.endFill();
+
+    // Runway lights for active port
+    if (isActive) {
+      drawRunwayLights(portInfo.worldPosition, portInfo.approachVector, portRange, time);
+    }
+  }
+}
+
+function drawRunwayLights(portWorldPos: Vector2, approachVector: Vector2, portRange: number, time: number) {
+  const runwayLength = portRange * RUNWAY_LENGTH_FACTOR;
+  const lightSpacing = runwayLength / 6;
+  const runwayWidth = 15;
+
+  // Perpendicular vector
+  const perpX = -approachVector.y;
+  const perpY = approachVector.x;
+
+  for (let i = 1; i <= 6; i++) {
+    const distance = i * lightSpacing;
+    const pulsePhase = (time * 2 + i * 0.3) % 1;
+    const alpha = 0.5 + 0.5 * Math.sin(pulsePhase * Math.PI);
+
+    // Left light
+    const leftWorld = {
+      x: portWorldPos.x + approachVector.x * distance - perpX * runwayWidth,
+      y: portWorldPos.y + approachVector.y * distance - perpY * runwayWidth,
+    };
+    const leftScreen = worldToScreen(leftWorld, camera.value);
+
+    // Right light
+    const rightWorld = {
+      x: portWorldPos.x + approachVector.x * distance + perpX * runwayWidth,
+      y: portWorldPos.y + approachVector.y * distance + perpY * runwayWidth,
+    };
+    const rightScreen = worldToScreen(rightWorld, camera.value);
+
+    const lightColor = i <= 2 ? 0x00ff00 : (i <= 4 ? 0xffff00 : 0xff0000);
+    graphics.dockingGuidance.beginFill(lightColor, alpha);
+    graphics.dockingGuidance.drawCircle(leftScreen.x, leftScreen.y, 3);
+    graphics.dockingGuidance.drawCircle(rightScreen.x, rightScreen.y, 3);
+    graphics.dockingGuidance.endFill();
+  }
+}
+
+function drawDockingApproachGuidance() {
   let dockingStatus;
   let targetStation;
-  
+
   const selectedStation = navStore.selectedStation;
   if (selectedStation) {
     dockingStatus = navStore.checkDockingPortAvailability(
@@ -440,7 +554,6 @@ function drawDockingApproachGuidance(ctx: CanvasRenderingContext2D) {
     );
     targetStation = selectedStation;
   } else {
-    // Use findNearestDockingPort to get the closest port across all stations
     const nearestPort = navStore.findNearestDockingPort(shipStore.position, shipStore.heading);
     if (nearestPort) {
       dockingStatus = nearestPort;
@@ -450,18 +563,15 @@ function drawDockingApproachGuidance(ctx: CanvasRenderingContext2D) {
 
   if (!dockingStatus?.port || !dockingStatus?.portWorldPosition || !targetStation) return;
 
-  // Show guidance from a much larger distance (60x docking range)
   const portRange = getDockingRange(dockingStatus.port);
   if (dockingStatus.distance > portRange * 60) return;
 
   const portScreenPos = worldToScreen(dockingStatus.portWorldPosition, camera.value);
 
-  // Get station template to calculate approach vector in world space
   const templateId = targetStation.templateId ?? targetStation.type;
   const template = getStationTemplateById(templateId);
   if (!template) return;
 
-  // Find the docking port's world approach vector
   const stationRotationRad = ((targetStation.rotation ?? 0) * Math.PI) / 180;
   let worldApproachVector = { x: 0, y: 0 };
 
@@ -483,30 +593,18 @@ function drawDockingApproachGuidance(ctx: CanvasRenderingContext2D) {
     }
   }
 
-  // Guard against zero approach vector (data inconsistency) - skip runway rendering
   const approachMagnitude = Math.hypot(worldApproachVector.x, worldApproachVector.y);
   if (approachMagnitude < 0.001) return;
 
-  // Draw docking range circle around port (with ship buffer)
+  // Docking range circle
   const visualRange = getVisualDockingRange(portRange);
   const screenRange = visualRange * zoom.value;
-  ctx.strokeStyle = dockingStatus.inRange ? MAP_COLORS.dockingPort : MAP_COLORS.dockingPortUnavailable;
-  ctx.lineWidth = 2;
-  ctx.setLineDash([5, 5]);
-  ctx.beginPath();
-  ctx.arc(portScreenPos.x, portScreenPos.y, screenRange, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  graphics.dockingGuidance.lineStyle(2, dockingStatus.inRange ? COLOR.dockingPort : COLOR.dockingPortUnavailable, 1);
+  drawDashedCircle(graphics.dockingGuidance, portScreenPos.x, portScreenPos.y, screenRange, 5, 5);
 
-  // Draw runway bounding box so player can see the approach corridor
-  // These are calculated to match the visual runway lights (runwayLength and runwayWidth)
-  // Make the runway slightly longer and wider to match gameplay detection
-  const runwayLength = portRange * 10; // Extended runway for better visibility
-  const runwayWidth = 25; // Width between light pairs in world units (wider)
-
-  // Rectangle corners in world space
-  const startWorld = { x: dockingStatus.portWorldPosition.x, y: dockingStatus.portWorldPosition.y };
-  const endWorld = { x: dockingStatus.portWorldPosition.x + worldApproachVector.x * runwayLength, y: dockingStatus.portWorldPosition.y + worldApproachVector.y * runwayLength };
+  // Runway bounding box
+  const runwayLength = portRange * 10;
+  const runwayWidth = 25;
 
   const corners = computeRunwayCorners(dockingStatus.portWorldPosition, worldApproachVector, runwayLength, runwayWidth);
   const p1s = worldToScreen(corners.p1, camera.value);
@@ -514,183 +612,147 @@ function drawDockingApproachGuidance(ctx: CanvasRenderingContext2D) {
   const p3s = worldToScreen(corners.p3, camera.value);
   const p4s = worldToScreen(corners.p4, camera.value);
 
-  // Fill the runway rectangle faintly, and stroke with stronger color when ship is within the corridor
-  ctx.fillStyle = dockingStatus.nearLights ? 'rgba(0, 255, 153, 0.12)' : 'rgba(0, 255, 153, 0.04)';
-  ctx.beginPath();
-  ctx.moveTo(p1s.x, p1s.y);
-  ctx.lineTo(p2s.x, p2s.y);
-  ctx.lineTo(p3s.x, p3s.y);
-  ctx.lineTo(p4s.x, p4s.y);
-  ctx.closePath();
-  ctx.fill();
+  // Fill runway rectangle
+  const fillAlpha = dockingStatus.nearLights ? 0.12 : 0.04;
+  graphics.dockingGuidance.beginFill(COLOR.dockingPort, fillAlpha);
+  graphics.dockingGuidance.moveTo(p1s.x, p1s.y);
+  graphics.dockingGuidance.lineTo(p2s.x, p2s.y);
+  graphics.dockingGuidance.lineTo(p3s.x, p3s.y);
+  graphics.dockingGuidance.lineTo(p4s.x, p4s.y);
+  graphics.dockingGuidance.closePath();
+  graphics.dockingGuidance.endFill();
 
-  ctx.strokeStyle = dockingStatus.nearLights ? 'rgba(0, 255, 153, 0.6)' : 'rgba(0, 255, 153, 0.25)';
-  ctx.lineWidth = dockingStatus.nearLights ? 2 : 1;
-  ctx.stroke();
+  // Stroke runway
+  const strokeAlpha = dockingStatus.nearLights ? 0.6 : 0.25;
+  const strokeWidth = dockingStatus.nearLights ? 2 : 1;
+  graphics.dockingGuidance.lineStyle(strokeWidth, COLOR.dockingPort, strokeAlpha);
+  graphics.dockingGuidance.moveTo(p1s.x, p1s.y);
+  graphics.dockingGuidance.lineTo(p2s.x, p2s.y);
+  graphics.dockingGuidance.lineTo(p3s.x, p3s.y);
+  graphics.dockingGuidance.lineTo(p4s.x, p4s.y);
+  graphics.dockingGuidance.closePath();
 
-  // Draw RUNWAY label when the ship is within the corridor so it's obvious
-  if (dockingStatus.nearLights) {
-    const labelScreen = worldToScreen({ x: (startWorld.x + endWorld.x) / 2, y: (startWorld.y + endWorld.y) / 2 }, camera.value);
-    ctx.fillStyle = 'rgba(0, 255, 153, 0.9)';
-    ctx.font = '12px "Share Tech Mono", monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('RUNWAY', labelScreen.x, labelScreen.y - 8);
-  }
-
-  // Draw runway lights along the approach corridor
-  // Use shared drawing helper so white and colored lights line up exactly.
-  const nearestPortForGuidance = navStore.findNearestDockingPort(shipStore.position, shipStore.heading);
-  // Always draw runway lights in guidance overlay to match placement; choose colored mode
-  // for the active runway when the player is nearby.
-  const showColoredLandingLights = shouldShowColoredLandingLights(nearestPortForGuidance, dockingStatus, getDockingRange);
-
-  if (showColoredLandingLights) {
-    drawRunwayLightsForPort(ctx, dockingStatus.portWorldPosition, worldApproachVector, portRange, camera.value, Date.now() / 1000, 'colored');
-  } else {
-    // Draw white marker lights for inactive/remote runways (keeps placement consistent)
-    drawRunwayLightsForPort(ctx, dockingStatus.portWorldPosition, worldApproachVector, portRange, camera.value, Date.now() / 1000, 'white');
-  }
-
-  // Draw center approach line (fainter, behind runway lights)
+  // Center approach line (dashed)
   const guideLineLength = runwayLength * zoom.value;
   const approachStartX = portScreenPos.x + worldApproachVector.x * guideLineLength;
-  const approachStartY = portScreenPos.y - worldApproachVector.y * guideLineLength; // Flip Y
+  const approachStartY = portScreenPos.y - worldApproachVector.y * guideLineLength;
 
-  ctx.strokeStyle = 'rgba(0, 255, 128, 0.3)';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([5, 10]);
-  ctx.beginPath();
-  ctx.moveTo(approachStartX, approachStartY);
-  ctx.lineTo(portScreenPos.x, portScreenPos.y);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  graphics.dockingGuidance.lineStyle(1, 0x00ff80, 0.3);
+  drawDashedLine(graphics.dockingGuidance, approachStartX, approachStartY, portScreenPos.x, portScreenPos.y, 5, 10);
 
-  // Draw port marker (larger and brighter when in range)
+  // Port marker
   const portMarkerSize = dockingStatus.inRange ? 10 : 6;
-  ctx.fillStyle = dockingStatus.inRange ? MAP_COLORS.dockingPort : MAP_COLORS.dockingPortRange;
-  ctx.beginPath();
-  ctx.arc(portScreenPos.x, portScreenPos.y, portMarkerSize, 0, Math.PI * 2);
-  ctx.fill();
+  graphics.dockingGuidance.beginFill(dockingStatus.inRange ? COLOR.dockingPort : COLOR.dockingPortRange, 1);
+  graphics.dockingGuidance.drawCircle(portScreenPos.x, portScreenPos.y, portMarkerSize);
+  graphics.dockingGuidance.endFill();
+}
 
-  // Draw status text
-  if (shipStore.isDocked && shipStore.dockedAtId === targetStation.id) {
-    ctx.fillStyle = MAP_COLORS.dockingPort;
-    ctx.font = '10px "Share Tech Mono", monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('DOCKED', portScreenPos.x, portScreenPos.y - screenRange - 10);
-  } else if (dockingStatus.reason) {
-    ctx.fillStyle = MAP_COLORS.dockingPortUnavailable;
-    ctx.font = '10px "Share Tech Mono", monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(dockingStatus.reason.toUpperCase(), portScreenPos.x, portScreenPos.y - screenRange - 10);
-  } else if (dockingStatus.inRange) {
-    ctx.fillStyle = MAP_COLORS.dockingPort;
-    ctx.font = '10px "Share Tech Mono", monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('DOCKING AVAILABLE', portScreenPos.x, portScreenPos.y - screenRange - 10);
+function drawDashedLine(g: Graphics, x1: number, y1: number, x2: number, y2: number, dashLength: number, gapLength: number) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const distance = Math.hypot(dx, dy);
+  const unitX = dx / distance;
+  const unitY = dy / distance;
+  const totalLength = dashLength + gapLength;
+  const segments = Math.floor(distance / totalLength);
+
+  for (let i = 0; i < segments; i++) {
+    const startDist = i * totalLength;
+    const endDist = startDist + dashLength;
+    g.moveTo(x1 + unitX * startDist, y1 + unitY * startDist);
+    g.lineTo(x1 + unitX * endDist, y1 + unitY * endDist);
   }
 }
 
-function drawJumpGate(ctx: CanvasRenderingContext2D, gate: JumpGate) {
-  const screenPos = worldToScreen(gate.position, camera.value);
+function drawJumpGates() {
   const size = 12;
-  const isSelected = navStore.selectedObjectId === gate.id;
+  graphics.jumpGates.clear();
+  graphics.jumpGates.beginFill(COLOR.jumpGate, 1);
 
-  // Selection highlight
-  if (isSelected) {
-    ctx.strokeStyle = MAP_COLORS.selected;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(screenPos.x, screenPos.y, size + 8, 0, Math.PI * 2);
-    ctx.stroke();
-  }
+  for (const gate of navStore.jumpGates ?? []) {
+    const screenPos = worldToScreen(gate.position, camera.value);
 
-  // Hexagon shape
-  ctx.fillStyle = MAP_COLORS.jumpGate;
-  ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const angle = (i * Math.PI) / 3 - Math.PI / 6;
-    const x = screenPos.x + size * Math.cos(angle);
-    const y = screenPos.y + size * Math.sin(angle);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.closePath();
-  ctx.fill();
-
-  // Label
-  ctx.fillStyle = MAP_COLORS.jumpGate;
-  ctx.font = '11px "Share Tech Mono", monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(gate.name, screenPos.x, screenPos.y + size + 14);
-}
-
-function drawShip(ctx: CanvasRenderingContext2D) {
-  const screenPos = worldToScreen(shipStore.position, camera.value);
-
-  // Get ship template for shape rendering
-  const template = getShipTemplate(shipStore.templateId);
-  
-  if (template) {
-    const cameraVec = { x: cameraCenter.value.x, y: cameraCenter.value.y };
-    const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
-    
-    // Render ship shape with LOD (falls back to point when zoomed out)
-    renderShapeWithLOD(
-      ctx,
-      template.shape,
-      shipStore.position,
-      shipStore.heading,
-      shipStore.size,
-      cameraVec,
-      screenCenter,
-      zoom.value,
-      MAP_COLORS.ship,       // fillColor
-      MAP_COLORS.shipHeading, // strokeColor
-      1,                     // lineWidth
-      6                      // minSize for LOD fallback
-    );
-
-    // Show engine mounts when zoomed in enough
-    const screenSize = getShapeScreenSize(template.shape, shipStore.size, zoom.value);
-    if (screenSize > 30 && template.engineMounts.length > 0) {
-      renderEngineMounts(
-        ctx,
-        template.engineMounts,
-        shipStore.position,
-        shipStore.heading,
-        shipStore.size,
-        cameraVec,
-        screenCenter,
-        zoom.value,
-        '#FF6600'
-      );
+    // Hexagon
+    graphics.jumpGates.moveTo(screenPos.x + size, screenPos.y);
+    for (let i = 1; i < 6; i++) {
+      const angle = (i * Math.PI) / 3 - Math.PI / 6;
+      const x = screenPos.x + size * Math.cos(angle);
+      const y = screenPos.y + size * Math.sin(angle);
+      graphics.jumpGates.lineTo(x, y);
     }
-  } else {
-    // Fallback to simple icon if template not found
-    drawShipIcon(ctx, screenPos, shipStore.heading, 8, MAP_COLORS.ship);
+    graphics.jumpGates.closePath();
+
+    if (navStore.selectedObjectId === gate.id) {
+      graphics.highlights.lineStyle(2, COLOR.selected, 1);
+      graphics.highlights.drawCircle(screenPos.x, screenPos.y, size + 8);
+    }
   }
+
+  graphics.jumpGates.endFill();
 }
 
-/**
- * Draw tractor beam effect from station docking port to ship
- * Creates an animated beam pulling the ship toward docking position
- */
-function drawTractorBeam(ctx: CanvasRenderingContext2D) {
+function drawCourseProjection() {
+  const shipScreenPos = worldToScreen(shipStore.position, camera.value);
+  const isReversing = shipStore.speed < 0 || shipStore.targetSpeed < 0;
+  const effectiveHeading = shipStore.speed < 0 ? shipStore.heading + 180 : shipStore.heading;
+  const effectiveSpeed = Math.abs(shipStore.speed);
+  const headingRad = (effectiveHeading * Math.PI) / 180;
+  const distance = effectiveSpeed * 20;
+  const endX = shipStore.position.x + distance * Math.sin(headingRad);
+  const endY = shipStore.position.y - distance * Math.cos(headingRad);
+  const endScreen = worldToScreen({ x: endX, y: endY }, camera.value);
+
+  const color = isReversing ? COLOR.courseProjectionReverse : COLOR.courseProjection;
+  graphics.courseProjection.clear();
+  graphics.courseProjection.lineStyle(2, color, isReversing ? 0.6 : 0.5);
+  graphics.courseProjection.moveTo(shipScreenPos.x, shipScreenPos.y);
+  graphics.courseProjection.lineTo(endScreen.x, endScreen.y);
+}
+
+function drawWaypointsAndPaths() {
+  graphics.waypoints.clear();
+  graphics.paths.clear();
+
+  const waypoints = navStore.waypoints ?? [];
+  if (waypoints.length > 0) {
+    const shipPos = worldToScreen(shipStore.position, camera.value);
+    const first = worldToScreen(waypoints[0]!.position, camera.value);
+    graphics.paths.lineStyle(2, COLOR.waypointActive, 0.6);
+    graphics.paths.moveTo(shipPos.x, shipPos.y);
+    graphics.paths.lineTo(first.x, first.y);
+
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const from = worldToScreen(waypoints[i]!.position, camera.value);
+      const to = worldToScreen(waypoints[i + 1]!.position, camera.value);
+      graphics.paths.moveTo(from.x, from.y);
+      graphics.paths.lineTo(to.x, to.y);
+    }
+  }
+
+  waypoints.forEach((waypoint, index) => {
+    const screenPos = worldToScreen(waypoint.position, camera.value);
+    const active = index === 0;
+    const color = active ? COLOR.waypointActive : COLOR.waypointInactive;
+    const alpha = active ? 0.8 : 0.6;
+    const size = 8;
+
+    graphics.waypoints.lineStyle(2, color, alpha);
+    graphics.waypoints.beginFill(color, 0.15);
+    graphics.waypoints.drawRect(screenPos.x - size, screenPos.y - size, size * 2, size * 2);
+    graphics.waypoints.endFill();
+  });
+}
+
+function drawTractorBeam() {
   const targetPos = shipStore.tractorBeam.targetPosition;
   const stationId = shipStore.tractorBeam.stationId;
   const portId = shipStore.tractorBeam.portId;
   if (!targetPos || !stationId || !portId) return;
 
-  // Find the station and its nearest docking port
   const station = navStore.stations.find(s => s.id === stationId);
   if (!station) return;
 
-  // Get the docking port world position (the beam should emanate FROM the port)
   const ports = navStore.getStationDockingPorts(station);
-  if (ports.length === 0) return;
-
-  // Find the specific port by ID (this is the port we're docking at)
   const targetPort = ports.find(p => p.port.id === portId);
   if (!targetPort) return;
 
@@ -698,158 +760,158 @@ function drawTractorBeam(ctx: CanvasRenderingContext2D) {
   const shipScreenPos = worldToScreen(shipStore.position, camera.value);
   const targetScreenPos = worldToScreen(targetPos, camera.value);
 
-  // Calculate beam properties (from port to ship)
-  const dx = shipScreenPos.x - portScreenPos.x;
-  const dy = shipScreenPos.y - portScreenPos.y;
-  const distance = Math.hypot(dx, dy);
-  
-  if (distance < 1) return; // Already at target
+  const distance = Math.hypot(shipScreenPos.x - portScreenPos.x, shipScreenPos.y - portScreenPos.y);
+  if (distance < 1) return;
 
-  // Animated beam effect using time
-  const time = Date.now() * 0.003; // Slow animation
+  const time = Date.now() * 0.003;
   const pulsePhase = Math.sin(time * 2);
-  
-  // Draw multiple beam lines for tractor beam effect (FROM station TO ship)
-  ctx.save();
-  
+
+  graphics.tractorBeam.clear();
+
   // Outer glow
-  ctx.strokeStyle = `rgba(153, 102, 255, ${0.2 + pulsePhase * 0.1})`;
-  ctx.lineWidth = 12;
-  ctx.setLineDash([]);
-  ctx.beginPath();
-  ctx.moveTo(portScreenPos.x, portScreenPos.y);
-  ctx.lineTo(shipScreenPos.x, shipScreenPos.y);
-  ctx.stroke();
-  
+  graphics.tractorBeam.lineStyle(12, COLOR.tractorBeamOuter, 0.2 + pulsePhase * 0.1);
+  graphics.tractorBeam.moveTo(portScreenPos.x, portScreenPos.y);
+  graphics.tractorBeam.lineTo(shipScreenPos.x, shipScreenPos.y);
+
   // Middle beam
-  ctx.strokeStyle = `rgba(153, 102, 255, ${0.4 + pulsePhase * 0.2})`;
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(portScreenPos.x, portScreenPos.y);
-  ctx.lineTo(shipScreenPos.x, shipScreenPos.y);
-  ctx.stroke();
-  
-  // Core beam (animated dashes moving from port toward ship - pulling the ship in)
-  const dashOffset = time * 50; // Animate dash movement
-  ctx.strokeStyle = `rgba(200, 150, 255, ${0.8 + pulsePhase * 0.2})`;
-  ctx.lineWidth = 2;
-  ctx.setLineDash([10, 15]);
-  ctx.lineDashOffset = dashOffset; // Positive to move from port toward ship (pulling)
-  ctx.beginPath();
-  ctx.moveTo(portScreenPos.x, portScreenPos.y);
-  ctx.lineTo(shipScreenPos.x, shipScreenPos.y);
-  ctx.stroke();
-  
-  // Draw target position indicator (docking point)
-  ctx.setLineDash([4, 4]);
-  ctx.strokeStyle = `rgba(0, 255, 153, ${0.6 + pulsePhase * 0.2})`;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(targetScreenPos.x, targetScreenPos.y, 15 + pulsePhase * 3, 0, Math.PI * 2);
-  ctx.stroke();
-  
+  graphics.tractorBeam.lineStyle(6, COLOR.tractorBeamMiddle, 0.4 + pulsePhase * 0.2);
+  graphics.tractorBeam.moveTo(portScreenPos.x, portScreenPos.y);
+  graphics.tractorBeam.lineTo(shipScreenPos.x, shipScreenPos.y);
+
+  // Core beam (animated dashes)
+  graphics.tractorBeam.lineStyle(2, COLOR.tractorBeamCore, 0.8 + pulsePhase * 0.2);
+  drawDashedLine(graphics.tractorBeam, portScreenPos.x, portScreenPos.y, shipScreenPos.x, shipScreenPos.y, 10, 15);
+
+  // Target indicator
+  graphics.tractorBeam.lineStyle(2, COLOR.tractorBeamTarget, 0.6 + pulsePhase * 0.2);
+  drawDashedCircle(graphics.tractorBeam, targetScreenPos.x, targetScreenPos.y, 15 + pulsePhase * 3, 4, 4);
+
   // Inner target dot
-  ctx.setLineDash([]);
-  ctx.fillStyle = `rgba(0, 255, 153, ${0.8 + pulsePhase * 0.2})`;
-  ctx.beginPath();
-  ctx.arc(targetScreenPos.x, targetScreenPos.y, 4, 0, Math.PI * 2);
-  ctx.fill();
-  
-  ctx.restore();
+  graphics.tractorBeam.beginFill(COLOR.tractorBeamTarget, 0.8 + pulsePhase * 0.2);
+  graphics.tractorBeam.drawCircle(targetScreenPos.x, targetScreenPos.y, 4);
+  graphics.tractorBeam.endFill();
 }
 
-/**
- * Draw collision warnings around the ship
- */
-function drawCollisionWarnings(ctx: CanvasRenderingContext2D) {
-  const shipScreenPos = worldToScreen(shipStore.position, camera.value);
-  const warningLevel = collision.highestWarningLevel.value;
-  
-  // Don't draw if no warnings
-  if (warningLevel === 'none') return;
-  
-  // Draw warning ring around ship
-  const ringColor = COLLISION_COLORS[warningLevel];
-  const ringRadius = Math.max(shipStore.size * zoom.value, 20) + 8;
-  const pulseIntensity = warningLevel === 'danger' ? 0.8 : (warningLevel === 'warning' ? 0.5 : 0.3);
-  
-  // Pulsing effect
-  const pulsePhase = (Date.now() % 1000) / 1000;
-  const pulseAlpha = 0.3 + pulseIntensity * Math.sin(pulsePhase * Math.PI * 2);
-  
-  ctx.strokeStyle = ringColor;
-  ctx.lineWidth = warningLevel === 'danger' ? 3 : 2;
-  ctx.globalAlpha = pulseAlpha;
-  ctx.beginPath();
-  ctx.arc(shipScreenPos.x, shipScreenPos.y, ringRadius, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.globalAlpha = 1;
-  
-  // Draw contact points for danger-level warnings
-  for (const warning of collision.warnings.value) {
-    if (warning.level === 'danger' && warning.collisionPoint) {
-      drawCollisionContactPoint(ctx, warning.collisionPoint, warning.normal);
+function drawShip() {
+  const template = getShipTemplate(shipStore.templateId);
+  if (!template) return;
+
+  graphics.ship.clear();
+  const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
+  const cameraVec = { x: cameraCenter.value.x, y: cameraCenter.value.y };
+
+  renderPixiShapeWithLOD(graphics.ship, {
+    shape: template.shape,
+    position: shipStore.position,
+    rotation: shipStore.heading,
+    scale: shipStore.size,
+    camera: cameraVec,
+    screenCenter,
+    zoom: zoom.value,
+    fillColor: COLOR.ship,
+    strokeColor: COLOR.shipHeading,
+    lineWidth: 1,
+    minSize: 6,
+  });
+
+  // Engine mounts when zoomed in
+  if (template.engineMounts.length > 0) {
+    drawEngineMounts(template.engineMounts);
+  }
+}
+
+function drawEngineMounts(engineMounts: Array<{ position: Vector2; direction: number }>) {
+  graphics.engineMounts.clear();
+  const headingRad = (shipStore.heading * Math.PI) / 180;
+
+  for (const mount of engineMounts) {
+    // Transform mount position
+    const rotatedX = mount.position.x * Math.cos(headingRad) - mount.position.y * Math.sin(headingRad);
+    const rotatedY = mount.position.x * Math.sin(headingRad) + mount.position.y * Math.cos(headingRad);
+    const worldX = shipStore.position.x + rotatedX * shipStore.size;
+    const worldY = shipStore.position.y + rotatedY * shipStore.size;
+    const screenPos = worldToScreen({ x: worldX, y: worldY }, camera.value);
+
+    const mountScreenSize = 3 * zoom.value;
+    if (mountScreenSize > 2) {
+      graphics.engineMounts.beginFill(0xff6600, 1);
+      graphics.engineMounts.drawCircle(screenPos.x, screenPos.y, Math.max(2, mountScreenSize));
+      graphics.engineMounts.endFill();
     }
   }
 }
 
-/**
- * Draw a collision contact point indicator
- */
-function drawCollisionContactPoint(
-  ctx: CanvasRenderingContext2D,
-  contactPoint: Vector2,
-  normal?: Vector2
-) {
+function drawCollisionWarnings() {
+  const shipScreenPos = worldToScreen(shipStore.position, camera.value);
+  const warningLevel = collision.highestWarningLevel.value;
+
+  if (warningLevel === 'none') return;
+
+  const ringColor = COLLISION_COLORS[warningLevel];
+  const ringRadius = Math.max(shipStore.size * zoom.value, 20) + 8;
+  const pulseIntensity = warningLevel === 'danger' ? 0.8 : (warningLevel === 'warning' ? 0.5 : 0.3);
+  const pulsePhase = (Date.now() % 1000) / 1000;
+  const pulseAlpha = 0.3 + pulseIntensity * Math.sin(pulsePhase * Math.PI * 2);
+
+  graphics.collisionWarnings.clear();
+  graphics.collisionWarnings.lineStyle(warningLevel === 'danger' ? 3 : 2, ringColor, pulseAlpha);
+  graphics.collisionWarnings.drawCircle(shipScreenPos.x, shipScreenPos.y, ringRadius);
+
+  // Contact points for danger level
+  for (const warning of collision.warnings.value) {
+    if (warning.level === 'danger' && warning.collisionPoint) {
+      drawCollisionContactPoint(warning.collisionPoint, warning.normal);
+    }
+  }
+}
+
+function drawCollisionContactPoint(contactPoint: Vector2, normal?: Vector2) {
   const screenPos = worldToScreen(contactPoint, camera.value);
-  
-  // Draw X marker at contact point
   const size = 6;
-  ctx.strokeStyle = COLLISION_COLORS.danger;
-  ctx.lineWidth = 2;
-  
-  // X shape
-  ctx.beginPath();
-  ctx.moveTo(screenPos.x - size, screenPos.y - size);
-  ctx.lineTo(screenPos.x + size, screenPos.y + size);
-  ctx.moveTo(screenPos.x + size, screenPos.y - size);
-  ctx.lineTo(screenPos.x - size, screenPos.y + size);
-  ctx.stroke();
-  
-  // Draw normal direction arrow if available
+
+  // X marker
+  graphics.collisionWarnings.lineStyle(2, COLLISION_COLORS.danger, 1);
+  graphics.collisionWarnings.moveTo(screenPos.x - size, screenPos.y - size);
+  graphics.collisionWarnings.lineTo(screenPos.x + size, screenPos.y + size);
+  graphics.collisionWarnings.moveTo(screenPos.x + size, screenPos.y - size);
+  graphics.collisionWarnings.lineTo(screenPos.x - size, screenPos.y + size);
+
+  // Normal arrow
   if (normal) {
     const arrowLength = 20;
     const endPos = {
       x: screenPos.x + normal.x * arrowLength,
-      y: screenPos.y - normal.y * arrowLength, // Screen Y is inverted
+      y: screenPos.y - normal.y * arrowLength,
     };
-    
-    ctx.strokeStyle = COLLISION_COLORS.warning;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(screenPos.x, screenPos.y);
-    ctx.lineTo(endPos.x, endPos.y);
-    ctx.stroke();
-    
+
+    graphics.collisionWarnings.lineStyle(1, COLLISION_COLORS.warning, 1);
+    graphics.collisionWarnings.moveTo(screenPos.x, screenPos.y);
+    graphics.collisionWarnings.lineTo(endPos.x, endPos.y);
+
     // Arrow head
     const headSize = 4;
     const angle = Math.atan2(-normal.y, normal.x);
-    ctx.beginPath();
-    ctx.moveTo(endPos.x, endPos.y);
-    ctx.lineTo(
+    graphics.collisionWarnings.moveTo(endPos.x, endPos.y);
+    graphics.collisionWarnings.lineTo(
       endPos.x - headSize * Math.cos(angle - Math.PI / 6),
       endPos.y - headSize * Math.sin(angle - Math.PI / 6)
     );
-    ctx.moveTo(endPos.x, endPos.y);
-    ctx.lineTo(
+    graphics.collisionWarnings.moveTo(endPos.x, endPos.y);
+    graphics.collisionWarnings.lineTo(
       endPos.x - headSize * Math.cos(angle + Math.PI / 6),
       endPos.y - headSize * Math.sin(angle + Math.PI / 6)
     );
-    ctx.stroke();
   }
 }
 
 // Event handlers
+function toWorldPoint(event: MouseEvent): Vector2 {
+  const rect = containerRef.value?.getBoundingClientRect();
+  if (!rect) return { x: 0, y: 0 };
+  const screenPoint = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  return screenToWorld(screenPoint, camera.value);
+}
+
 function handleWheel(event: WheelEvent) {
   event.preventDefault();
   const zoomDelta = event.deltaY > 0 ? -0.1 : 0.1;
@@ -857,22 +919,15 @@ function handleWheel(event: WheelEvent) {
 }
 
 function handleMouseDown(event: MouseEvent) {
-  if (event.button === 0) { // Left click
-    const rect = canvasRef.value!.getBoundingClientRect();
-    const clickPos = {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
-    };
-    
-    // Check for object selection
-    const worldPos = screenToWorld(clickPos, camera.value);
-    const clickRadius = 20 / zoom.value;
+  const worldPos = toWorldPoint(event);
+  const clickRadius = 20 / zoom.value;
 
+  if (event.button === 0) {
     // Check stations
     for (const station of navStore.stations) {
       const dx = station.position.x - worldPos.x;
       const dy = station.position.y - worldPos.y;
-      if (Math.sqrt(dx * dx + dy * dy) < clickRadius) {
+      if (Math.hypot(dx, dy) < clickRadius) {
         navStore.selectStation(station.id);
         sensorStore.selectContact(station.id);
         return;
@@ -883,7 +938,7 @@ function handleMouseDown(event: MouseEvent) {
     for (const planet of navStore.planets) {
       const dx = planet.position.x - worldPos.x;
       const dy = planet.position.y - worldPos.y;
-      if (Math.sqrt(dx * dx + dy * dy) < clickRadius + planet.radius) {
+      if (Math.hypot(dx, dy) < clickRadius + planet.radius) {
         navStore.selectPlanet(planet.id);
         sensorStore.selectContact(planet.id);
         return;
@@ -894,20 +949,20 @@ function handleMouseDown(event: MouseEvent) {
     for (const gate of navStore.jumpGates) {
       const dx = gate.position.x - worldPos.x;
       const dy = gate.position.y - worldPos.y;
-      if (Math.sqrt(dx * dx + dy * dy) < clickRadius) {
+      if (Math.hypot(dx, dy) < clickRadius) {
         navStore.selectJumpGate(gate.id);
         sensorStore.selectContact(gate.id);
         return;
       }
     }
 
-    // No object clicked - steer toward clicked position
+    // Click to steer
     const targetHeading = navStore.getHeadingToWaypoint(shipStore.position, worldPos);
     navStore.disableAutopilot();
     shipStore.setTargetHeading(targetHeading);
     navStore.clearSelection();
     sensorStore.clearSelection();
-  } else if (event.button === 2) { // Right click - start panning
+  } else if (event.button === 2) {
     isDragging.value = true;
     dragStart.value = { x: event.clientX, y: event.clientY };
   }
@@ -923,16 +978,14 @@ function handleMouseMove(event: MouseEvent) {
     };
     dragStart.value = { x: event.clientX, y: event.clientY };
   } else {
-    // Check for module hover
     handleModuleHover(event);
   }
 }
 
 function handleModuleHover(event: MouseEvent) {
-  const canvas = canvasRef.value;
-  if (!canvas) return;
+  const rect = containerRef.value?.getBoundingClientRect();
+  if (!rect) return;
 
-  const rect = canvas.getBoundingClientRect();
   const screenPoint = {
     x: event.clientX - rect.left,
     y: event.clientY - rect.top,
@@ -940,8 +993,6 @@ function handleModuleHover(event: MouseEvent) {
 
   const cameraVec = { x: cameraCenter.value.x, y: cameraCenter.value.y };
   const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
-
-  // Get station scale function using shared constant (matches drawStation)
   const getStationScale = (station: Station) => station.dockingRange * STATION_VISUAL_MULTIPLIER;
 
   const result = findModuleAtScreenPosition(
@@ -985,37 +1036,68 @@ function handleContextMenu(event: MouseEvent) {
 }
 
 function handleResize() {
-  if (containerRef.value) {
-    canvasWidth.value = containerRef.value.clientWidth;
-    canvasHeight.value = containerRef.value.clientHeight;
-  }
+  if (!containerRef.value) return;
+  canvasWidth.value = containerRef.value.clientWidth;
+  canvasHeight.value = containerRef.value.clientHeight;
+  pixiRenderer.resize(canvasWidth.value, canvasHeight.value);
 }
 
-// Center on ship (reset pan)
 function centerOnShip() {
   panOffset.value = { x: 0, y: 0 };
 }
 
-// Expose for parent components
 defineExpose({ centerOnShip, zoom });
 
-// Lifecycle
-onMounted(() => {
+async function initializeRenderer() {
+  const capability = detectCapabilities();
+  rendererStore.setCapability(capability.selected, capability.fallbackReason);
+  if (!meetsMinimumRequirements(capability.selected)) {
+    rendererReady.value = false;
+    return;
+  }
+
+  const width = containerRef.value?.clientWidth ?? canvasWidth.value;
+  const height = containerRef.value?.clientHeight ?? canvasHeight.value;
+  canvasWidth.value = width;
+  canvasHeight.value = height;
+
+  await pixiRenderer.initialize({
+    width,
+    height,
+    capability: capability.selected,
+    backgroundColor: COLOR.background,
+  });
+
+  const canvas = pixiRenderer.getCanvas();
+  if (canvas && containerRef.value) {
+    canvas.classList.add('helm-map__canvas');
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    containerRef.value.prepend(canvas);
+  }
+
+  backgroundLayer = pixiRenderer.getLayer('background');
+  gameLayer = pixiRenderer.getLayer('game');
+  effectsLayer = pixiRenderer.getLayer('effects');
+  uiLayer = pixiRenderer.getLayer('ui');
+
+  attachGraphics();
+  rendererStore.setInitialized(true);
+  rendererReady.value = true;
+}
+
+onMounted(async () => {
+  await initializeRenderer();
   handleResize();
   window.addEventListener('resize', handleResize);
-  
-  // Subscribe to game loop for rendering
-  const unsubscribe = subscribe(() => {
-    render();
-  });
-
-  onUnmounted(() => {
-    window.removeEventListener('resize', handleResize);
-    unsubscribe();
-  });
-
-  // Initial render
+  loopUnsubscribe = subscribe(render);
   render();
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
+  loopUnsubscribe?.();
+  pixiRenderer.destroy();
 });
 </script>
 
@@ -1023,31 +1105,24 @@ onMounted(() => {
   <div
     ref="containerRef"
     class="helm-map"
+    @wheel="handleWheel"
+    @mousedown="handleMouseDown"
+    @mousemove="handleMouseMove"
+    @mouseup="handleMouseUp"
+    @mouseleave="handleMouseLeave"
+    @contextmenu="handleContextMenu"
   >
-    <canvas
-      ref="canvasRef"
-      class="helm-map__canvas"
-      :width="canvasWidth"
-      :height="canvasHeight"
-      @wheel="handleWheel"
-      @mousedown="handleMouseDown"
-      @mousemove="handleMouseMove"
-      @mouseup="handleMouseUp"
-      @mouseleave="handleMouseLeave"
-      @contextmenu="handleContextMenu"
-    />
     <div class="helm-map__overlay">
       <div class="helm-map__info">
         <span class="helm-map__system-name">{{ navStore.systemName }}</span>
         <span class="helm-map__zoom">{{ (zoom * 100).toFixed(0) }}%</span>
       </div>
-      <!-- Collision warning indicator -->
-      <div 
+      <div
         v-if="collision.highestWarningLevel.value !== 'none'"
         class="helm-map__collision-warning"
         :class="`helm-map__collision-warning--${collision.highestWarningLevel.value}`"
       >
-        <span class="helm-map__collision-warning-icon">⚠</span>
+        <span class="helm-map__collision-warning-icon">&#9888;</span>
         <span class="helm-map__collision-warning-text">
           {{ collision.highestWarningLevel.value.toUpperCase() }}
         </span>
@@ -1060,71 +1135,29 @@ onMounted(() => {
       </div>
     </div>
     <div class="helm-map__controls">
-      <button 
+      <button
         class="helm-map__toggle"
         :class="{ 'helm-map__toggle--active': settingsStore.showRadarOverlay }"
         title="Toggle Radar Overlay"
         @click="settingsStore.toggleRadarOverlay()"
       >
-        <svg
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          width="20"
-          height="20"
-        >
-          <circle
-            cx="12"
-            cy="12"
-            r="10"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-          />
-          <circle
-            cx="12"
-            cy="12"
-            r="6"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1"
-          />
-          <circle
-            cx="12"
-            cy="12"
-            r="2"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1"
-          />
-          <line
-            x1="12"
-            y1="2"
-            x2="12"
-            y2="8"
-            stroke="currentColor"
-            stroke-width="1.5"
-          />
+        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+          <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5" />
+          <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1" />
+          <circle cx="12" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1" />
+          <line x1="12" y1="2" x2="12" y2="8" stroke="currentColor" stroke-width="1.5" />
         </svg>
       </button>
     </div>
-    <!-- Module tooltip -->
     <div
       v-if="tooltipVisible && tooltipContent"
       class="helm-map__tooltip"
       :style="{ left: tooltipX + 'px', top: tooltipY + 'px' }"
     >
-      <div class="helm-map__tooltip-station">
-        {{ tooltipContent.stationName }}
-      </div>
-      <div class="helm-map__tooltip-module">
-        {{ tooltipContent.moduleName }}
-      </div>
-      <div class="helm-map__tooltip-type">
-        {{ tooltipContent.moduleType.toUpperCase() }}
-      </div>
-      <div class="helm-map__tooltip-status">
-        {{ tooltipContent.moduleStatus }}
-      </div>
+      <div class="helm-map__tooltip-station">{{ tooltipContent.stationName }}</div>
+      <div class="helm-map__tooltip-module">{{ tooltipContent.moduleName }}</div>
+      <div class="helm-map__tooltip-type">{{ tooltipContent.moduleType.toUpperCase() }}</div>
+      <div class="helm-map__tooltip-status">{{ tooltipContent.moduleStatus }}</div>
     </div>
   </div>
 </template>
@@ -1142,10 +1175,7 @@ onMounted(() => {
   canvas {
     display: block;
     cursor: crosshair;
-
-    &:active {
-      cursor: grabbing;
-    }
+    &:active { cursor: grabbing; }
   }
 
   &__overlay {
@@ -1243,18 +1273,9 @@ onMounted(() => {
     }
   }
 
-  &__collision-warning-icon {
-    font-size: $font-size-md;
-  }
-
-  &__collision-warning-text {
-    font-weight: bold;
-  }
-
-  &__collision-warning-object {
-    opacity: 0.8;
-    font-size: $font-size-xs;
-  }
+  &__collision-warning-icon { font-size: $font-size-md; }
+  &__collision-warning-text { font-weight: bold; }
+  &__collision-warning-object { opacity: 0.8; font-size: $font-size-xs; }
 
   &__tooltip {
     position: fixed;
@@ -1270,29 +1291,10 @@ onMounted(() => {
     line-height: 1.4;
   }
 
-  &__tooltip-station {
-    color: $color-gold;
-    font-weight: bold;
-    margin-bottom: 2px;
-  }
-
-  &__tooltip-module {
-    color: $color-white;
-    margin-bottom: 2px;
-  }
-
-  &__tooltip-type {
-    color: $color-gray;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 2px;
-  }
-
-  &__tooltip-status {
-    color: $color-success;
-    font-size: 10px;
-  }
+  &__tooltip-station { color: $color-gold; font-weight: bold; margin-bottom: 2px; }
+  &__tooltip-module { color: $color-white; margin-bottom: 2px; }
+  &__tooltip-type { color: $color-gray; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+  &__tooltip-status { color: $color-success; font-size: 10px; }
 }
 
 @keyframes pulse-warning {
