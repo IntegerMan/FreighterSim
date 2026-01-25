@@ -71,7 +71,7 @@ onMounted(() => {
       avgFps: snapshot.avgFps,
       frameTimeP95Ms: snapshot.frameTimeP95Ms,
       memoryMB: snapshot.memoryMB ?? (rendererStore.metrics as any).value.memoryMB,
-      particleCount: particleStore.activeCellCount.value as number,
+      particleCount: (particleStore.activeCellCount as any) as number,
       effectsIntensity: throttlingController.getEffectsIntensity(),
     });
 

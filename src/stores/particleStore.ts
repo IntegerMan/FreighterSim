@@ -103,21 +103,14 @@ export const useParticleStore = defineStore('particle', () => {
   /**
    * Ensure the Pixi ParticleContainer exists.
    */
-  function ensureParticleContainer(maxParticles?: number): Container | null {
+  function ensureParticleContainer(_maxParticles?: number): Container | null {
     if (typeof window === 'undefined') return null;
 
     if (!particleContainer.value) {
       try {
-        const capacity = maxParticles ?? getParticleLimit();
-        const pc = new ParticleContainer({
-          capacity,
-          properties: {
-            position: true,
-            scale: true,
-            alpha: true,
-            tint: true,
-          },
-        });
+        // PixiJS ParticleContainer - capacity is managed internally
+        // We create it without explicitly limiting capacity in constructor
+        const pc = new ParticleContainer();
         particleContainer.value = pc;
         (particleContainer.value as any).name = 'engine-trails';
       } catch (error) {
