@@ -5,6 +5,7 @@ export * from './capabilities';
 export * from './pixiRenderer';
 export * from './contextLossHandler';
 export * from './performanceMonitor';
+export * from './pixiShapeRenderer';
 
 // Shape rendering utilities
 export {

@@ -11,6 +11,7 @@ import {
   screenToWorld,
   findModuleAtScreenPosition,
   type CameraState,
+  renderPixiShapeWithLOD,
 } from '@/core/rendering';
 import {
   PixiRenderer,
@@ -541,7 +542,9 @@ function drawWaypointsAndPaths() {
 }
 
 function drawShip() {
-  const screenPos = worldToScreen(shipStore.position, camera.value);
+  const template = getShipTemplate(shipStore.templateId);
+  if (!template) return; // Skip rendering if no template
+
   const isReversing = shipStore.speed < 0 || shipStore.targetSpeed < 0;
   const projectionTime = 20;
   const effectiveHeading = shipStore.speed < 0 ? shipStore.heading + 180 : shipStore.heading;
@@ -552,22 +555,30 @@ function drawShip() {
   const endY = shipStore.position.y - distance * Math.cos(headingRad);
   const endScreen = worldToScreen({ x: endX, y: endY }, camera.value);
 
+  // Draw course projection
   graphics.paths.lineStyle(2, COLOR.courseProjection, isReversing ? 0.6 : 0.5);
+  const screenPos = worldToScreen(shipStore.position, camera.value);
   graphics.paths.moveTo(screenPos.x, screenPos.y);
   graphics.paths.lineTo(endScreen.x, endScreen.y);
 
-  const shipSize = Math.max(8, Math.min(24, (getShipTemplate(shipStore.templateId)?.shape.boundingRadius ?? 6) * shipStore.size * camera.value.zoom));
+  // Clear and render ship shape
   graphics.ship.clear();
-  graphics.ship.beginFill(COLOR.ship, 1);
-  graphics.ship.moveTo(screenPos.x, screenPos.y - shipSize);
-  graphics.ship.lineTo(screenPos.x + shipSize * 0.7, screenPos.y + shipSize);
-  graphics.ship.lineTo(screenPos.x - shipSize * 0.7, screenPos.y + shipSize);
-  graphics.ship.closePath();
-  graphics.ship.endFill();
+  const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
+  const cameraPos = { x: cameraCenter.value.x, y: cameraCenter.value.y };
 
-  graphics.ship.lineStyle(2, COLOR.shipHeading, 1);
-  graphics.ship.moveTo(screenPos.x, screenPos.y);
-  graphics.ship.lineTo(screenPos.x + Math.sin((shipStore.heading * Math.PI) / 180) * shipSize * 1.5, screenPos.y - Math.cos((shipStore.heading * Math.PI) / 180) * shipSize * 1.5);
+  renderPixiShapeWithLOD(graphics.ship, {
+    shape: template.shape,
+    position: shipStore.position,
+    rotation: shipStore.heading,
+    scale: shipStore.size,
+    camera: cameraPos,
+    screenCenter,
+    zoom: camera.value.zoom,
+    fillColor: COLOR.ship,
+    strokeColor: COLOR.shipHeading,
+    lineWidth: 1,
+    minSize: 6,
+  });
 }
 
 function renderScene() {
