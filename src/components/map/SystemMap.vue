@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics } from 'pixi.js';
 import { useNavigationStore, useParticleStore, useSensorStore, useShipStore } from '@/stores';
 import { useRendererStore } from '@/stores/rendererStore';
 import { useGameLoop } from '@/core/game-loop';
 import {
-  MAP_COLORS,
   STATION_VISUAL_MULTIPLIER,
   worldToScreen,
   screenToWorld,
@@ -273,7 +272,7 @@ function handleContextMenu(event: MouseEvent) {
 }
 
 function handleResize() {
-  if (!containerRef.value) return;
+  if (!containerRef.value || !rendererReady.value) return;
   canvasWidth.value = containerRef.value.clientWidth;
   canvasHeight.value = containerRef.value.clientHeight;
   pixiRenderer.resize(canvasWidth.value, canvasHeight.value);
@@ -327,9 +326,8 @@ function drawStarfield() {
       const stars = generateStarsForCell(cell.x, cell.y, layerIndex, config);
       for (const star of stars) {
         const screenPos = starToScreen(star, cam, layer.parallaxFactor);
-        graphics.starfield.beginFill(COLOR.star, star.brightness);
-        graphics.starfield.drawCircle(screenPos.x, screenPos.y, star.radius);
-        graphics.starfield.endFill();
+        graphics.starfield.circle(screenPos.x, screenPos.y, star.radius);
+        graphics.starfield.fill({ color: COLOR.star, alpha: star.brightness });
       }
     }
   });
@@ -348,7 +346,6 @@ function drawGrid() {
   if (gridSize * cam.zoom < 20) return;
 
   graphics.grid.clear();
-  graphics.grid.lineStyle(1, COLOR.grid, 1);
 
   for (let x = startX; x <= endX; x += gridSize) {
     const screen = worldToScreen({ x, y: 0 }, cam);
@@ -361,6 +358,8 @@ function drawGrid() {
     graphics.grid.moveTo(0, screen.y);
     graphics.grid.lineTo(canvasWidth.value, screen.y);
   }
+  
+  graphics.grid.stroke({ width: 1, color: COLOR.grid, alpha: 1 });
 }
 
 function drawStar() {
@@ -369,24 +368,23 @@ function drawStar() {
   const screenPos = worldToScreen({ x: 0, y: 0 }, camera.value);
   const screenRadius = star.radius * camera.value.zoom;
 
-  graphics.grid.beginFill(COLOR.star, 0.25);
-  graphics.grid.drawCircle(screenPos.x, screenPos.y, screenRadius * 2);
-  graphics.grid.endFill();
+  graphics.grid.circle(screenPos.x, screenPos.y, screenRadius * 2);
+  graphics.grid.fill({ color: COLOR.star, alpha: 0.25 });
 
-  graphics.grid.beginFill(COLOR.star, 1);
-  graphics.grid.drawCircle(screenPos.x, screenPos.y, screenRadius);
-  graphics.grid.endFill();
+  graphics.grid.circle(screenPos.x, screenPos.y, screenRadius);
+  graphics.grid.fill({ color: COLOR.star, alpha: 1 });
 }
 
 function drawOrbits() {
   graphics.orbits.clear();
-  graphics.orbits.lineStyle(1, COLOR.orbit, 1);
   const center = worldToScreen({ x: 0, y: 0 }, camera.value);
 
   for (const planet of navStore.planets) {
     const screenRadius = planet.orbitRadius * camera.value.zoom;
-    graphics.orbits.drawCircle(center.x, center.y, screenRadius);
+    graphics.orbits.circle(center.x, center.y, screenRadius);
   }
+  
+  graphics.orbits.stroke({ width: 1, color: COLOR.orbit, alpha: 1 });
 }
 
 function drawPlanets() {
@@ -394,14 +392,13 @@ function drawPlanets() {
     const screenPos = worldToScreen(planet.position, camera.value);
     const screenRadius = Math.max(planet.radius * camera.value.zoom, 12);
     const planetGraphic = new Graphics();
-    planetGraphic.beginFill(COLOR.planet, 1);
-    planetGraphic.drawCircle(screenPos.x, screenPos.y, screenRadius);
-    planetGraphic.endFill();
+    planetGraphic.circle(screenPos.x, screenPos.y, screenRadius);
+    planetGraphic.fill({ color: COLOR.planet, alpha: 1 });
     graphics.planets.addChild(planetGraphic);
 
     if (navStore.selectedObjectId === planet.id) {
-      graphics.highlights.lineStyle(2, COLOR.selected, 1);
-      graphics.highlights.drawCircle(screenPos.x, screenPos.y, screenRadius + 6);
+      graphics.highlights.circle(screenPos.x, screenPos.y, screenRadius + 6);
+      graphics.highlights.stroke({ width: 2, color: COLOR.selected, alpha: 1 });
     }
 
 /*
@@ -430,22 +427,21 @@ function drawStations() {
     const screenSize = Math.max(12, Math.min(baseRadius * stationScale * camera.value.zoom, 64));
 
     const dockingRange = station.dockingRange * camera.value.zoom;
-    graphics.highlights.lineStyle(1, COLOR.selected, 0.5);
-    graphics.highlights.drawCircle(screenPos.x, screenPos.y, dockingRange);
+    graphics.highlights.circle(screenPos.x, screenPos.y, dockingRange);
+    graphics.highlights.stroke({ width: 1, color: COLOR.selected, alpha: 0.5 });
 
     const stationGraphic = new Graphics();
-    stationGraphic.beginFill(COLOR.station, 1);
     stationGraphic.moveTo(screenPos.x, screenPos.y - screenSize);
     stationGraphic.lineTo(screenPos.x + screenSize, screenPos.y);
     stationGraphic.lineTo(screenPos.x, screenPos.y + screenSize);
     stationGraphic.lineTo(screenPos.x - screenSize, screenPos.y);
     stationGraphic.closePath();
-    stationGraphic.endFill();
+    stationGraphic.fill({ color: COLOR.station, alpha: 1 });
     graphics.stations.addChild(stationGraphic);
 
     if (navStore.selectedObjectId === station.id) {
-      graphics.highlights.lineStyle(2, COLOR.selected, 1);
-      graphics.highlights.drawCircle(screenPos.x, screenPos.y, screenSize + 8);
+      graphics.highlights.circle(screenPos.x, screenPos.y, screenSize + 8);
+      graphics.highlights.stroke({ width: 2, color: COLOR.selected, alpha: 1 });
     }
 
 /*
@@ -467,7 +463,6 @@ function drawStations() {
 function drawJumpGates() {
   const size = 12;
   graphics.jumpGates.clear();
-  graphics.jumpGates.beginFill(COLOR.jumpGate, 1);
 
   for (const gate of navStore.jumpGates) {
     const screenPos = worldToScreen(gate.position, camera.value);
@@ -481,8 +476,8 @@ function drawJumpGates() {
     graphics.jumpGates.closePath();
 
     if (navStore.selectedObjectId === gate.id) {
-      graphics.highlights.lineStyle(2, COLOR.selected, 1);
-      graphics.highlights.drawCircle(screenPos.x, screenPos.y, size + 8);
+      graphics.highlights.circle(screenPos.x, screenPos.y, size + 8);
+      graphics.highlights.stroke({ width: 2, color: COLOR.selected, alpha: 1 });
     }
 
 /*
@@ -500,7 +495,7 @@ function drawJumpGates() {
     */
   }
 
-  graphics.jumpGates.endFill();
+  graphics.jumpGates.fill({ color: COLOR.jumpGate, alpha: 1 });
 }
 
 function drawWaypointsAndPaths() {
@@ -511,7 +506,6 @@ function drawWaypointsAndPaths() {
   if (waypoints.length > 0) {
     const shipPos = worldToScreen(shipStore.position, camera.value);
     const first = worldToScreen(waypoints[0]!.position, camera.value);
-    graphics.paths.lineStyle(2, COLOR.waypointActive, 0.6);
     graphics.paths.moveTo(shipPos.x, shipPos.y);
     graphics.paths.lineTo(first.x, first.y);
 
@@ -521,6 +515,8 @@ function drawWaypointsAndPaths() {
       graphics.paths.moveTo(from.x, from.y);
       graphics.paths.lineTo(to.x, to.y);
     }
+    
+    graphics.paths.stroke({ width: 2, color: COLOR.waypointActive, alpha: 0.6 });
   }
 
   waypoints.forEach((waypoint, index) => {
@@ -530,10 +526,9 @@ function drawWaypointsAndPaths() {
     const alpha = active ? 0.8 : 0.6;
     const size = 8;
 
-    graphics.waypoints.lineStyle(2, color, alpha);
-    graphics.waypoints.beginFill(color, 0.15);
-    graphics.waypoints.drawRect(screenPos.x - size, screenPos.y - size, size * 2, size * 2);
-    graphics.waypoints.endFill();
+    graphics.waypoints.rect(screenPos.x - size, screenPos.y - size, size * 2, size * 2);
+    graphics.waypoints.fill({ color, alpha: 0.15 });
+    graphics.waypoints.stroke({ width: 2, color, alpha });
 
 /*
     const label = new Text({
@@ -566,10 +561,10 @@ function drawShip() {
   const endScreen = worldToScreen({ x: endX, y: endY }, camera.value);
 
   // Draw course projection
-  graphics.paths.lineStyle(2, COLOR.courseProjection, isReversing ? 0.6 : 0.5);
   const screenPos = worldToScreen(shipStore.position, camera.value);
   graphics.paths.moveTo(screenPos.x, screenPos.y);
   graphics.paths.lineTo(endScreen.x, endScreen.y);
+  graphics.paths.stroke({ width: 2, color: COLOR.courseProjection, alpha: isReversing ? 0.6 : 0.5 });
 
   // Clear and render ship shape
   graphics.ship.clear();
@@ -656,10 +651,13 @@ defineExpose({ centerOnShip, zoom });
 
 onMounted(async () => {
   await initializeRenderer();
-  handleResize();
   window.addEventListener('resize', handleResize);
   loopUnsubscribe = subscribe(renderScene);
   renderScene();
+  // Call handleResize after first render to ensure PixiJS containers are fully initialized
+  requestAnimationFrame(() => {
+    handleResize();
+  });
 });
 
 onUnmounted(() => {

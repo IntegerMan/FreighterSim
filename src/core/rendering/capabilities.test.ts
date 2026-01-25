@@ -128,8 +128,9 @@ describe('Capability Detection', () => {
       expect(meetsMinimumRequirements('WebGL1')).toBe(true);
     });
 
-    it('should return true for Canvas', () => {
-      expect(meetsMinimumRequirements('Canvas')).toBe(true);
+    // Per ADR-0013, Canvas is no longer sufficient - WebGL is required
+    it('should return false for Canvas (WebGL required per ADR-0013)', () => {
+      expect(meetsMinimumRequirements('Canvas')).toBe(false);
     });
 
     it('should return false for None', () => {

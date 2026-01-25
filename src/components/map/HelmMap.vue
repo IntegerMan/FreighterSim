@@ -5,7 +5,6 @@ import { useShipStore, useNavigationStore, useSensorStore, useSettingsStore, use
 import { useRendererStore } from '@/stores/rendererStore';
 import { useGameLoop } from '@/core/game-loop';
 import {
-  MAP_COLORS,
   worldToScreen,
   screenToWorld,
   renderPixiShapeWithLOD,
@@ -22,10 +21,11 @@ import {
   meetsMinimumRequirements,
 } from '@/core/rendering';
 import { createDefaultStarfieldConfig, generateStarsForCell, getVisibleCells, starToScreen } from '@/core/starfield';
-import { isPortNearby, shouldShowColoredLandingLights, computeRunwayCorners } from '@/core/rendering/dockingGuidance';
+import { isPortNearby, computeRunwayCorners } from '@/core/rendering/dockingGuidance';
 import { getShipTemplate, getStationTemplateById, getStationModule } from '@/data/shapes';
 import type { Vector2, Station } from '@/models';
-import { getThreatLevelColor, northUpToCanvasRad } from '@/models';
+import { getThreatLevelColor } from '@/models';
+import { northUpToCanvasArcRad } from '@/core/rendering/radarUtils';
 import type { StarfieldConfig } from '@/models/Starfield';
 
 const containerRef = ref<HTMLDivElement | null>(null);
@@ -318,8 +318,8 @@ function drawRadarOverlay() {
   for (const segment of sensorStore.radarSegments) {
     if (segment.threatLevel === 'none' || !segment.nearestContact) continue;
 
-    const startRad = northUpToCanvasRad(segment.startAngle);
-    const endRad = northUpToCanvasRad(segment.endAngle);
+    const startRad = northUpToCanvasArcRad(segment.startAngle);
+    const endRad = northUpToCanvasArcRad(segment.endAngle);
     const distanceRatio = Math.min(segment.nearestContact.distance / displayRange, 1);
     const segmentRadius = screenRange * distanceRatio;
 
@@ -430,25 +430,47 @@ function drawStations(activePortId: string | null = null) {
         graphics.highlights.drawCircle(screenPos.x, screenPos.y, selectionRadius);
       }
 
-      // Render station shape with LOD
-      const stationGraphic = new Graphics();
-      const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
-      const cameraVec = { x: cameraCenter.value.x, y: cameraCenter.value.y };
+      // Render station modules
+      const stationRotationRad = (stationRotation * Math.PI) / 180;
+      
+      for (const modulePlacement of template.modules) {
+        const module = getStationModule(modulePlacement.moduleType);
+        if (!module?.shape) continue;
 
-      renderPixiShapeWithLOD(stationGraphic, {
-        shape: template.shape,
-        position: station.position,
-        rotation: stationRotation,
-        scale: stationScale,
-        camera: cameraVec,
-        screenCenter,
-        zoom: zoom.value,
-        fillColor: COLOR.station,
-        strokeColor: 0xcc9900,
-        lineWidth: 1,
-        minSize: 8,
-      });
-      graphics.stations.addChild(stationGraphic);
+        const moduleRotationRad = (modulePlacement.rotation * Math.PI) / 180;
+        const totalRotationRad = stationRotationRad + moduleRotationRad;
+        const totalRotationDeg = (totalRotationRad * 180) / Math.PI;
+
+        // Transform module position
+        const modPosRotated = {
+          x: modulePlacement.position.x * Math.cos(stationRotationRad) - modulePlacement.position.y * Math.sin(stationRotationRad),
+          y: modulePlacement.position.x * Math.sin(stationRotationRad) + modulePlacement.position.y * Math.cos(stationRotationRad),
+        };
+
+        const moduleWorldPos = {
+          x: station.position.x + modPosRotated.x * stationScale,
+          y: station.position.y + modPosRotated.y * stationScale,
+        };
+
+        const moduleGraphic = new Graphics();
+        const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
+        const cameraVec = { x: cameraCenter.value.x, y: cameraCenter.value.y };
+
+        renderPixiShapeWithLOD(moduleGraphic, {
+          shape: module.shape,
+          position: moduleWorldPos,
+          rotation: totalRotationDeg,
+          scale: stationScale * (module.scale ?? 1),
+          camera: cameraVec,
+          screenCenter,
+          zoom: zoom.value,
+          fillColor: COLOR.station,
+          strokeColor: 0xcc9900,
+          lineWidth: 1,
+          minSize: 4,
+        });
+        graphics.stations.addChild(moduleGraphic);
+      }
 
       // Docking ports
       const screenSize = (template.boundingRadius ?? 1) * stationScale * zoom.value;
@@ -500,7 +522,7 @@ function drawDockingPorts(station: Station, activePortId: string | null) {
 
     // Runway lights for active port
     if (isActive) {
-      drawRunwayLights(portInfo.worldPosition, portInfo.approachVector, portRange, time);
+      drawRunwayLights(portInfo.worldPosition, portInfo.worldApproachVector, portRange, time);
     }
   }
 }
@@ -820,7 +842,7 @@ function drawShip() {
   }
 }
 
-function drawEngineMounts(engineMounts: Array<{ position: Vector2; direction: number }>) {
+function drawEngineMounts(engineMounts: Array<{ position: Vector2; direction: Vector2 }>) {
   graphics.engineMounts.clear();
   const headingRad = (shipStore.heading * Math.PI) / 180;
 

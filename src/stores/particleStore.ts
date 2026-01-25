@@ -112,7 +112,7 @@ export const useParticleStore = defineStore('particle', () => {
         // We create it without explicitly limiting capacity in constructor
         const pc = new ParticleContainer();
         particleContainer.value = pc;
-        (particleContainer.value as any).name = 'engine-trails';
+        (particleContainer.value as any).label = 'engine-trails';
       } catch (error) {
         console.warn('Unable to initialize PixiJS particle container', error);
         particleContainer.value = null;
@@ -202,12 +202,16 @@ export const useParticleStore = defineStore('particle', () => {
       }
     }
 
-    if (camera) {
-      container.scale.set(camera.zoom, -camera.zoom);
-      container.position.set(
-        camera.canvasWidth / 2 - camera.centerX * camera.zoom,
-        camera.canvasHeight / 2 + camera.centerY * camera.zoom
-      );
+    if (camera && container.scale && (container.scale as any)._onUpdate) {
+      try {
+        container.scale.set(camera.zoom, -camera.zoom);
+        container.position.set(
+          camera.canvasWidth / 2 - camera.centerX * camera.zoom,
+          camera.canvasHeight / 2 + camera.centerY * camera.zoom
+        );
+      } catch (error) {
+        console.warn('ParticleContainer scale update failed - container not ready', error);
+      }
     }
 
     rendererStore.updateMetrics({ particleCount: cells.length });
