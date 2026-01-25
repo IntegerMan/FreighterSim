@@ -22,11 +22,14 @@ import {
 } from '@/core/rendering';
 import { createDefaultStarfieldConfig, generateStarsForCell, getVisibleCells, starToScreen } from '@/core/starfield';
 import { isPortNearby, computeRunwayCorners } from '@/core/rendering/dockingGuidance';
-import { getShipTemplate, getStationTemplateById, getStationModule } from '@/data/shapes';
+import { getShipTemplate, getStationTemplateById, getStationTemplateByType, getStationModule } from '@/data/shapes';
 import type { Vector2, Station } from '@/models';
 import { getThreatLevelColor } from '@/models';
 import { northUpToCanvasArcRad } from '@/core/rendering/radarUtils';
 import type { StarfieldConfig } from '@/models/Starfield';
+
+// Module scale factor: station modules are 12% of station scale
+const MODULE_SCALE_FACTOR = 0.12;
 
 const containerRef = ref<HTMLDivElement | null>(null);
 
@@ -272,9 +275,9 @@ function drawStarfield() {
       const stars = generateStarsForCell(cell.x, cell.y, layerIndex, config);
       for (const star of stars) {
         const screenPos = starToScreen(star, cam, layer.parallaxFactor);
-        graphics.starfield.beginFill(COLOR.star, star.brightness);
-        graphics.starfield.drawCircle(screenPos.x, screenPos.y, star.radius);
-        graphics.starfield.endFill();
+        // PixiJS v8 API
+        graphics.starfield.circle(screenPos.x, screenPos.y, star.radius);
+        graphics.starfield.fill({ color: COLOR.star, alpha: star.brightness });
       }
     }
   });
@@ -293,7 +296,6 @@ function drawGrid() {
   if (gridSize * cam.zoom < 20) return;
 
   graphics.grid.clear();
-  graphics.grid.lineStyle(1, COLOR.grid, 1);
 
   for (let x = startX; x <= endX; x += gridSize) {
     const screen = worldToScreen({ x, y: 0 }, cam);
@@ -306,6 +308,9 @@ function drawGrid() {
     graphics.grid.moveTo(0, screen.y);
     graphics.grid.lineTo(canvasWidth.value, screen.y);
   }
+  
+  // PixiJS v8 API - stroke after all lines are drawn
+  graphics.grid.stroke({ color: COLOR.grid, width: 1, alpha: 1 });
 }
 
 function drawRadarOverlay() {
@@ -324,18 +329,18 @@ function drawRadarOverlay() {
     const segmentRadius = screenRange * distanceRatio;
 
     const colorStr = getThreatLevelColor(segment.threatLevel);
-    const color = parseInt(colorStr.replace('#', ''), 16);
+    const color = Number.parseInt(colorStr.replace('#', ''), 16);
 
-    graphics.radarOverlay.beginFill(color, 0.2);
+    // PixiJS v8 API
     graphics.radarOverlay.moveTo(shipScreenPos.x, shipScreenPos.y);
     graphics.radarOverlay.arc(shipScreenPos.x, shipScreenPos.y, segmentRadius, startRad, endRad);
     graphics.radarOverlay.lineTo(shipScreenPos.x, shipScreenPos.y);
-    graphics.radarOverlay.endFill();
+    graphics.radarOverlay.fill({ color, alpha: 0.2 });
   }
 
-  // Draw faint range circle
-  graphics.radarOverlay.lineStyle(1, COLOR.radarRange, 0.15);
-  graphics.radarOverlay.drawCircle(shipScreenPos.x, shipScreenPos.y, screenRange);
+  // Draw faint range circle (PixiJS v8 API)
+  graphics.radarOverlay.circle(shipScreenPos.x, shipScreenPos.y, screenRange);
+  graphics.radarOverlay.stroke({ color: COLOR.radarRange, width: 1, alpha: 0.15 });
 }
 
 function drawStar() {
@@ -350,22 +355,19 @@ function drawStar() {
   }
 
   graphics.star.clear();
-  const starColor = parseInt(star.color.replace('#', ''), 16);
+  const starColor = Number.parseInt(star.color.replace('#', ''), 16);
 
-  // Glow effect (outer)
-  graphics.star.beginFill(starColor, 0.25);
-  graphics.star.drawCircle(screenPos.x, screenPos.y, screenRadius * 2);
-  graphics.star.endFill();
+  // Glow effect (outer) - PixiJS v8 API
+  graphics.star.circle(screenPos.x, screenPos.y, screenRadius * 2);
+  graphics.star.fill({ color: starColor, alpha: 0.25 });
 
-  // Core
-  graphics.star.beginFill(starColor, 1);
-  graphics.star.drawCircle(screenPos.x, screenPos.y, screenRadius);
-  graphics.star.endFill();
+  // Core - PixiJS v8 API
+  graphics.star.circle(screenPos.x, screenPos.y, screenRadius);
+  graphics.star.fill({ color: starColor, alpha: 1 });
 }
 
 function drawOrbits() {
   graphics.orbits.clear();
-  graphics.orbits.lineStyle(1, COLOR.orbit, 1);
   const center = worldToScreen({ x: 0, y: 0 }, camera.value);
 
   for (const planet of navStore.planets ?? []) {
@@ -373,6 +375,9 @@ function drawOrbits() {
     // Draw dashed orbit using segments
     drawDashedCircle(graphics.orbits, center.x, center.y, screenRadius, 5, 5);
   }
+  
+  // PixiJS v8 API - stroke after all lines drawn
+  graphics.orbits.stroke({ color: COLOR.orbit, width: 1, alpha: 1 });
 }
 
 function drawDashedCircle(g: Graphics, cx: number, cy: number, radius: number, dashLength: number, gapLength: number) {
@@ -396,18 +401,17 @@ function drawPlanets() {
     const screenRadius = Math.max(planet.radius * zoom.value, 12);
     const isSelected = navStore.selectedObjectId === planet.id;
 
-    // Selection highlight
+    // Selection highlight (PixiJS v8 API)
     if (isSelected) {
-      graphics.highlights.lineStyle(2, COLOR.selected, 1);
-      graphics.highlights.drawCircle(screenPos.x, screenPos.y, screenRadius + 6);
+      graphics.highlights.circle(screenPos.x, screenPos.y, screenRadius + 6);
+      graphics.highlights.stroke({ color: COLOR.selected, width: 2, alpha: 1 });
     }
 
-    // Planet body
+    // Planet body (PixiJS v8 API)
     const planetColor = parseInt(planet.color.replace('#', ''), 16);
     const planetGraphic = new Graphics();
-    planetGraphic.beginFill(planetColor, 1);
-    planetGraphic.drawCircle(screenPos.x, screenPos.y, screenRadius);
-    planetGraphic.endFill();
+    planetGraphic.circle(screenPos.x, screenPos.y, screenRadius);
+    planetGraphic.fill({ color: planetColor, alpha: 1 });
     graphics.planets.addChild(planetGraphic);
   }
 }
@@ -417,17 +421,21 @@ function drawStations(activePortId: string | null = null) {
     const screenPos = worldToScreen(station.position, camera.value);
     const isSelected = navStore.selectedObjectId === station.id;
 
+    // Resolve station template by explicit id first, then by type as fallback
     const templateId = station.templateId ?? station.type;
-    const template = getStationTemplateById(templateId);
+    let template = getStationTemplateById(templateId);
+    if (!template && station.type) {
+      template = getStationTemplateById(station.type) ?? getStationTemplateByType(station.type);
+    }
     const stationScale = station.dockingRange * STATION_VISUAL_MULTIPLIER;
     const stationRotation = station.rotation ?? 0;
 
     if (template) {
-      // Selection highlight
+      // Selection highlight (PixiJS v8 API)
       if (isSelected) {
         const selectionRadius = (template.boundingRadius ?? 1) * stationScale * zoom.value + 6;
-        graphics.highlights.lineStyle(2, COLOR.selected, 1);
-        graphics.highlights.drawCircle(screenPos.x, screenPos.y, selectionRadius);
+        graphics.highlights.circle(screenPos.x, screenPos.y, selectionRadius);
+        graphics.highlights.stroke({ color: COLOR.selected, width: 2, alpha: 1 });
       }
 
       // Render station modules
@@ -460,7 +468,8 @@ function drawStations(activePortId: string | null = null) {
           shape: module.shape,
           position: moduleWorldPos,
           rotation: totalRotationDeg,
-          scale: stationScale * (module.scale ?? 1),
+          // Apply module scale factor: modules are 12% of station scale
+          scale: stationScale * MODULE_SCALE_FACTOR,
           camera: cameraVec,
           screenCenter,
           zoom: zoom.value,
@@ -478,22 +487,21 @@ function drawStations(activePortId: string | null = null) {
         drawDockingPorts(station, activePortId);
       }
     } else {
-      // Fallback diamond
+      // Fallback diamond (PixiJS v8 API)
       const size = 10;
 
       if (isSelected) {
-        graphics.highlights.lineStyle(2, COLOR.selected, 1);
-        graphics.highlights.drawCircle(screenPos.x, screenPos.y, size + 8);
+        graphics.highlights.circle(screenPos.x, screenPos.y, size + 8);
+        graphics.highlights.stroke({ color: COLOR.selected, width: 2, alpha: 1 });
       }
 
       const stationGraphic = new Graphics();
-      stationGraphic.beginFill(COLOR.station, 1);
       stationGraphic.moveTo(screenPos.x, screenPos.y - size);
       stationGraphic.lineTo(screenPos.x + size, screenPos.y);
       stationGraphic.lineTo(screenPos.x, screenPos.y + size);
       stationGraphic.lineTo(screenPos.x - size, screenPos.y);
       stationGraphic.closePath();
-      stationGraphic.endFill();
+      stationGraphic.fill({ color: COLOR.station, alpha: 1 });
       graphics.stations.addChild(stationGraphic);
     }
   }
@@ -510,15 +518,21 @@ function drawDockingPorts(station: Station, activePortId: string | null) {
     const screenRange = visualRange * zoom.value;
     const isActive = portInfo.port.id === activePortId;
 
-    // Port circle
-    graphics.dockingGuidance.lineStyle(1, isActive ? COLOR.dockingPort : COLOR.dockingPortUnavailable, 0.5);
-    graphics.dockingGuidance.drawCircle(portScreenPos.x, portScreenPos.y, screenRange);
+    // Port circle (PixiJS v8 API)
+    graphics.dockingGuidance.circle(portScreenPos.x, portScreenPos.y, screenRange);
+    graphics.dockingGuidance.stroke({
+      color: isActive ? COLOR.dockingPort : COLOR.dockingPortUnavailable,
+      width: 1,
+      alpha: 0.5,
+    });
 
-    // Port marker
+    // Port marker (PixiJS v8 API)
     const markerSize = isActive ? 6 : 4;
-    graphics.dockingGuidance.beginFill(isActive ? COLOR.dockingPort : COLOR.dockingPortRange, 1);
-    graphics.dockingGuidance.drawCircle(portScreenPos.x, portScreenPos.y, markerSize);
-    graphics.dockingGuidance.endFill();
+    graphics.dockingGuidance.circle(portScreenPos.x, portScreenPos.y, markerSize);
+    graphics.dockingGuidance.fill({
+      color: isActive ? COLOR.dockingPort : COLOR.dockingPortRange,
+      alpha: 1,
+    });
 
     // Runway lights for active port
     if (isActive) {
@@ -555,11 +569,11 @@ function drawRunwayLights(portWorldPos: Vector2, approachVector: Vector2, portRa
     };
     const rightScreen = worldToScreen(rightWorld, camera.value);
 
+    // PixiJS v8 API - draw both lights with fill
     const lightColor = i <= 2 ? 0x00ff00 : (i <= 4 ? 0xffff00 : 0xff0000);
-    graphics.dockingGuidance.beginFill(lightColor, alpha);
-    graphics.dockingGuidance.drawCircle(leftScreen.x, leftScreen.y, 3);
-    graphics.dockingGuidance.drawCircle(rightScreen.x, rightScreen.y, 3);
-    graphics.dockingGuidance.endFill();
+    graphics.dockingGuidance.circle(leftScreen.x, leftScreen.y, 3);
+    graphics.dockingGuidance.circle(rightScreen.x, rightScreen.y, 3);
+    graphics.dockingGuidance.fill({ color: lightColor, alpha });
   }
 }
 
@@ -618,11 +632,15 @@ function drawDockingApproachGuidance() {
   const approachMagnitude = Math.hypot(worldApproachVector.x, worldApproachVector.y);
   if (approachMagnitude < 0.001) return;
 
-  // Docking range circle
+  // Docking range circle (PixiJS v8 API)
   const visualRange = getVisualDockingRange(portRange);
   const screenRange = visualRange * zoom.value;
-  graphics.dockingGuidance.lineStyle(2, dockingStatus.inRange ? COLOR.dockingPort : COLOR.dockingPortUnavailable, 1);
   drawDashedCircle(graphics.dockingGuidance, portScreenPos.x, portScreenPos.y, screenRange, 5, 5);
+  graphics.dockingGuidance.stroke({
+    color: dockingStatus.inRange ? COLOR.dockingPort : COLOR.dockingPortUnavailable,
+    width: 2,
+    alpha: 1,
+  });
 
   // Runway bounding box
   const runwayLength = portRange * 10;
@@ -634,39 +652,40 @@ function drawDockingApproachGuidance() {
   const p3s = worldToScreen(corners.p3, camera.value);
   const p4s = worldToScreen(corners.p4, camera.value);
 
-  // Fill runway rectangle
+  // Fill runway rectangle (PixiJS v8 API)
   const fillAlpha = dockingStatus.nearLights ? 0.12 : 0.04;
-  graphics.dockingGuidance.beginFill(COLOR.dockingPort, fillAlpha);
   graphics.dockingGuidance.moveTo(p1s.x, p1s.y);
   graphics.dockingGuidance.lineTo(p2s.x, p2s.y);
   graphics.dockingGuidance.lineTo(p3s.x, p3s.y);
   graphics.dockingGuidance.lineTo(p4s.x, p4s.y);
   graphics.dockingGuidance.closePath();
-  graphics.dockingGuidance.endFill();
+  graphics.dockingGuidance.fill({ color: COLOR.dockingPort, alpha: fillAlpha });
 
-  // Stroke runway
+  // Stroke runway (PixiJS v8 API)
   const strokeAlpha = dockingStatus.nearLights ? 0.6 : 0.25;
   const strokeWidth = dockingStatus.nearLights ? 2 : 1;
-  graphics.dockingGuidance.lineStyle(strokeWidth, COLOR.dockingPort, strokeAlpha);
   graphics.dockingGuidance.moveTo(p1s.x, p1s.y);
   graphics.dockingGuidance.lineTo(p2s.x, p2s.y);
   graphics.dockingGuidance.lineTo(p3s.x, p3s.y);
   graphics.dockingGuidance.lineTo(p4s.x, p4s.y);
   graphics.dockingGuidance.closePath();
+  graphics.dockingGuidance.stroke({ color: COLOR.dockingPort, width: strokeWidth, alpha: strokeAlpha });
 
-  // Center approach line (dashed)
+  // Center approach line (dashed) (PixiJS v8 API)
   const guideLineLength = runwayLength * zoom.value;
   const approachStartX = portScreenPos.x + worldApproachVector.x * guideLineLength;
   const approachStartY = portScreenPos.y - worldApproachVector.y * guideLineLength;
 
-  graphics.dockingGuidance.lineStyle(1, 0x00ff80, 0.3);
   drawDashedLine(graphics.dockingGuidance, approachStartX, approachStartY, portScreenPos.x, portScreenPos.y, 5, 10);
+  graphics.dockingGuidance.stroke({ color: 0x00ff80, width: 1, alpha: 0.3 });
 
-  // Port marker
+  // Port marker (PixiJS v8 API)
   const portMarkerSize = dockingStatus.inRange ? 10 : 6;
-  graphics.dockingGuidance.beginFill(dockingStatus.inRange ? COLOR.dockingPort : COLOR.dockingPortRange, 1);
-  graphics.dockingGuidance.drawCircle(portScreenPos.x, portScreenPos.y, portMarkerSize);
-  graphics.dockingGuidance.endFill();
+  graphics.dockingGuidance.circle(portScreenPos.x, portScreenPos.y, portMarkerSize);
+  graphics.dockingGuidance.fill({
+    color: dockingStatus.inRange ? COLOR.dockingPort : COLOR.dockingPortRange,
+    alpha: 1,
+  });
 }
 
 function drawDashedLine(g: Graphics, x1: number, y1: number, x2: number, y2: number, dashLength: number, gapLength: number) {
@@ -689,7 +708,6 @@ function drawDashedLine(g: Graphics, x1: number, y1: number, x2: number, y2: num
 function drawJumpGates() {
   const size = 12;
   graphics.jumpGates.clear();
-  graphics.jumpGates.beginFill(COLOR.jumpGate, 1);
 
   for (const gate of navStore.jumpGates ?? []) {
     const screenPos = worldToScreen(gate.position, camera.value);
@@ -705,12 +723,14 @@ function drawJumpGates() {
     graphics.jumpGates.closePath();
 
     if (navStore.selectedObjectId === gate.id) {
-      graphics.highlights.lineStyle(2, COLOR.selected, 1);
-      graphics.highlights.drawCircle(screenPos.x, screenPos.y, size + 8);
+      // PixiJS v8 API
+      graphics.highlights.circle(screenPos.x, screenPos.y, size + 8);
+      graphics.highlights.stroke({ color: COLOR.selected, width: 2, alpha: 1 });
     }
   }
 
-  graphics.jumpGates.endFill();
+  // PixiJS v8 API - fill after all shapes drawn
+  graphics.jumpGates.fill({ color: COLOR.jumpGate, alpha: 1 });
 }
 
 function drawCourseProjection() {
@@ -726,9 +746,10 @@ function drawCourseProjection() {
 
   const color = isReversing ? COLOR.courseProjectionReverse : COLOR.courseProjection;
   graphics.courseProjection.clear();
-  graphics.courseProjection.lineStyle(2, color, isReversing ? 0.6 : 0.5);
   graphics.courseProjection.moveTo(shipScreenPos.x, shipScreenPos.y);
   graphics.courseProjection.lineTo(endScreen.x, endScreen.y);
+  // PixiJS v8 API
+  graphics.courseProjection.stroke({ color, width: 2, alpha: isReversing ? 0.6 : 0.5 });
 }
 
 function drawWaypointsAndPaths() {
@@ -739,7 +760,6 @@ function drawWaypointsAndPaths() {
   if (waypoints.length > 0) {
     const shipPos = worldToScreen(shipStore.position, camera.value);
     const first = worldToScreen(waypoints[0]!.position, camera.value);
-    graphics.paths.lineStyle(2, COLOR.waypointActive, 0.6);
     graphics.paths.moveTo(shipPos.x, shipPos.y);
     graphics.paths.lineTo(first.x, first.y);
 
@@ -749,6 +769,9 @@ function drawWaypointsAndPaths() {
       graphics.paths.moveTo(from.x, from.y);
       graphics.paths.lineTo(to.x, to.y);
     }
+    
+    // PixiJS v8 API
+    graphics.paths.stroke({ color: COLOR.waypointActive, width: 2, alpha: 0.6 });
   }
 
   waypoints.forEach((waypoint, index) => {
@@ -758,10 +781,10 @@ function drawWaypointsAndPaths() {
     const alpha = active ? 0.8 : 0.6;
     const size = 8;
 
-    graphics.waypoints.lineStyle(2, color, alpha);
-    graphics.waypoints.beginFill(color, 0.15);
-    graphics.waypoints.drawRect(screenPos.x - size, screenPos.y - size, size * 2, size * 2);
-    graphics.waypoints.endFill();
+    // PixiJS v8 API
+    graphics.waypoints.rect(screenPos.x - size, screenPos.y - size, size * 2, size * 2);
+    graphics.waypoints.fill({ color, alpha: 0.15 });
+    graphics.waypoints.stroke({ color, width: 2, alpha });
   });
 }
 
@@ -790,28 +813,27 @@ function drawTractorBeam() {
 
   graphics.tractorBeam.clear();
 
-  // Outer glow
-  graphics.tractorBeam.lineStyle(12, COLOR.tractorBeamOuter, 0.2 + pulsePhase * 0.1);
+  // Outer glow (PixiJS v8 API)
   graphics.tractorBeam.moveTo(portScreenPos.x, portScreenPos.y);
   graphics.tractorBeam.lineTo(shipScreenPos.x, shipScreenPos.y);
+  graphics.tractorBeam.stroke({ color: COLOR.tractorBeamOuter, width: 12, alpha: 0.2 + pulsePhase * 0.1 });
 
-  // Middle beam
-  graphics.tractorBeam.lineStyle(6, COLOR.tractorBeamMiddle, 0.4 + pulsePhase * 0.2);
+  // Middle beam (PixiJS v8 API)
   graphics.tractorBeam.moveTo(portScreenPos.x, portScreenPos.y);
   graphics.tractorBeam.lineTo(shipScreenPos.x, shipScreenPos.y);
+  graphics.tractorBeam.stroke({ color: COLOR.tractorBeamMiddle, width: 6, alpha: 0.4 + pulsePhase * 0.2 });
 
-  // Core beam (animated dashes)
-  graphics.tractorBeam.lineStyle(2, COLOR.tractorBeamCore, 0.8 + pulsePhase * 0.2);
+  // Core beam (animated dashes) (PixiJS v8 API)
   drawDashedLine(graphics.tractorBeam, portScreenPos.x, portScreenPos.y, shipScreenPos.x, shipScreenPos.y, 10, 15);
+  graphics.tractorBeam.stroke({ color: COLOR.tractorBeamCore, width: 2, alpha: 0.8 + pulsePhase * 0.2 });
 
-  // Target indicator
-  graphics.tractorBeam.lineStyle(2, COLOR.tractorBeamTarget, 0.6 + pulsePhase * 0.2);
+  // Target indicator (PixiJS v8 API)
   drawDashedCircle(graphics.tractorBeam, targetScreenPos.x, targetScreenPos.y, 15 + pulsePhase * 3, 4, 4);
+  graphics.tractorBeam.stroke({ color: COLOR.tractorBeamTarget, width: 2, alpha: 0.6 + pulsePhase * 0.2 });
 
-  // Inner target dot
-  graphics.tractorBeam.beginFill(COLOR.tractorBeamTarget, 0.8 + pulsePhase * 0.2);
-  graphics.tractorBeam.drawCircle(targetScreenPos.x, targetScreenPos.y, 4);
-  graphics.tractorBeam.endFill();
+  // Inner target dot (PixiJS v8 API)
+  graphics.tractorBeam.circle(targetScreenPos.x, targetScreenPos.y, 4);
+  graphics.tractorBeam.fill({ color: COLOR.tractorBeamTarget, alpha: 0.8 + pulsePhase * 0.2 });
 }
 
 function drawShip() {
@@ -856,9 +878,9 @@ function drawEngineMounts(engineMounts: Array<{ position: Vector2; direction: Ve
 
     const mountScreenSize = 3 * zoom.value;
     if (mountScreenSize > 2) {
-      graphics.engineMounts.beginFill(0xff6600, 1);
-      graphics.engineMounts.drawCircle(screenPos.x, screenPos.y, Math.max(2, mountScreenSize));
-      graphics.engineMounts.endFill();
+      // PixiJS v8 API
+      graphics.engineMounts.circle(screenPos.x, screenPos.y, Math.max(2, mountScreenSize));
+      graphics.engineMounts.fill({ color: 0xff6600, alpha: 1 });
     }
   }
 }
@@ -876,8 +898,13 @@ function drawCollisionWarnings() {
   const pulseAlpha = 0.3 + pulseIntensity * Math.sin(pulsePhase * Math.PI * 2);
 
   graphics.collisionWarnings.clear();
-  graphics.collisionWarnings.lineStyle(warningLevel === 'danger' ? 3 : 2, ringColor, pulseAlpha);
-  graphics.collisionWarnings.drawCircle(shipScreenPos.x, shipScreenPos.y, ringRadius);
+  // PixiJS v8 API
+  graphics.collisionWarnings.circle(shipScreenPos.x, shipScreenPos.y, ringRadius);
+  graphics.collisionWarnings.stroke({
+    color: ringColor,
+    width: warningLevel === 'danger' ? 3 : 2,
+    alpha: pulseAlpha,
+  });
 
   // Contact points for danger level
   for (const warning of collision.warnings.value) {
@@ -891,12 +918,12 @@ function drawCollisionContactPoint(contactPoint: Vector2, normal?: Vector2) {
   const screenPos = worldToScreen(contactPoint, camera.value);
   const size = 6;
 
-  // X marker
-  graphics.collisionWarnings.lineStyle(2, COLLISION_COLORS.danger, 1);
+  // X marker (PixiJS v8 API)
   graphics.collisionWarnings.moveTo(screenPos.x - size, screenPos.y - size);
   graphics.collisionWarnings.lineTo(screenPos.x + size, screenPos.y + size);
   graphics.collisionWarnings.moveTo(screenPos.x + size, screenPos.y - size);
   graphics.collisionWarnings.lineTo(screenPos.x - size, screenPos.y + size);
+  graphics.collisionWarnings.stroke({ color: COLLISION_COLORS.danger, width: 2, alpha: 1 });
 
   // Normal arrow
   if (normal) {
@@ -906,7 +933,7 @@ function drawCollisionContactPoint(contactPoint: Vector2, normal?: Vector2) {
       y: screenPos.y - normal.y * arrowLength,
     };
 
-    graphics.collisionWarnings.lineStyle(1, COLLISION_COLORS.warning, 1);
+    // PixiJS v8 API
     graphics.collisionWarnings.moveTo(screenPos.x, screenPos.y);
     graphics.collisionWarnings.lineTo(endPos.x, endPos.y);
 
@@ -923,6 +950,7 @@ function drawCollisionContactPoint(contactPoint: Vector2, normal?: Vector2) {
       endPos.x - headSize * Math.cos(angle + Math.PI / 6),
       endPos.y - headSize * Math.sin(angle + Math.PI / 6)
     );
+    graphics.collisionWarnings.stroke({ color: COLLISION_COLORS.warning, width: 1, alpha: 1 });
   }
 }
 

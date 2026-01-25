@@ -23,9 +23,12 @@ import {
   getVisibleCells,
   starToScreen,
 } from '@/core/starfield';
-import { getShipTemplate, getStationTemplateById, calculateStationBoundingRadius } from '@/data/shapes';
+import { getShipTemplate, getStationTemplateById, getStationTemplateByType, getStationModule, calculateStationBoundingRadius } from '@/data/shapes';
 import type { Vector2, Station } from '@/models';
 import type { StarfieldConfig } from '@/models/Starfield';
+
+// Module scale factor: station modules are 12% of station scale
+const MODULE_SCALE_FACTOR = 0.12;
 
 const shipStore = useShipStore();
 const navStore = useNavigationStore();
@@ -324,10 +327,18 @@ function drawStarfield() {
     const cells = getVisibleCells(cam, config.cellSize, layer.parallaxFactor);
     for (const cell of cells) {
       const stars = generateStarsForCell(cell.x, cell.y, layerIndex, config);
-      for (const star of stars) {
+      // Simple zoom-based thinning so far zooms aren’t overdrawn
+      const renderEvery = cam.zoom < 0.3 ? 4 : cam.zoom < 0.5 ? 2 : 1;
+      for (let idx = 0; idx < stars.length; idx++) {
+        if (idx % renderEvery !== 0) continue;
+        const star = stars[idx];
         const screenPos = starToScreen(star, cam, layer.parallaxFactor);
+        // Add slight color variety across layers
+        const palette = [0xffe7a3, 0xfff7e1, 0xdfe7ff];
+        const paletteColor = palette[(Math.abs(Math.floor(star.radius * 997 + layerIndex)) % palette.length)];
+        const alpha = Math.min(1, star.brightness * (cam.zoom < 0.5 ? cam.zoom * 2 : 1));
         graphics.starfield.circle(screenPos.x, screenPos.y, star.radius);
-        graphics.starfield.fill({ color: COLOR.star, alpha: star.brightness });
+        graphics.starfield.fill({ color: paletteColor, alpha });
       }
     }
   });
@@ -421,42 +432,77 @@ function drawStations() {
   for (const station of navStore.stations) {
     const screenPos = worldToScreen(station.position, camera.value);
     const templateId = station.templateId ?? station.type;
-    const template = getStationTemplateById(templateId);
+    let template = getStationTemplateById(templateId);
+    if (!template && station.type) {
+      template = getStationTemplateById(station.type) ?? getStationTemplateByType(station.type);
+    }
+
     const baseRadius = template ? (template.boundingRadius ?? calculateStationBoundingRadius(template.modules)) : 10;
     const stationScale = station.dockingRange * STATION_VISUAL_MULTIPLIER;
     const screenSize = Math.max(12, Math.min(baseRadius * stationScale * camera.value.zoom, 64));
 
+    // Docking range ring
     const dockingRange = station.dockingRange * camera.value.zoom;
     graphics.highlights.circle(screenPos.x, screenPos.y, dockingRange);
     graphics.highlights.stroke({ width: 1, color: COLOR.selected, alpha: 0.5 });
 
-    const stationGraphic = new Graphics();
-    stationGraphic.moveTo(screenPos.x, screenPos.y - screenSize);
-    stationGraphic.lineTo(screenPos.x + screenSize, screenPos.y);
-    stationGraphic.lineTo(screenPos.x, screenPos.y + screenSize);
-    stationGraphic.lineTo(screenPos.x - screenSize, screenPos.y);
-    stationGraphic.closePath();
-    stationGraphic.fill({ color: COLOR.station, alpha: 1 });
-    graphics.stations.addChild(stationGraphic);
+    if (template) {
+      const stationRotationRad = ((station.rotation ?? 0) * Math.PI) / 180;
 
-    if (navStore.selectedObjectId === station.id) {
-      graphics.highlights.circle(screenPos.x, screenPos.y, screenSize + 8);
-      graphics.highlights.stroke({ width: 2, color: COLOR.selected, alpha: 1 });
+      for (const modulePlacement of template.modules) {
+        const module = getStationModule(modulePlacement.moduleType);
+        if (!module?.shape) continue;
+
+        const moduleRotationRad = (modulePlacement.rotation * Math.PI) / 180;
+        const totalRotationRad = stationRotationRad + moduleRotationRad;
+        const totalRotationDeg = (totalRotationRad * 180) / Math.PI;
+
+        // Rotate module local position by station rotation
+        const modPosRotated = {
+          x: modulePlacement.position.x * Math.cos(stationRotationRad) - modulePlacement.position.y * Math.sin(stationRotationRad),
+          y: modulePlacement.position.x * Math.sin(stationRotationRad) + modulePlacement.position.y * Math.cos(stationRotationRad),
+        };
+
+        const moduleWorldPos = {
+          x: station.position.x + modPosRotated.x * stationScale,
+          y: station.position.y + modPosRotated.y * stationScale,
+        };
+
+        const moduleGraphic = new Graphics();
+        const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
+        const cameraVec = { x: cameraCenter.value.x, y: cameraCenter.value.y };
+
+        renderPixiShapeWithLOD(moduleGraphic, {
+          shape: module.shape,
+          position: moduleWorldPos,
+          rotation: totalRotationDeg,
+          scale: stationScale * MODULE_SCALE_FACTOR,
+          camera: cameraVec,
+          screenCenter,
+          zoom: zoom.value,
+          fillColor: COLOR.station,
+          strokeColor: 0xcc9900,
+          lineWidth: 1,
+          minSize: 4,
+        });
+        graphics.stations.addChild(moduleGraphic);
+      }
+
+      if (navStore.selectedObjectId === station.id) {
+        graphics.highlights.circle(screenPos.x, screenPos.y, screenSize + 8);
+        graphics.highlights.stroke({ width: 2, color: COLOR.selected, alpha: 1 });
+      }
+    } else {
+      // Fallback diamond if template missing
+      const stationGraphic = new Graphics();
+      stationGraphic.moveTo(screenPos.x, screenPos.y - screenSize);
+      stationGraphic.lineTo(screenPos.x + screenSize, screenPos.y);
+      stationGraphic.lineTo(screenPos.x, screenPos.y + screenSize);
+      stationGraphic.lineTo(screenPos.x - screenSize, screenPos.y);
+      stationGraphic.closePath();
+      stationGraphic.fill({ color: COLOR.station, alpha: 1 });
+      graphics.stations.addChild(stationGraphic);
     }
-
-/*
-    const label = new Text({
-      text: station.name,
-      style: {
-        fill: MAP_COLORS.station,
-        fontSize: 11,
-        fontFamily: 'Share Tech Mono, monospace',
-      },
-    });
-    label.anchor.set(0.5, 0);
-    label.position.set(screenPos.x, screenPos.y + screenSize + 6);
-    graphics.labels.addChild(label);
-    */
   }
 }
 
