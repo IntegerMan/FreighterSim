@@ -1,16 +1,36 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
 import { useGameStore, useShipStore, useNavigationStore, useSensorStore, useParticleStore, usePlayerShipEngines } from '@/stores';
+import { useRendererStore } from '@/stores/rendererStore';
 import { useGameLoop } from '@/core/game-loop';
 import { KESTREL_REACH, KESTREL_REACH_SPAWN } from '@/data';
 import { LcarsTabBar } from '@/components/ui';
+import { PerformanceMonitor, ThrottlingController, DEFAULT_THROTTLING_CONFIG } from '@/core/rendering';
 
 const gameStore = useGameStore();
 const shipStore = useShipStore();
 const navStore = useNavigationStore();
 const sensorStore = useSensorStore();
 const particleStore = useParticleStore();
+const rendererStore = useRendererStore();
 const { start, stop, subscribe } = useGameLoop();
+
+const performanceMonitor = new PerformanceMonitor((rendererStore.performanceProfile as any).value.fpsAvgWindowSec);
+const throttlingController = new ThrottlingController((rendererStore.performanceProfile as any).value, DEFAULT_THROTTLING_CONFIG);
+throttlingController.start();
+
+function mapThrottlingState(state: string): 'none' | 'particles' | 'effects' | 'resolution' {
+  switch (state) {
+    case 'throttling-particles':
+      return 'particles';
+    case 'throttling-effects':
+      return 'effects';
+    case 'throttling-resolution':
+      return 'resolution';
+    default:
+      return 'none';
+  }
+}
 
 onMounted(() => {
   // Initialize game state (shared across all station views)
@@ -26,6 +46,7 @@ onMounted(() => {
 
   // Subscribe stores to game loop
   const unsubscribe = subscribe((gameTime) => {
+    performanceMonitor.recordFrame();
     gameStore.update(gameTime);
     
     // Apply autopilot steering if enabled
@@ -41,6 +62,22 @@ onMounted(() => {
     navStore.update(gameTime);
     sensorStore.update(gameTime);
     particleStore.update(gameTime);
+
+    const snapshot = performanceMonitor.getSnapshot();
+    throttlingController.update(snapshot);
+
+    rendererStore.updateMetrics({
+      fps: snapshot.fps,
+      avgFps: snapshot.avgFps,
+      frameTimeP95Ms: snapshot.frameTimeP95Ms,
+      memoryMB: snapshot.memoryMB ?? (rendererStore.metrics as any).value.memoryMB,
+      particleCount: particleStore.activeCellCount.value as number,
+      effectsIntensity: throttlingController.getEffectsIntensity(),
+    });
+
+    rendererStore.setThrottlingStage(mapThrottlingState(throttlingController.getState()));
+    particleStore.setThrottlingFactor(throttlingController.getParticleReductionFactor());
+    particleStore.setParticleBudget(throttlingController.getMaxParticleCount());
   });
 
   // Start the game loop

@@ -13,6 +13,8 @@ export type ThrottlingStage = 'none' | 'particles' | 'effects' | 'resolution';
 export interface PerformanceMetrics {
   /** Current frames per second */
   fps: number;
+  /** Average frames per second over window */
+  avgFps: number;
   
   /** 95th percentile frame time in milliseconds */
   frameTimeP95Ms: number;
@@ -41,6 +43,7 @@ export const useRendererStore = defineStore('renderer', () => {
   // Performance metrics
   const metrics = ref<PerformanceMetrics>({
     fps: 0,
+    avgFps: 0,
     frameTimeP95Ms: 0,
     memoryMB: 0,
     particleCount: 0,

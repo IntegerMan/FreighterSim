@@ -1,9 +1,19 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { computed, ref } from 'vue';
+import { Container, ParticleContainer, Sprite, Texture } from 'pixi.js';
 import type { GameTime } from '@/core/game-loop';
-import type { Vector2, ParticleGrid, ParticleCell, ParticleGridConfig, ParticleEmitter, EngineMount } from '@/models';
-import { DEFAULT_PARTICLE_CONFIG, createCellKey, parseCellKey, worldToGridCoord } from '@/models';
+import type { CameraState } from '@/core/rendering';
+import type {
+  EngineMount,
+  ParticleCell,
+  ParticleEmitter,
+  ParticleGrid,
+  ParticleGridConfig,
+  Vector2,
+} from '@/models';
+import { DEFAULT_PARTICLE_CONFIG, createCellKey, gridToWorldCoord, parseCellKey, worldToGridCoord } from '@/models';
 import { rotatePoint, vec2Add, vec2Scale } from '@/core/physics/vectorMath';
+import { useRendererStore } from './rendererStore';
 
 /**
  * Ship engine registration data for multi-engine particle emission
@@ -48,6 +58,17 @@ export const useParticleStore = defineStore('particle', () => {
   // Configuration
   const config = ref<ParticleGridConfig>({ ...DEFAULT_PARTICLE_CONFIG });
 
+  // Renderer integration
+  const rendererStore = useRendererStore();
+  const particleBudget = ref<number>((rendererStore.performanceProfile as any).value.particleCap);
+  const throttlingFactor = ref<number>(1);
+
+  // PixiJS rendering
+  const particleContainer = ref<any>(null);
+  const activeSprites = new Map<string, Sprite>();
+  const spritePool: Sprite[] = [];
+  const particleTexture = Texture.WHITE;
+
   // Particle grid (sparse Map for efficiency)
   const grid = ref<ParticleGrid>(new Map());
 
@@ -69,7 +90,135 @@ export const useParticleStore = defineStore('particle', () => {
   });
 
   // Computed: total active cell count
-  const activeCellCount = computed(() => grid.value.size);
+  const activeCellCount = computed(() => activeCells.value.length);
+
+  /**
+   * Get the current particle budget after applying throttling factor.
+   */
+  function getParticleLimit(): number {
+    const baseCap = Math.min(particleBudget.value, (rendererStore.performanceProfile as any).value.particleCap);
+    return Math.max(0, Math.floor(baseCap * throttlingFactor.value));
+  }
+
+  /**
+   * Ensure the Pixi ParticleContainer exists.
+   */
+  function ensureParticleContainer(maxParticles?: number): Container | null {
+    if (typeof window === 'undefined') return null;
+
+    if (!particleContainer.value) {
+      try {
+        const capacity = maxParticles ?? getParticleLimit();
+        const pc = new ParticleContainer({
+          capacity,
+          properties: {
+            position: true,
+            scale: true,
+            alpha: true,
+            tint: true,
+          },
+        });
+        particleContainer.value = pc;
+        (particleContainer.value as any).name = 'engine-trails';
+      } catch (error) {
+        console.warn('Unable to initialize PixiJS particle container', error);
+        particleContainer.value = null;
+      }
+    }
+
+    return particleContainer.value;
+  }
+
+  /**
+   * Attach particle container to a Pixi layer for rendering.
+   */
+  function attachToLayer(layer?: Container | null, maxParticles?: number): Container | null {
+    const container = ensureParticleContainer(maxParticles);
+    if (container && layer && !layer.children.includes(container as any)) {
+      layer.addChild(container as any);
+    }
+    return container;
+  }
+
+  /**
+   * Update the allowed particle budget (applies throttling cap).
+   */
+  function setParticleBudget(cap: number): void {
+    const safeCap = Math.max(0, Math.floor(cap));
+    particleBudget.value = safeCap;
+  }
+
+  /**
+   * Apply throttling factor from controller (0-1).
+   */
+  function setThrottlingFactor(factor: number): void {
+    throttlingFactor.value = Math.min(1, Math.max(0, factor));
+  }
+
+  function recycleAllSprites(): void {
+    const container = particleContainer.value;
+    for (const sprite of activeSprites.values()) {
+      container?.removeChild(sprite);
+      spritePool.push(sprite);
+    }
+    activeSprites.clear();
+  }
+
+  /**
+   * Synchronize Pixi particle sprites with active grid cells.
+   */
+  function syncPixiParticles(camera?: CameraState): void {
+    const container = particleContainer.value;
+    if (!container) return;
+
+    const limit = getParticleLimit();
+    const cells = [...activeCells.value]
+      .sort((a, b) => b.density - a.density)
+      .slice(0, limit);
+
+    const usedKeys = new Set<string>();
+
+    for (const cell of cells) {
+      const key = createCellKey(cell.x, cell.y);
+      let sprite = activeSprites.get(key);
+
+      if (!sprite) {
+        sprite = spritePool.pop() ?? Sprite.from(particleTexture);
+        sprite.anchor.set(0.5);
+        activeSprites.set(key, sprite);
+        container.addChild(sprite);
+      }
+
+      const worldPos = gridToWorldCoord(cell.x, cell.y, config.value.cellSize);
+      sprite.position.set(worldPos.x, worldPos.y);
+
+      const normalized = Math.min(cell.density / config.value.maxDensity, 1);
+      const baseScale = camera ? Math.max(0.3, camera.zoom * 0.4) : 0.6;
+      sprite.alpha = 0.25 + normalized * 0.6;
+      sprite.scale.set(baseScale + normalized * 0.4);
+      sprite.tint = 0x9966ff;
+
+      usedKeys.add(key);
+    }
+
+    for (const [key, sprite] of activeSprites.entries()) {
+      if (!usedKeys.has(key)) {
+        container.removeChild(sprite);
+        spritePool.push(sprite);
+        activeSprites.delete(key);
+      }
+    }
+
+    if (camera) {
+      container.scale.set(camera.zoom, -camera.zoom);
+      container.position.set(
+        camera.canvasWidth / 2 - camera.centerX * camera.zoom,
+        camera.canvasHeight / 2 + camera.centerY * camera.zoom
+      );
+    }
+
+    rendererStore.updateMetrics({ particleCount: cells.length });
+  }
 
   /**
    * Register a particle emitter (e.g., a ship) - LEGACY single-point emission
@@ -274,6 +423,8 @@ export const useParticleStore = defineStore('particle', () => {
    */
   function reset(): void {
     grid.value.clear();
+    recycleAllSprites();
+    rendererStore.updateMetrics({ particleCount: 0 });
   }
 
   return {
@@ -281,10 +432,16 @@ export const useParticleStore = defineStore('particle', () => {
     config,
     grid,
     shipEngines,
+    particleContainer,
+    particleBudget,
     // Computed
     activeCells,
     activeCellCount,
     // Actions
+    attachToLayer,
+    setParticleBudget,
+    setThrottlingFactor,
+    syncPixiParticles,
     registerEmitter,
     unregisterEmitter,
     registerShipEngines,

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Container, Graphics, Text } from 'pixi.js';
-import { useNavigationStore, useSensorStore, useShipStore } from '@/stores';
+import { useNavigationStore, useParticleStore, useSensorStore, useShipStore } from '@/stores';
 import { useRendererStore } from '@/stores/rendererStore';
 import { useGameLoop } from '@/core/game-loop';
 import {
@@ -32,6 +32,7 @@ const shipStore = useShipStore();
 const navStore = useNavigationStore();
 const sensorStore = useSensorStore();
 const rendererStore = useRendererStore();
+const particleStore = useParticleStore();
 const { subscribe } = useGameLoop();
 
 const containerRef = ref<HTMLDivElement | null>(null);
@@ -276,6 +277,7 @@ function handleResize() {
   canvasWidth.value = containerRef.value.clientWidth;
   canvasHeight.value = containerRef.value.clientHeight;
   pixiRenderer.resize(canvasWidth.value, canvasHeight.value);
+  particleStore.syncPixiParticles(camera.value);
 }
 
 function handleModuleHover(event: MouseEvent) {
@@ -584,6 +586,7 @@ function drawShip() {
 function renderScene() {
   if (!rendererReady.value) return;
   resetGraphics();
+  particleStore.syncPixiParticles(camera.value);
   drawStarfield();
   drawGrid();
   drawStar();
@@ -628,6 +631,9 @@ async function initializeRenderer() {
   gameLayer = pixiRenderer.getLayer('game');
   effectsLayer = pixiRenderer.getLayer('effects');
   uiLayer = pixiRenderer.getLayer('ui');
+
+  // Attach particle container to effects layer for engine trails
+  particleStore.attachToLayer(effectsLayer, (rendererStore.performanceProfile as any).value.particleCap);
 
   attachGraphics();
   rendererStore.setInitialized(true);

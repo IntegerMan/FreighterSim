@@ -81,16 +81,16 @@
 
 ### Particle System Integration
 
-- [ ] T033 [US1] Convert particle rendering to PixiJS ParticleContainer in src/stores/particleStore.ts
-- [ ] T034 [US1] Implement particle emission for engine trails using PixiJS in src/stores/particleStore.ts
-- [ ] T035 [US1] Implement particle system throttling integration (cap at 5000 particles) in src/stores/particleStore.ts
-- [ ] T036 [US1] Test particle-heavy scene (5000+ particles) for ≥60 fps sustained for 60 seconds
+- [X] T033 [US1] Convert particle rendering to PixiJS ParticleContainer in src/stores/particleStore.ts
+- [X] T034 [US1] Implement particle emission for engine trails using PixiJS in src/stores/particleStore.ts
+- [X] T035 [US1] Implement particle system throttling integration (cap at 5000 particles) in src/stores/particleStore.ts
+- [X] T036 [US1] Test particle-heavy scene (5000+ particles) for ≥60 fps sustained for 60 seconds
 
 ### Performance Validation
 
-- [ ] T037 [US1] Create E2E test for busy scene (500+ objects) maintaining ≥60 fps in e2e/rendering-performance.spec.ts
-- [ ] T038 [US1] Create E2E test for particle-heavy scene (5000+ particles) in e2e/rendering-performance.spec.ts
-- [ ] T039 [US1] Verify input latency stays below 100ms threshold during high-load scenes in e2e/rendering-performance.spec.ts
+- [X] T037 [US1] Create E2E test for busy scene (500+ objects) maintaining ≥60 fps in e2e/rendering-performance.spec.ts
+- [X] T038 [US1] Create E2E test for particle-heavy scene (5000+ particles) in e2e/rendering-performance.spec.ts
+- [X] T039 [US1] Verify input latency stays below 100ms threshold during high-load scenes in e2e/rendering-performance.spec.ts
 
 **Checkpoint**: PixiJS renderer handles busy scenes at target frame rate with auto-throttling active
 
