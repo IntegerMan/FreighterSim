@@ -1,42 +1,61 @@
 <!--
-SYNC IMPACT REPORT - v1.1.0 (2026-01-23)
+SYNC IMPACT REPORT - v1.2.1 (2026-01-24)
 
-Version change: 1.0.0 → 1.1.0 (MINOR)
-Rationale: Materially expanded guidance in existing principle
+Version change: 1.2.0 → 1.2.1 (PATCH)
+Rationale: Align constitution title with game working title "Take The Sky".
 
-Modified principles:
-- III. Test-First Development: Added "Feature Completion Gates" clause requiring
-  E2E tests (Playwright) and lint checks (ESLint) to pass before marking features complete
+Modified sections:
+- Document title updated to project working title
 
 Added sections: None
 Removed sections: None
 
 Templates verified:
-- .specify/templates/plan-template.md ✅ (no updates needed - Constitution Check is dynamic)
-- .specify/templates/spec-template.md ✅ (no updates needed - requirements agnostic)
-- .specify/templates/tasks-template.md ✅ (no updates needed - task structure unchanged)
+- .specify/templates/plan-template.md ✅ (no updates needed)
+- .specify/templates/spec-template.md ✅ (no updates needed)
+- .specify/templates/tasks-template.md ✅ (no updates needed)
+- Command templates ⚠ N/A (directory absent)
 
 Follow-up TODOs: None
 -->
 
-# Space Freighter Sim Constitution
+# Take The Sky Constitution
 
 ## Core Principles
 
 ### I. Game-First Architecture
-The game loop, physics, and rendering are the foundation. All features must respect the core systems' constraints: frame timing, coordinate systems, and rendering performance. Game logic MUST be decoupled from UI components and testable independently.
+The game loop, physics, and rendering are the foundation. All features must respect
+frame timing, coordinate systems, rendering performance, and the core gameplay loop
+of trading, detection, avoidance, and stealth. Game logic MUST be decoupled from UI
+components and testable independently.
 
 ### II. Type Safety & Composition API
 TypeScript is mandatory with strict mode enabled. All state must use Vue 3 Composition API with reactive references. Pinia stores are the single source of truth for game state. No prop drilling; use stores for cross-component communication.
 
 ### III. Test-First Development (NON-NEGOTIABLE)
-Unit tests written before implementation. Component and integration tests for complex interactions. Tests must verify game behavior, not implementation details. Coverage target: core game systems ≥90%, components ≥70%. **Feature Completion Gates**: E2E tests (Playwright) and lint checks (ESLint) MUST pass before any feature is marked complete. Failing tests gate PR merges.
+Unit tests written before implementation. Component and integration tests for complex
+interactions. Tests must verify game behavior, not implementation details. Coverage
+target: core game systems ≥90%, components ≥70%. **Feature Completion Gates**: E2E
+tests (Playwright) and lint checks (ESLint) MUST pass before any feature is marked
+complete or merged. Failing tests gate PR merges.
 
-### IV. Canvas Rendering Optimization
-Canvas rendering for the system map MUST be performant at 60 FPS. All render operations batched per frame. Object transformations pre-calculated. No DOM mutations in hot paths. Rendering code isolated in dedicated systems separate from game logic.
+### IV. PixiJS Rendering Optimization
+PixiJS rendering for the system map MUST be performant at 60 FPS. Use sprites,
+containers, and texture atlases to minimize draw calls. Pre-calculate transforms.
+Avoid layout thrash and DOM mutations in render paths. Rendering code isolated in
+dedicated systems separate from game logic.
 
 ### V. UI/UX Consistency: LCARS Design System
-All UI components use LCARS-inspired design with strict color palette: Purple (#9966FF), Gold (#FFCC00), White (#FFFFFF), Black (#000000). Component reusability through base UI components (LcarsFrame, LcarsButton, LcarsGauge, etc.). Accessibility requirements: keyboard navigation, ARIA labels, high contrast ratios.
+All UI components use LCARS-inspired design with strict color palette: Purple
+(#9966FF), Gold (#FFCC00), White (#FFFFFF), Black (#000000). Component reusability
+through base UI components (LcarsFrame, LcarsButton, LcarsGauge, etc.). Accessibility
+requirements: keyboard navigation, ARIA labels, high contrast ratios.
+
+### VI. Simulation-Driven Trade & Stealth
+Features must reinforce trading, smuggling, detection management, and avoidance over
+combat. Systems need to simulate risk, reputation, cargo visibility, sensor ranges,
+and stealth mechanics. Combat is avoided unless required for narrative stakes; when
+present it remains secondary to trade and evasion.
 
 ## Development Workflow
 
@@ -52,7 +71,7 @@ All UI components use LCARS-inspired design with strict color palette: Purple (#
 - **State Management**: Pinia
 - **Build Tool**: Vite
 - **Styling**: SCSS with design system variables
-- **Rendering**: HTML5 Canvas (system map), Vue DOM (UI panels)
+- **Rendering**: PixiJS (system map and effects), Vue DOM (UI panels)
 - **Testing**: Vitest (unit), Playwright (E2E)
 - **Linting**: ESLint + Prettier
 
@@ -67,10 +86,12 @@ All UI components use LCARS-inspired design with strict color palette: Purple (#
 
 ## Governance
 
-This constitution supersedes all other project guidelines. Non-compliance with core principles (Game-First Architecture, Type Safety, Test-First, Canvas Optimization, LCARS Design) requires documented justification.
+This constitution supersedes all other project guidelines. Non-compliance with core
+principles (Game-First Architecture, Type Safety, Test-First, PixiJS Optimization,
+LCARS Design, Simulation-Driven Trade & Stealth) requires documented justification.
 
 **Amendment Procedure**: Significant changes to core principles require ADR and discussion. Version bumps: MAJOR for principle removals, MINOR for additions, PATCH for clarifications.
 
 **Runtime Guidance**: See [ARCHITECTURE.md](ARCHITECTURE.md) and [STYLE_GUIDE.md](STYLE_GUIDE.md) for implementation details.
 
-**Version**: 1.1.0 | **Ratified**: 2026-01-22 | **Last Amended**: 2026-01-23
+**Version**: 1.2.1 | **Ratified**: 2026-01-22 | **Last Amended**: 2026-01-24
