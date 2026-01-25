@@ -21,13 +21,13 @@
 
 **Purpose**: Install PixiJS, create core data models, and establish renderer initialization structure
 
-- [ ] T001 Install PixiJS v8.15.0 dependency via npm/pnpm in package.json
-- [ ] T002 [P] Create RenderingLayer interface in src/models/RenderingLayer.ts
-- [ ] T003 [P] Create RenderableObject interface in src/models/RenderableObject.ts
-- [ ] T004 [P] Create PerformanceProfile interface in src/models/PerformanceProfile.ts
-- [ ] T005 Create capability detection module in src/core/rendering/capabilities.ts
-- [ ] T006 Create PixiJS renderer initialization module in src/core/rendering/pixiRenderer.ts
-- [ ] T007 Create Pinia store for renderer state in src/stores/rendererStore.ts
+- [X] T001 Install PixiJS v8.15.0 dependency via npm/pnpm in package.json
+- [X] T002 [P] Create RenderingLayer interface in src/models/RenderingLayer.ts
+- [X] T003 [P] Create RenderableObject interface in src/models/RenderableObject.ts
+- [X] T004 [P] Create PerformanceProfile interface in src/models/PerformanceProfile.ts
+- [X] T005 Create capability detection module in src/core/rendering/capabilities.ts
+- [X] T006 Create PixiJS renderer initialization module in src/core/rendering/pixiRenderer.ts
+- [X] T007 Create Pinia store for renderer state in src/stores/rendererStore.ts
 
 ---
 
@@ -37,16 +37,16 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T008 Implement capability detection for WebGL2/WebGL1 fallback (halt if neither available) in src/core/rendering/capabilities.ts
-- [ ] T009 [P] Create unit tests for capability detection in src/core/rendering/capabilities.test.ts
-- [ ] T010 Implement PixiJS application initialization with fallback handling in src/core/rendering/pixiRenderer.ts
-- [ ] T011 Implement layer management system (background, game, effects, UI) in src/core/rendering/pixiRenderer.ts
-- [ ] T012 Create WebGL context loss detection and recovery handler in src/core/rendering/contextLossHandler.ts
-- [ ] T013 [P] Create unit tests for context loss handler in src/core/rendering/contextLossHandler.test.ts
-- [ ] T014 Initialize renderer state store with performance metrics tracking in src/stores/rendererStore.ts
-- [ ] T015 Create performance monitoring utilities (FPS, frame time, memory) in src/core/rendering/performanceMonitor.ts
-- [ ] T016 [P] Create unit tests for performance monitor in src/core/rendering/performanceMonitor.test.ts
-- [ ] T017 Export rendering utilities from src/core/rendering/index.ts
+- [X] T008 Implement capability detection for WebGL2/WebGL1 fallback (halt if neither available) in src/core/rendering/capabilities.ts
+- [X] T009 [P] Create unit tests for capability detection in src/core/rendering/capabilities.test.ts
+- [X] T010 Implement PixiJS application initialization with fallback handling in src/core/rendering/pixiRenderer.ts
+- [X] T011 Implement layer management system (background, game, effects, UI) in src/core/rendering/pixiRenderer.ts
+- [X] T012 Create WebGL context loss detection and recovery handler in src/core/rendering/contextLossHandler.ts
+- [X] T013 [P] Create unit tests for context loss handler in src/core/rendering/contextLossHandler.test.ts
+- [X] T014 Initialize renderer state store with performance metrics tracking in src/stores/rendererStore.ts
+- [X] T015 Create performance monitoring utilities (FPS, frame time, memory) in src/core/rendering/performanceMonitor.ts
+- [X] T016 [P] Create unit tests for performance monitor in src/core/rendering/performanceMonitor.test.ts
+- [X] T017 Export rendering utilities from src/core/rendering/index.ts
 
 **Checkpoint**: Foundation ready with capability detection, layer management, context loss handling, and performance monitoring
 
@@ -60,15 +60,15 @@
 
 ### Auto-Throttling System
 
-- [ ] T018 [P] [US1] Create throttling controller state machine in src/core/rendering/throttlingController.ts
-- [ ] T019 [P] [US1] Create unit tests for throttling state machine in src/core/rendering/throttlingController.test.ts
-- [ ] T020 [US1] Implement FPS averaging window (2 seconds) in src/core/rendering/performanceMonitor.ts
-- [ ] T021 [US1] Implement 95th percentile frame time calculation (25ms threshold) in src/core/rendering/performanceMonitor.ts
-- [ ] T022 [US1] Implement throttling trigger detection (avg FPS <58 for 2s OR p95 frame time >25ms for 5s) in src/core/rendering/throttlingController.ts
-- [ ] T023 [US1] Implement particle count reduction strategy in src/core/rendering/throttlingController.ts
-- [ ] T024 [US1] Implement effects intensity reduction strategy in src/core/rendering/throttlingController.ts
-- [ ] T025 [US1] Implement resolution scaling reduction strategy (last resort) in src/core/rendering/throttlingController.ts
-- [ ] T026 [US1] Implement throttling recovery detection and state transitions in src/core/rendering/throttlingController.ts
+- [X] T018 [P] [US1] Create throttling controller state machine in src/core/rendering/throttlingController.ts
+- [X] T019 [P] [US1] Create unit tests for throttling state machine in src/core/rendering/throttlingController.test.ts
+- [X] T020 [US1] Implement FPS averaging window (2 seconds) in src/core/rendering/performanceMonitor.ts
+- [X] T021 [US1] Implement 95th percentile frame time calculation (25ms threshold) in src/core/rendering/performanceMonitor.ts
+- [X] T022 [US1] Implement throttling trigger detection (avg FPS <58 for 2s OR p95 frame time >25ms for 5s) in src/core/rendering/throttlingController.ts
+- [X] T023 [US1] Implement particle count reduction strategy in src/core/rendering/throttlingController.ts
+- [X] T024 [US1] Implement effects intensity reduction strategy in src/core/rendering/throttlingController.ts
+- [X] T025 [US1] Implement resolution scaling reduction strategy (last resort) in src/core/rendering/throttlingController.ts
+- [X] T026 [US1] Implement throttling recovery detection and state transitions in src/core/rendering/throttlingController.ts
 
 ### Map/Navigation Rendering Integration
 

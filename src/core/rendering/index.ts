@@ -1,6 +1,10 @@
 export * from './mapUtils';
 export * from './radarUtils';
 export * from './dockingUtils';
+export * from './capabilities';
+export * from './pixiRenderer';
+export * from './contextLossHandler';
+export * from './performanceMonitor';
 
 // Shape rendering utilities
 export {
