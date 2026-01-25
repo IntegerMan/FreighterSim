@@ -72,12 +72,12 @@
 
 ### Map/Navigation Rendering Integration
 
-- [ ] T027 [US1] Convert SystemMap.vue from Canvas to PixiJS layers in src/components/map/SystemMap.vue
-- [ ] T028 [US1] Implement ship rendering using PixiJS sprites/graphics in src/components/map/SystemMap.vue
-- [ ] T029 [US1] Implement station rendering using PixiJS in src/components/map/SystemMap.vue
-- [ ] T030 [US1] Implement selection highlight effects using PixiJS in src/components/map/SystemMap.vue
-- [ ] T031 [US1] Implement camera pan/zoom controls for PixiJS scene in src/components/map/SystemMap.vue
-- [ ] T032 [US1] Remove legacy Canvas rendering code paths from SystemMap.vue
+- [X] T027 [US1] Convert SystemMap.vue from Canvas to PixiJS layers in src/components/map/SystemMap.vue
+- [X] T028 [US1] Implement ship rendering using PixiJS sprites/graphics in src/components/map/SystemMap.vue
+- [X] T029 [US1] Implement station rendering using PixiJS in src/components/map/SystemMap.vue
+- [X] T030 [US1] Implement selection highlight effects using PixiJS in src/components/map/SystemMap.vue
+- [X] T031 [US1] Implement camera pan/zoom controls for PixiJS scene in src/components/map/SystemMap.vue
+- [X] T032 [US1] Remove legacy Canvas rendering code paths from SystemMap.vue
 
 ### Particle System Integration
 

@@ -1,57 +1,39 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
-import { useShipStore, useNavigationStore, useSensorStore } from '@/stores';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { Container, Graphics, Text } from 'pixi.js';
+import { useNavigationStore, useSensorStore, useShipStore } from '@/stores';
+import { useRendererStore } from '@/stores/rendererStore';
 import { useGameLoop } from '@/core/game-loop';
 import {
   MAP_COLORS,
   STATION_VISUAL_MULTIPLIER,
-  drawCourseProjection,
-  drawShipIcon,
-  drawWaypoint,
-  drawWaypointPath,
-  type CameraState,
-  renderShapeWithLOD,
-  renderEngineMounts,
-  getShapeScreenSize,
-  renderStationWithLOD,
+  worldToScreen,
+  screenToWorld,
   findModuleAtScreenPosition,
-  drawDockingPorts as drawDockingPortsShared,
+  type CameraState,
 } from '@/core/rendering';
-import { Starfield, createDefaultStarfieldConfig } from '@/core/starfield';
+import {
+  PixiRenderer,
+  detectCapabilities,
+  meetsMinimumRequirements,
+} from '@/core/rendering';
+import {
+  createDefaultStarfieldConfig,
+  generateStarsForCell,
+  getVisibleCells,
+  starToScreen,
+} from '@/core/starfield';
 import { getShipTemplate, getStationTemplateById, calculateStationBoundingRadius } from '@/data/shapes';
-import type { Vector2, Station, Planet, JumpGate } from '@/models';
-
-// Extended colors for SystemMap (inherits from MAP_COLORS)
-const COLORS = {
-  ...MAP_COLORS,
-};
-
-const canvasRef = ref<HTMLCanvasElement | null>(null);
-const containerRef = ref<HTMLDivElement | null>(null);
+import type { Vector2, Station } from '@/models';
+import type { StarfieldConfig } from '@/models/Starfield';
 
 const shipStore = useShipStore();
 const navStore = useNavigationStore();
 const sensorStore = useSensorStore();
+const rendererStore = useRendererStore();
 const { subscribe } = useGameLoop();
 
-// Starfield background
-const starfield = ref<Starfield | null>(null);
-
-// Initialize starfield when system is available
-watch(
-  () => navStore.currentSystem,
-  (system) => {
-    if (system) {
-      const config = createDefaultStarfieldConfig(system.id);
-      starfield.value = new Starfield(config);
-    } else {
-      starfield.value = null;
-    }
-  },
-  { immediate: true }
-);
-
-// Canvas state
+const containerRef = ref<HTMLDivElement | null>(null);
 const canvasWidth = ref(800);
 const canvasHeight = ref(600);
 const zoom = ref(0.5);
@@ -59,7 +41,6 @@ const panOffset = ref<Vector2>({ x: 0, y: 0 });
 const isDragging = ref(false);
 const dragStart = ref<Vector2>({ x: 0, y: 0 });
 
-// Module tooltip state
 const tooltipVisible = ref(false);
 const tooltipX = ref(0);
 const tooltipY = ref(0);
@@ -70,25 +51,15 @@ const tooltipContent = ref<{
   moduleStatus: string;
 } | null>(null);
 
-// Format module type for display
-function formatModuleType(type: string): string {
-  return type.split('-').map(word => 
-    word.charAt(0).toUpperCase() + word.slice(1)
-  ).join(' ');
-}
+const starfieldConfig = ref<StarfieldConfig | null>(null);
+const rendererReady = ref(false);
+let loopUnsubscribe: (() => void) | null = null;
 
-// Get module status (could be extended with actual status data)
-function getModuleStatus(_moduleType: string): string {
-  return 'Operational';
-}
-
-// Computed camera center (follows ship by default)
 const cameraCenter = computed(() => ({
   x: shipStore.position.x + panOffset.value.x,
   y: shipStore.position.y + panOffset.value.y,
 }));
 
-// Camera state for starfield rendering
 const camera = computed<CameraState>(() => ({
   zoom: zoom.value,
   panOffset: panOffset.value,
@@ -98,457 +69,179 @@ const camera = computed<CameraState>(() => ({
   canvasHeight: canvasHeight.value,
 }));
 
-// Convert world coordinates to screen coordinates
-function worldToScreen(worldPos: Vector2): Vector2 {
-  const screenCenterX = canvasWidth.value / 2;
-  const screenCenterY = canvasHeight.value / 2;
-  
-  return {
-    x: screenCenterX + (worldPos.x - cameraCenter.value.x) * zoom.value,
-    y: screenCenterY - (worldPos.y - cameraCenter.value.y) * zoom.value, // Flip Y for screen coords
-  };
+const pixiRenderer = new PixiRenderer();
+let backgroundLayer: Container | undefined;
+let gameLayer: Container | undefined;
+let effectsLayer: Container | undefined;
+let uiLayer: Container | undefined;
+
+const graphics = {
+  starfield: new Graphics(),
+  grid: new Graphics(),
+  orbits: new Graphics(),
+  planets: new Container(),
+  stations: new Container(),
+  jumpGates: new Graphics(),
+  waypoints: new Graphics(),
+  paths: new Graphics(),
+  ship: new Graphics(),
+  highlights: new Graphics(),
+  labels: new Container(),
+};
+
+const COLOR = {
+  background: 0x000000,
+  grid: 0x1a1a1a,
+  orbit: 0x333333,
+  star: 0xffb347,
+  planet: 0x66ccff,
+  station: 0xffcc00,
+  jumpGate: 0xbb99ff,
+  ship: 0xffffff,
+  shipHeading: 0xffcc00,
+  selected: 0x9966ff,
+  waypointActive: 0x9966ff,
+  waypointInactive: 0xffcc00,
+  courseProjection: 0xffcc00,
+};
+
+watch(
+  () => navStore.currentSystem,
+  (system) => {
+    starfieldConfig.value = system ? createDefaultStarfieldConfig(system.id) : null;
+  },
+  { immediate: true }
+);
+
+function attachGraphics() {
+  backgroundLayer?.addChild(graphics.starfield);
+  backgroundLayer?.addChild(graphics.grid);
+  gameLayer?.addChild(graphics.orbits);
+  gameLayer?.addChild(graphics.planets);
+  gameLayer?.addChild(graphics.stations);
+  gameLayer?.addChild(graphics.jumpGates);
+  gameLayer?.addChild(graphics.ship);
+  uiLayer?.addChild(graphics.paths);
+  uiLayer?.addChild(graphics.waypoints);
+  effectsLayer?.addChild(graphics.highlights);
+  uiLayer?.addChild(graphics.labels);
 }
 
-// Convert screen coordinates to world coordinates
-function screenToWorld(screenPos: Vector2): Vector2 {
-  const screenCenterX = canvasWidth.value / 2;
-  const screenCenterY = canvasHeight.value / 2;
-  
-  return {
-    x: cameraCenter.value.x + (screenPos.x - screenCenterX) / zoom.value,
-    y: cameraCenter.value.y - (screenPos.y - screenCenterY) / zoom.value,
-  };
+function resetGraphics() {
+  graphics.starfield.clear();
+  graphics.grid.clear();
+  graphics.orbits.clear();
+  graphics.jumpGates.clear();
+  graphics.waypoints.clear();
+  graphics.paths.clear();
+  graphics.ship.clear();
+  graphics.highlights.clear();
+  graphics.labels.removeChildren();
+  graphics.planets.removeChildren();
+  graphics.stations.removeChildren();
 }
 
-function render() {
-  const canvas = canvasRef.value;
-  if (!canvas) return;
-  
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-
-  // Clear canvas
-  ctx.fillStyle = COLORS.background;
-  ctx.fillRect(0, 0, canvasWidth.value, canvasHeight.value);
-
-  // Draw starfield background (before grid, behind everything)
-  if (starfield.value) {
-    starfield.value.render(ctx, camera.value);
-  }
-
-  // Draw grid
-  drawGrid(ctx);
-
-  // Draw star
-  if (navStore.currentSystem?.star) {
-    drawStar(ctx);
-  }
-
-  // Draw orbits
-  for (const planet of navStore.planets) {
-    drawOrbit(ctx, planet);
-  }
-
-  // Draw planets
-  for (const planet of navStore.planets) {
-    drawPlanet(ctx, planet);
-  }
-
-  // Draw stations
-  for (const station of navStore.stations) {
-    drawStation(ctx, station);
-  }
-
-  // Draw jump gates
-  for (const gate of navStore.jumpGates) {
-    drawJumpGate(ctx, gate);
-  }
-
-  // Draw waypoint paths
-  const waypoints = navStore.waypoints;
-  if (waypoints.length > 0) {
-    // Line from ship to first waypoint
-    const shipScreenPos = worldToScreen(shipStore.position);
-    const firstWaypointScreenPos = worldToScreen(waypoints[0]!.position);
-    drawWaypointPath(ctx, shipScreenPos, firstWaypointScreenPos);
-
-    // Lines between waypoints
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      const fromScreenPos = worldToScreen(waypoints[i]!.position);
-      const toScreenPos = worldToScreen(waypoints[i + 1]!.position);
-      drawWaypointPath(ctx, fromScreenPos, toScreenPos);
-    }
-  }
-
-  // Draw waypoints
-  for (let i = 0; i < waypoints.length; i++) {
-    const waypoint = waypoints[i]!;
-    const screenPos = worldToScreen(waypoint.position);
-    drawWaypoint(ctx, screenPos, waypoint.name, i === 0);
-  }
-
-  // Draw ship with velocity line
-  drawShip(ctx);
-
-  // Check if waypoint reached
-  navStore.checkWaypointReached(shipStore.position);
+function toWorldPoint(event: MouseEvent): Vector2 {
+  const rect = containerRef.value?.getBoundingClientRect();
+  if (!rect) return { x: 0, y: 0 };
+  const screenPoint = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  return screenToWorld(screenPoint, camera.value);
 }
 
-function drawGrid(ctx: CanvasRenderingContext2D) {
-  const gridSize = 100; // World units
-  const screenGridSize = gridSize * zoom.value;
-  
-  if (screenGridSize < 20) return; // Don't draw if too zoomed out
-
-  ctx.strokeStyle = COLORS.grid;
-  ctx.lineWidth = 1;
-
-  // Calculate visible world bounds
-  const topLeft = screenToWorld({ x: 0, y: 0 });
-  const bottomRight = screenToWorld({ x: canvasWidth.value, y: canvasHeight.value });
-
-  const startX = Math.floor(topLeft.x / gridSize) * gridSize;
-  const startY = Math.floor(bottomRight.y / gridSize) * gridSize;
-  const endX = Math.ceil(bottomRight.x / gridSize) * gridSize;
-  const endY = Math.ceil(topLeft.y / gridSize) * gridSize;
-
-  // Vertical lines
-  for (let x = startX; x <= endX; x += gridSize) {
-    const screenX = worldToScreen({ x, y: 0 }).x;
-    ctx.beginPath();
-    ctx.moveTo(screenX, 0);
-    ctx.lineTo(screenX, canvasHeight.value);
-    ctx.stroke();
-  }
-
-  // Horizontal lines
-  for (let y = startY; y <= endY; y += gridSize) {
-    const screenY = worldToScreen({ x: 0, y }).y;
-    ctx.beginPath();
-    ctx.moveTo(0, screenY);
-    ctx.lineTo(canvasWidth.value, screenY);
-    ctx.stroke();
-  }
+function formatModuleType(type: string): string {
+  return type.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
 
-function drawStar(ctx: CanvasRenderingContext2D) {
-  const star = navStore.currentSystem!.star;
-  const screenPos = worldToScreen({ x: 0, y: 0 });
-  const screenRadius = star.radius * zoom.value;
-
-  // Glow effect
-  const gradient = ctx.createRadialGradient(
-    screenPos.x, screenPos.y, 0,
-    screenPos.x, screenPos.y, screenRadius * 2
-  );
-  gradient.addColorStop(0, star.color);
-  gradient.addColorStop(0.5, `${star.color}44`);
-  gradient.addColorStop(1, 'transparent');
-
-  ctx.fillStyle = gradient;
-  ctx.beginPath();
-  ctx.arc(screenPos.x, screenPos.y, screenRadius * 2, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Core
-  ctx.fillStyle = star.color;
-  ctx.beginPath();
-  ctx.arc(screenPos.x, screenPos.y, screenRadius, 0, Math.PI * 2);
-  ctx.fill();
+function getModuleStatus(_moduleType: string): string {
+  return 'Operational';
 }
 
-function drawOrbit(ctx: CanvasRenderingContext2D, planet: Planet) {
-  const screenPos = worldToScreen({ x: 0, y: 0 });
-  const screenRadius = planet.orbitRadius * zoom.value;
-
-  ctx.strokeStyle = COLORS.orbit;
-  ctx.lineWidth = 1;
-  ctx.setLineDash([5, 5]);
-  ctx.beginPath();
-  ctx.arc(screenPos.x, screenPos.y, screenRadius, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
-}
-
-function drawPlanet(ctx: CanvasRenderingContext2D, planet: Planet) {
-  const screenPos = worldToScreen(planet.position);
-  const screenRadius = Math.max(planet.radius * zoom.value, 12);
-  const isSelected = navStore.selectedObjectId === planet.id;
-
-  // Selection highlight
-  if (isSelected) {
-    ctx.strokeStyle = COLORS.selected;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(screenPos.x, screenPos.y, screenRadius + 6, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  // Planet body
-  ctx.fillStyle = planet.color;
-  ctx.beginPath();
-  ctx.arc(screenPos.x, screenPos.y, screenRadius, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Label
-  ctx.fillStyle = COLORS.planet;
-  ctx.font = '11px "Share Tech Mono", monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(planet.name, screenPos.x, screenPos.y + screenRadius + 14);
-}
-
-function drawStation(ctx: CanvasRenderingContext2D, station: Station) {
-  const screenPos = worldToScreen(station.position);
-  const isSelected = navStore.selectedObjectId === station.id;
-  const cameraPos = { x: cameraCenter.value.x, y: cameraCenter.value.y };
-  const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
-
-  // Station-wide docking range circle (dotted outline) - shows approximate approach area
-  const screenDockingRange = station.dockingRange * zoom.value;
-  ctx.strokeStyle = 'rgba(153, 102, 255, 0.5)';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([4, 4]);
-  ctx.beginPath();
-  ctx.arc(screenPos.x, screenPos.y, screenDockingRange, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Get station template for shape rendering
-  const templateId = station.templateId ?? station.type;
-  const template = getStationTemplateById(templateId);
-  
-  // Calculate station render size using shared constant
-  const stationScale = station.dockingRange * STATION_VISUAL_MULTIPLIER;
-  const stationRotation = station.rotation ?? 0;
-
-  if (template) {
-    // Selection highlight
-    if (isSelected) {
-      const boundingRadius = (template.boundingRadius ?? calculateStationBoundingRadius(template.modules));
-      const selectionRadius = boundingRadius * stationScale * zoom.value + 6;
-      ctx.strokeStyle = COLORS.selected;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(screenPos.x, screenPos.y, selectionRadius, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    // Render station shape with LOD
-    renderStationWithLOD(
-      ctx,
-      template,
-      station.position,
-      stationRotation,
-      stationScale,
-      cameraPos,
-      screenCenter,
-      zoom.value,
-      COLORS.station,   // fillColor
-      '#CC9900',        // strokeColor (darker gold outline)
-      8                 // minSize for LOD fallback
-    );
-  } else {
-    // Fallback to simple diamond if template not found
-    const size = 10;
-    
-    // Selection highlight
-    if (isSelected) {
-      ctx.strokeStyle = COLORS.selected;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(screenPos.x, screenPos.y, size + 8, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    // Station icon (diamond shape)
-    ctx.fillStyle = COLORS.station;
-    ctx.beginPath();
-    ctx.moveTo(screenPos.x, screenPos.y - size);
-    ctx.lineTo(screenPos.x + size, screenPos.y);
-    ctx.lineTo(screenPos.x, screenPos.y + size);
-    ctx.lineTo(screenPos.x - size, screenPos.y);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  // Label
-  ctx.fillStyle = COLORS.station;
-  ctx.font = '11px "Share Tech Mono", monospace';
-  ctx.textAlign = 'center';
-  const effectiveRadius = template ? (template.boundingRadius ?? calculateStationBoundingRadius(template.modules)) : 10;
-  ctx.fillText(station.name, screenPos.x, screenPos.y + (effectiveRadius * stationScale * zoom.value) + 14);
-
-  // Draw docking port indicators (T047) - always show when zoomed in enough
-  const screenSize = template ? (template.boundingRadius ?? calculateStationBoundingRadius(template.modules)) * stationScale * zoom.value : 10;
-  if (template && screenSize > 20) {
-    drawDockingPortsShared(ctx, station, camera.value, { isSelected });
-  }
-}
-
-function drawJumpGate(ctx: CanvasRenderingContext2D, gate: JumpGate) {
-  const screenPos = worldToScreen(gate.position);
-  const size = 12;
-  const isSelected = navStore.selectedObjectId === gate.id;
-
-  // Selection highlight
-  if (isSelected) {
-    ctx.strokeStyle = COLORS.selected;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(screenPos.x, screenPos.y, size + 8, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  // Hexagon shape
-  ctx.fillStyle = COLORS.jumpGate;
-  ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const angle = (i * Math.PI) / 3 - Math.PI / 6;
-    const x = screenPos.x + size * Math.cos(angle);
-    const y = screenPos.y + size * Math.sin(angle);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.closePath();
-  ctx.fill();
-
-  // Label
-  ctx.fillStyle = COLORS.jumpGate;
-  ctx.font = '11px "Share Tech Mono", monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(gate.name, screenPos.x, screenPos.y + size + 14);
-}
-
-function drawShip(ctx: CanvasRenderingContext2D) {
-  const screenPos = worldToScreen(shipStore.position);
-  const isReversing = shipStore.speed < 0 || shipStore.targetSpeed < 0;
-
-  // Draw velocity projection line (same as helm screen)
-  drawCourseProjection(ctx, screenPos, shipStore.heading, shipStore.speed, {
-    zoom: zoom.value,
-    panOffset: panOffset.value,
-    centerX: cameraCenter.value.x,
-    centerY: cameraCenter.value.y,
-    canvasWidth: canvasWidth.value,
-    canvasHeight: canvasHeight.value,
-  }, 20, isReversing);
-
-  // Get ship template for shape rendering
-  const template = getShipTemplate(shipStore.templateId);
-  
-  if (template) {
-    const camera = { x: cameraCenter.value.x, y: cameraCenter.value.y };
-    const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
-    
-    // Render ship shape with LOD (falls back to point when zoomed out)
-    renderShapeWithLOD(
-      ctx,
-      template.shape,
-      shipStore.position,
-      shipStore.heading,
-      shipStore.size,
-      camera,
-      screenCenter,
-      zoom.value,
-      COLORS.ship,      // fillColor
-      COLORS.shipHeading, // strokeColor
-      1,                // lineWidth
-      6                 // minSize for LOD fallback
-    );
-
-    // Show engine mounts when zoomed in enough
-    const screenSize = getShapeScreenSize(template.shape, shipStore.size, zoom.value);
-    if (screenSize > 30 && template.engineMounts.length > 0) {
-      renderEngineMounts(
-        ctx,
-        template.engineMounts,
-        shipStore.position,
-        shipStore.heading,
-        shipStore.size,
-        camera,
-        screenCenter,
-        zoom.value,
-        '#FF6600'
-      );
-    }
-  } else {
-    // Fallback to simple icon if template not found
-    drawShipIcon(ctx, screenPos, shipStore.heading, 8, COLORS.ship);
-  }
-}
-
-// Event handlers
 function handleWheel(event: WheelEvent) {
   event.preventDefault();
   const zoomDelta = event.deltaY > 0 ? -0.1 : 0.1;
-  zoom.value = Math.max(0.1, Math.min(2, zoom.value + zoomDelta));
+  zoom.value = Math.max(0.1, Math.min(3, zoom.value + zoomDelta));
+}
+
+function selectStationAt(worldPos: Vector2, clickRadius: number): boolean {
+  for (const station of navStore.stations) {
+    const dx = station.position.x - worldPos.x;
+    const dy = station.position.y - worldPos.y;
+    if (Math.hypot(dx, dy) < clickRadius) {
+      navStore.selectStation(station.id);
+      sensorStore.selectContact(station.id);
+      return true;
+    }
+  }
+  return false;
+}
+
+function selectPlanetAt(worldPos: Vector2, clickRadius: number): boolean {
+  for (const planet of navStore.planets) {
+    const dx = planet.position.x - worldPos.x;
+    const dy = planet.position.y - worldPos.y;
+    if (Math.hypot(dx, dy) < clickRadius + planet.radius) {
+      navStore.selectPlanet(planet.id);
+      sensorStore.selectContact(planet.id);
+      return true;
+    }
+  }
+  return false;
+}
+
+function selectGateAt(worldPos: Vector2, clickRadius: number): boolean {
+  for (const gate of navStore.jumpGates) {
+    const dx = gate.position.x - worldPos.x;
+    const dy = gate.position.y - worldPos.y;
+    if (Math.hypot(dx, dy) < clickRadius) {
+      navStore.selectJumpGate(gate.id);
+      sensorStore.selectContact(gate.id);
+      return true;
+    }
+  }
+  return false;
+}
+
+function selectAnyObject(worldPos: Vector2, clickRadius: number): boolean {
+  return selectStationAt(worldPos, clickRadius) || selectPlanetAt(worldPos, clickRadius) || selectGateAt(worldPos, clickRadius);
+}
+
+function removeWaypointAt(worldPos: Vector2, clickRadius: number): boolean {
+  for (const waypoint of navStore.waypoints) {
+    const dx = waypoint.position.x - worldPos.x;
+    const dy = waypoint.position.y - worldPos.y;
+    if (Math.hypot(dx, dy) < clickRadius) {
+      navStore.removeWaypoint(waypoint.id);
+      return true;
+    }
+  }
+  return false;
+}
+
+function handleLeftClick(worldPos: Vector2, clickRadius: number, event: MouseEvent) {
+  if (selectAnyObject(worldPos, clickRadius)) return;
+
+  if (!event.shiftKey) {
+    navStore.clearWaypoints();
+  }
+  navStore.addWaypoint(worldPos);
+  navStore.clearSelection();
+  sensorStore.clearSelection();
+}
+
+function handleRightClick(worldPos: Vector2, clickRadius: number, event: MouseEvent) {
+  if (removeWaypointAt(worldPos, clickRadius)) return;
+  isDragging.value = true;
+  dragStart.value = { x: event.clientX, y: event.clientY };
 }
 
 function handleMouseDown(event: MouseEvent) {
-  const rect = canvasRef.value!.getBoundingClientRect();
-  const clickPos = {
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top,
-  };
-  const worldPos = screenToWorld(clickPos);
+  const worldPos = toWorldPoint(event);
   const clickRadius = 20 / zoom.value;
 
-  if (event.button === 0) { // Left click
-    // Check stations
-    for (const station of navStore.stations) {
-      const dx = station.position.x - worldPos.x;
-      const dy = station.position.y - worldPos.y;
-      if (Math.sqrt(dx * dx + dy * dy) < clickRadius) {
-        navStore.selectStation(station.id);
-        sensorStore.selectContact(station.id);
-        return;
-      }
-    }
-
-    // Check planets
-    for (const planet of navStore.planets) {
-      const dx = planet.position.x - worldPos.x;
-      const dy = planet.position.y - worldPos.y;
-      if (Math.sqrt(dx * dx + dy * dy) < clickRadius + planet.radius) {
-        navStore.selectPlanet(planet.id);
-        sensorStore.selectContact(planet.id);
-        return;
-      }
-    }
-
-    // Check jump gates
-    for (const gate of navStore.jumpGates) {
-      const dx = gate.position.x - worldPos.x;
-      const dy = gate.position.y - worldPos.y;
-      if (Math.sqrt(dx * dx + dy * dy) < clickRadius) {
-        navStore.selectJumpGate(gate.id);
-        sensorStore.selectContact(gate.id);
-        return;
-      }
-    }
-
-    // No object clicked - handle waypoint creation
-    // Shift+click: add to queue, otherwise clear all and create new
-    if (!event.shiftKey) {
-      navStore.clearWaypoints();
-    }
-    navStore.addWaypoint(worldPos);
-    navStore.clearSelection();
-    sensorStore.clearSelection();
-  } else if (event.button === 2) { // Right click
-    // Check if clicking on a waypoint to delete it
-    for (const waypoint of navStore.waypoints) {
-      const dx = waypoint.position.x - worldPos.x;
-      const dy = waypoint.position.y - worldPos.y;
-      if (Math.sqrt(dx * dx + dy * dy) < clickRadius) {
-        navStore.removeWaypoint(waypoint.id);
-        return;
-      }
-    }
-
-    // Not on a waypoint - start panning
-    isDragging.value = true;
-    dragStart.value = { x: event.clientX, y: event.clientY };
+  if (event.button === 0) {
+    handleLeftClick(worldPos, clickRadius, event);
+  } else if (event.button === 2) {
+    handleRightClick(worldPos, clickRadius, event);
   }
 }
 
@@ -556,38 +249,47 @@ function handleMouseMove(event: MouseEvent) {
   if (isDragging.value) {
     const dx = (event.clientX - dragStart.value.x) / zoom.value;
     const dy = (event.clientY - dragStart.value.y) / zoom.value;
-    panOffset.value = {
-      x: panOffset.value.x - dx,
-      y: panOffset.value.y + dy, // Flip Y
-    };
+    panOffset.value = { x: panOffset.value.x - dx, y: panOffset.value.y + dy };
     dragStart.value = { x: event.clientX, y: event.clientY };
   } else {
-    // Check for module hover
     handleModuleHover(event);
   }
 }
 
+function handleMouseUp() {
+  isDragging.value = false;
+}
+
+function handleMouseLeave() {
+  handleMouseUp();
+  tooltipVisible.value = false;
+  tooltipContent.value = null;
+}
+
+function handleContextMenu(event: MouseEvent) {
+  event.preventDefault();
+}
+
+function handleResize() {
+  if (!containerRef.value) return;
+  canvasWidth.value = containerRef.value.clientWidth;
+  canvasHeight.value = containerRef.value.clientHeight;
+  pixiRenderer.resize(canvasWidth.value, canvasHeight.value);
+}
+
 function handleModuleHover(event: MouseEvent) {
-  const canvas = canvasRef.value;
-  if (!canvas) return;
+  const rect = containerRef.value?.getBoundingClientRect();
+  if (!rect) return;
 
-  const rect = canvas.getBoundingClientRect();
-  const screenPoint = {
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top,
-  };
-
-  const camera = { x: cameraCenter.value.x, y: cameraCenter.value.y };
+  const screenPoint = { x: event.clientX - rect.left, y: event.clientY - rect.top };
   const screenCenter = { x: canvasWidth.value / 2, y: canvasHeight.value / 2 };
-
-  // Station scale function using shared constant (matches drawStation)
   const getStationScale = (station: Station) => station.dockingRange * STATION_VISUAL_MULTIPLIER;
 
   const result = findModuleAtScreenPosition(
     screenPoint,
     navStore.stations,
     getStationTemplateById,
-    camera,
+    { x: cameraCenter.value.x, y: cameraCenter.value.y },
     screenCenter,
     zoom.value,
     getStationScale
@@ -609,52 +311,336 @@ function handleModuleHover(event: MouseEvent) {
   }
 }
 
-function handleMouseUp() {
-  isDragging.value = false;
+function drawStarfield() {
+  if (!starfieldConfig.value) return;
+  graphics.starfield.clear();
+
+  const config = starfieldConfig.value;
+  const cam = camera.value;
+
+  config.layers.forEach((layer, layerIndex) => {
+    const cells = getVisibleCells(cam, config.cellSize, layer.parallaxFactor);
+    for (const cell of cells) {
+      const stars = generateStarsForCell(cell.x, cell.y, layerIndex, config);
+      for (const star of stars) {
+        const screenPos = starToScreen(star, cam, layer.parallaxFactor);
+        graphics.starfield.beginFill(COLOR.star, star.brightness);
+        graphics.starfield.drawCircle(screenPos.x, screenPos.y, star.radius);
+        graphics.starfield.endFill();
+      }
+    }
+  });
 }
 
-function handleMouseLeave() {
-  handleMouseUp();
-  tooltipVisible.value = false;
-  tooltipContent.value = null;
-}
+function drawGrid() {
+  const gridSize = 100;
+  const cam = camera.value;
+  const topLeft = screenToWorld({ x: 0, y: 0 }, cam);
+  const bottomRight = screenToWorld({ x: canvasWidth.value, y: canvasHeight.value }, cam);
+  const startX = Math.floor(topLeft.x / gridSize) * gridSize;
+  const startY = Math.floor(bottomRight.y / gridSize) * gridSize;
+  const endX = Math.ceil(bottomRight.x / gridSize) * gridSize;
+  const endY = Math.ceil(topLeft.y / gridSize) * gridSize;
 
-function handleContextMenu(event: MouseEvent) {
-  event.preventDefault();
-}
+  if (gridSize * cam.zoom < 20) return;
 
-function handleResize() {
-  if (containerRef.value) {
-    canvasWidth.value = containerRef.value.clientWidth;
-    canvasHeight.value = containerRef.value.clientHeight;
+  graphics.grid.clear();
+  graphics.grid.lineStyle(1, COLOR.grid, 1);
+
+  for (let x = startX; x <= endX; x += gridSize) {
+    const screen = worldToScreen({ x, y: 0 }, cam);
+    graphics.grid.moveTo(screen.x, 0);
+    graphics.grid.lineTo(screen.x, canvasHeight.value);
+  }
+
+  for (let y = startY; y <= endY; y += gridSize) {
+    const screen = worldToScreen({ x: 0, y }, cam);
+    graphics.grid.moveTo(0, screen.y);
+    graphics.grid.lineTo(canvasWidth.value, screen.y);
   }
 }
 
-// Center on ship
+function drawStar() {
+  if (!navStore.currentSystem?.star) return;
+  const star = navStore.currentSystem.star;
+  const screenPos = worldToScreen({ x: 0, y: 0 }, camera.value);
+  const screenRadius = star.radius * camera.value.zoom;
+
+  graphics.grid.beginFill(COLOR.star, 0.25);
+  graphics.grid.drawCircle(screenPos.x, screenPos.y, screenRadius * 2);
+  graphics.grid.endFill();
+
+  graphics.grid.beginFill(COLOR.star, 1);
+  graphics.grid.drawCircle(screenPos.x, screenPos.y, screenRadius);
+  graphics.grid.endFill();
+}
+
+function drawOrbits() {
+  graphics.orbits.clear();
+  graphics.orbits.lineStyle(1, COLOR.orbit, 1);
+  const center = worldToScreen({ x: 0, y: 0 }, camera.value);
+
+  for (const planet of navStore.planets) {
+    const screenRadius = planet.orbitRadius * camera.value.zoom;
+    graphics.orbits.drawCircle(center.x, center.y, screenRadius);
+  }
+}
+
+function drawPlanets() {
+  for (const planet of navStore.planets) {
+    const screenPos = worldToScreen(planet.position, camera.value);
+    const screenRadius = Math.max(planet.radius * camera.value.zoom, 12);
+    const planetGraphic = new Graphics();
+    planetGraphic.beginFill(COLOR.planet, 1);
+    planetGraphic.drawCircle(screenPos.x, screenPos.y, screenRadius);
+    planetGraphic.endFill();
+    graphics.planets.addChild(planetGraphic);
+
+    if (navStore.selectedObjectId === planet.id) {
+      graphics.highlights.lineStyle(2, COLOR.selected, 1);
+      graphics.highlights.drawCircle(screenPos.x, screenPos.y, screenRadius + 6);
+    }
+
+    const label = new Text({
+      text: planet.name,
+      style: {
+        fill: MAP_COLORS.planet,
+        fontSize: 11,
+        fontFamily: 'Share Tech Mono, monospace',
+      },
+    });
+    label.anchor.set(0.5, 0);
+    label.position.set(screenPos.x, screenPos.y + screenRadius + 6);
+    graphics.labels.addChild(label);
+  }
+}
+
+function drawStations() {
+  for (const station of navStore.stations) {
+    const screenPos = worldToScreen(station.position, camera.value);
+    const templateId = station.templateId ?? station.type;
+    const template = getStationTemplateById(templateId);
+    const baseRadius = template ? (template.boundingRadius ?? calculateStationBoundingRadius(template.modules)) : 10;
+    const stationScale = station.dockingRange * STATION_VISUAL_MULTIPLIER;
+    const screenSize = Math.max(12, Math.min(baseRadius * stationScale * camera.value.zoom, 64));
+
+    const dockingRange = station.dockingRange * camera.value.zoom;
+    graphics.highlights.lineStyle(1, COLOR.selected, 0.5);
+    graphics.highlights.drawCircle(screenPos.x, screenPos.y, dockingRange);
+
+    const stationGraphic = new Graphics();
+    stationGraphic.beginFill(COLOR.station, 1);
+    stationGraphic.moveTo(screenPos.x, screenPos.y - screenSize);
+    stationGraphic.lineTo(screenPos.x + screenSize, screenPos.y);
+    stationGraphic.lineTo(screenPos.x, screenPos.y + screenSize);
+    stationGraphic.lineTo(screenPos.x - screenSize, screenPos.y);
+    stationGraphic.closePath();
+    stationGraphic.endFill();
+    graphics.stations.addChild(stationGraphic);
+
+    if (navStore.selectedObjectId === station.id) {
+      graphics.highlights.lineStyle(2, COLOR.selected, 1);
+      graphics.highlights.drawCircle(screenPos.x, screenPos.y, screenSize + 8);
+    }
+
+    const label = new Text({
+      text: station.name,
+      style: {
+        fill: MAP_COLORS.station,
+        fontSize: 11,
+        fontFamily: 'Share Tech Mono, monospace',
+      },
+    });
+    label.anchor.set(0.5, 0);
+    label.position.set(screenPos.x, screenPos.y + screenSize + 6);
+    graphics.labels.addChild(label);
+  }
+}
+
+function drawJumpGates() {
+  const size = 12;
+  graphics.jumpGates.clear();
+  graphics.jumpGates.beginFill(COLOR.jumpGate, 1);
+
+  for (const gate of navStore.jumpGates) {
+    const screenPos = worldToScreen(gate.position, camera.value);
+    graphics.jumpGates.moveTo(screenPos.x + size, screenPos.y);
+    for (let i = 1; i < 6; i++) {
+      const angle = (i * Math.PI) / 3 - Math.PI / 6;
+      const x = screenPos.x + size * Math.cos(angle);
+      const y = screenPos.y + size * Math.sin(angle);
+      graphics.jumpGates.lineTo(x, y);
+    }
+    graphics.jumpGates.closePath();
+
+    if (navStore.selectedObjectId === gate.id) {
+      graphics.highlights.lineStyle(2, COLOR.selected, 1);
+      graphics.highlights.drawCircle(screenPos.x, screenPos.y, size + 8);
+    }
+
+    const label = new Text({
+      text: gate.name,
+      style: {
+        fill: MAP_COLORS.jumpGate,
+        fontSize: 11,
+        fontFamily: 'Share Tech Mono, monospace',
+      },
+    });
+    label.anchor.set(0.5, 0);
+    label.position.set(screenPos.x, screenPos.y + size + 6);
+    graphics.labels.addChild(label);
+  }
+
+  graphics.jumpGates.endFill();
+}
+
+function drawWaypointsAndPaths() {
+  graphics.waypoints.clear();
+  graphics.paths.clear();
+
+  const waypoints = navStore.waypoints;
+  if (waypoints.length > 0) {
+    const shipPos = worldToScreen(shipStore.position, camera.value);
+    const first = worldToScreen(waypoints[0]!.position, camera.value);
+    graphics.paths.lineStyle(2, COLOR.waypointActive, 0.6);
+    graphics.paths.moveTo(shipPos.x, shipPos.y);
+    graphics.paths.lineTo(first.x, first.y);
+
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const from = worldToScreen(waypoints[i]!.position, camera.value);
+      const to = worldToScreen(waypoints[i + 1]!.position, camera.value);
+      graphics.paths.moveTo(from.x, from.y);
+      graphics.paths.lineTo(to.x, to.y);
+    }
+  }
+
+  waypoints.forEach((waypoint, index) => {
+    const screenPos = worldToScreen(waypoint.position, camera.value);
+    const active = index === 0;
+    const color = active ? COLOR.waypointActive : COLOR.waypointInactive;
+    const alpha = active ? 0.8 : 0.6;
+    const size = 8;
+
+    graphics.waypoints.lineStyle(2, color, alpha);
+    graphics.waypoints.beginFill(color, 0.15);
+    graphics.waypoints.drawRect(screenPos.x - size, screenPos.y - size, size * 2, size * 2);
+    graphics.waypoints.endFill();
+
+    const label = new Text({
+      text: waypoint.name,
+      style: {
+        fill: active ? MAP_COLORS.selected : MAP_COLORS.station,
+        fontSize: 10,
+        fontFamily: 'Share Tech Mono, monospace',
+      },
+    });
+    label.anchor.set(0.5, 0);
+    label.position.set(screenPos.x, screenPos.y + size + 4);
+    graphics.labels.addChild(label);
+  });
+}
+
+function drawShip() {
+  const screenPos = worldToScreen(shipStore.position, camera.value);
+  const isReversing = shipStore.speed < 0 || shipStore.targetSpeed < 0;
+  const projectionTime = 20;
+  const effectiveHeading = shipStore.speed < 0 ? shipStore.heading + 180 : shipStore.heading;
+  const effectiveSpeed = Math.abs(shipStore.speed);
+  const headingRad = (effectiveHeading * Math.PI) / 180;
+  const distance = effectiveSpeed * projectionTime;
+  const endX = shipStore.position.x + distance * Math.sin(headingRad);
+  const endY = shipStore.position.y - distance * Math.cos(headingRad);
+  const endScreen = worldToScreen({ x: endX, y: endY }, camera.value);
+
+  graphics.paths.lineStyle(2, COLOR.courseProjection, isReversing ? 0.6 : 0.5);
+  graphics.paths.moveTo(screenPos.x, screenPos.y);
+  graphics.paths.lineTo(endScreen.x, endScreen.y);
+
+  const shipSize = Math.max(8, Math.min(24, (getShipTemplate(shipStore.templateId)?.shape.boundingRadius ?? 6) * shipStore.size * camera.value.zoom));
+  graphics.ship.clear();
+  graphics.ship.beginFill(COLOR.ship, 1);
+  graphics.ship.moveTo(screenPos.x, screenPos.y - shipSize);
+  graphics.ship.lineTo(screenPos.x + shipSize * 0.7, screenPos.y + shipSize);
+  graphics.ship.lineTo(screenPos.x - shipSize * 0.7, screenPos.y + shipSize);
+  graphics.ship.closePath();
+  graphics.ship.endFill();
+
+  graphics.ship.lineStyle(2, COLOR.shipHeading, 1);
+  graphics.ship.moveTo(screenPos.x, screenPos.y);
+  graphics.ship.lineTo(screenPos.x + Math.sin((shipStore.heading * Math.PI) / 180) * shipSize * 1.5, screenPos.y - Math.cos((shipStore.heading * Math.PI) / 180) * shipSize * 1.5);
+}
+
+function renderScene() {
+  if (!rendererReady.value) return;
+  resetGraphics();
+  drawStarfield();
+  drawGrid();
+  drawStar();
+  drawOrbits();
+  drawPlanets();
+  drawStations();
+  drawJumpGates();
+  drawWaypointsAndPaths();
+  drawShip();
+  navStore.checkWaypointReached(shipStore.position);
+}
+
+async function initializeRenderer() {
+  const capability = detectCapabilities();
+  rendererStore.setCapability(capability.selected, capability.fallbackReason);
+  if (!meetsMinimumRequirements(capability.selected)) {
+    rendererReady.value = false;
+    return;
+  }
+
+  const width = containerRef.value?.clientWidth ?? canvasWidth.value;
+  const height = containerRef.value?.clientHeight ?? canvasHeight.value;
+  canvasWidth.value = width;
+  canvasHeight.value = height;
+
+  await pixiRenderer.initialize({
+    width,
+    height,
+    capability: capability.selected,
+    backgroundColor: COLOR.background,
+  });
+
+  const canvas = pixiRenderer.getCanvas();
+  if (canvas && containerRef.value) {
+    canvas.classList.add('system-map__canvas');
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    containerRef.value.prepend(canvas);
+  }
+
+  backgroundLayer = pixiRenderer.getLayer('background');
+  gameLayer = pixiRenderer.getLayer('game');
+  effectsLayer = pixiRenderer.getLayer('effects');
+  uiLayer = pixiRenderer.getLayer('ui');
+
+  attachGraphics();
+  rendererStore.setInitialized(true);
+  rendererReady.value = true;
+}
+
 function centerOnShip() {
   panOffset.value = { x: 0, y: 0 };
 }
 
-// Expose for parent components
 defineExpose({ centerOnShip, zoom });
 
-// Lifecycle
-onMounted(() => {
+onMounted(async () => {
+  await initializeRenderer();
   handleResize();
   window.addEventListener('resize', handleResize);
-  
-  // Subscribe to game loop for rendering
-  const unsubscribe = subscribe(() => {
-    render();
-  });
+  loopUnsubscribe = subscribe(renderScene);
+  renderScene();
+});
 
-  onUnmounted(() => {
-    window.removeEventListener('resize', handleResize);
-    unsubscribe();
-  });
-
-  // Initial render
-  render();
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
+  loopUnsubscribe?.();
+  pixiRenderer.destroy();
 });
 </script>
 
@@ -662,26 +648,19 @@ onMounted(() => {
   <div
     ref="containerRef"
     class="system-map"
+    @wheel="handleWheel"
+    @mousedown="handleMouseDown"
+    @mousemove="handleMouseMove"
+    @mouseup="handleMouseUp"
+    @mouseleave="handleMouseLeave"
+    @contextmenu="handleContextMenu"
   >
-    <canvas
-      ref="canvasRef"
-      class="system-map__canvas"
-      :width="canvasWidth"
-      :height="canvasHeight"
-      @wheel="handleWheel"
-      @mousedown="handleMouseDown"
-      @mousemove="handleMouseMove"
-      @mouseup="handleMouseUp"
-      @mouseleave="handleMouseLeave"
-      @contextmenu="handleContextMenu"
-    />
     <div class="system-map__overlay">
       <div class="system-map__info">
         <span class="system-map__system-name">{{ navStore.systemName }}</span>
         <span class="system-map__zoom">{{ (zoom * 100).toFixed(0) }}%</span>
       </div>
     </div>
-    <!-- Module tooltip -->
     <div
       v-if="tooltipVisible && tooltipContent"
       class="system-map__tooltip"
