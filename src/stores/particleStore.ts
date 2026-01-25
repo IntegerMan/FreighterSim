@@ -60,7 +60,7 @@ export const useParticleStore = defineStore('particle', () => {
 
   // Renderer integration
   const rendererStore = useRendererStore();
-  const particleBudget = ref<number>((rendererStore.performanceProfile as any).value.particleCap);
+  const particleBudget = ref<number>(rendererStore.performanceProfile.particleCap);
   const throttlingFactor = ref<number>(1);
 
   // PixiJS rendering
@@ -96,7 +96,7 @@ export const useParticleStore = defineStore('particle', () => {
    * Get the current particle budget after applying throttling factor.
    */
   function getParticleLimit(): number {
-    const baseCap = Math.min(particleBudget.value, (rendererStore.performanceProfile as any).value.particleCap);
+    const baseCap = Math.min(particleBudget.value, rendererStore.performanceProfile.particleCap);
     return Math.max(0, Math.floor(baseCap * throttlingFactor.value));
   }
 
@@ -318,7 +318,7 @@ export const useParticleStore = defineStore('particle', () => {
       for (const mount of reg.engineMounts) {
         // Calculate world position of this engine
         const engineWorldPos = engineMountToWorld(mount, shipPosition, shipHeading, shipScale);
-        
+
         // Emission amount scaled by mount's thrust multiplier (default to 1)
         const emissionAmount = config.value.baseEmissionRate * throttle * (mount.thrustMultiplier ?? 1) * dt;
         emitParticles(engineWorldPos, emissionAmount);
@@ -332,7 +332,7 @@ export const useParticleStore = defineStore('particle', () => {
   function processEmitters(dt: number): void {
     // Process legacy single-point emitters
     processLegacyEmitters(dt);
-    
+
     // Process ships with engine mount registration
     processShipEngines(dt);
   }

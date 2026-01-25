@@ -404,6 +404,7 @@ function drawPlanets() {
       graphics.highlights.drawCircle(screenPos.x, screenPos.y, screenRadius + 6);
     }
 
+/*
     const label = new Text({
       text: planet.name,
       style: {
@@ -415,6 +416,7 @@ function drawPlanets() {
     label.anchor.set(0.5, 0);
     label.position.set(screenPos.x, screenPos.y + screenRadius + 6);
     graphics.labels.addChild(label);
+    */
   }
 }
 
@@ -446,6 +448,7 @@ function drawStations() {
       graphics.highlights.drawCircle(screenPos.x, screenPos.y, screenSize + 8);
     }
 
+/*
     const label = new Text({
       text: station.name,
       style: {
@@ -457,6 +460,7 @@ function drawStations() {
     label.anchor.set(0.5, 0);
     label.position.set(screenPos.x, screenPos.y + screenSize + 6);
     graphics.labels.addChild(label);
+    */
   }
 }
 
@@ -481,6 +485,7 @@ function drawJumpGates() {
       graphics.highlights.drawCircle(screenPos.x, screenPos.y, size + 8);
     }
 
+/*
     const label = new Text({
       text: gate.name,
       style: {
@@ -492,6 +497,7 @@ function drawJumpGates() {
     label.anchor.set(0.5, 0);
     label.position.set(screenPos.x, screenPos.y + size + 6);
     graphics.labels.addChild(label);
+    */
   }
 
   graphics.jumpGates.endFill();
@@ -529,6 +535,7 @@ function drawWaypointsAndPaths() {
     graphics.waypoints.drawRect(screenPos.x - size, screenPos.y - size, size * 2, size * 2);
     graphics.waypoints.endFill();
 
+/*
     const label = new Text({
       text: waypoint.name,
       style: {
@@ -540,6 +547,7 @@ function drawWaypointsAndPaths() {
     label.anchor.set(0.5, 0);
     label.position.set(screenPos.x, screenPos.y + size + 4);
     graphics.labels.addChild(label);
+    */
   });
 }
 
@@ -633,7 +641,7 @@ async function initializeRenderer() {
   uiLayer = pixiRenderer.getLayer('ui');
 
   // Attach particle container to effects layer for engine trails
-  particleStore.attachToLayer(effectsLayer, (rendererStore.performanceProfile as any).value.particleCap);
+  particleStore.attachToLayer(effectsLayer, rendererStore.performanceProfile.particleCap);
 
   attachGraphics();
   rendererStore.setInitialized(true);

@@ -15,8 +15,8 @@ const particleStore = useParticleStore();
 const rendererStore = useRendererStore();
 const { start, stop, subscribe } = useGameLoop();
 
-const performanceMonitor = new PerformanceMonitor((rendererStore.performanceProfile as any).value.fpsAvgWindowSec);
-const throttlingController = new ThrottlingController((rendererStore.performanceProfile as any).value, DEFAULT_THROTTLING_CONFIG);
+const performanceMonitor = new PerformanceMonitor(rendererStore.performanceProfile.fpsAvgWindowSec);
+const throttlingController = new ThrottlingController(rendererStore.performanceProfile, DEFAULT_THROTTLING_CONFIG);
 throttlingController.start();
 
 function mapThrottlingState(state: string): 'none' | 'particles' | 'effects' | 'resolution' {
@@ -70,8 +70,7 @@ onMounted(() => {
       fps: snapshot.fps,
       avgFps: snapshot.avgFps,
       frameTimeP95Ms: snapshot.frameTimeP95Ms,
-      memoryMB: snapshot.memoryMB ?? (rendererStore.metrics as any).value.memoryMB,
-      particleCount: (particleStore.activeCellCount as any) as number,
+      particleCount: particleStore.activeCellCount,
       effectsIntensity: throttlingController.getEffectsIntensity(),
     });
 

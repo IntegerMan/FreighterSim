@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
+  // Restrict Playwright to e2e specs only to avoid picking up unit tests
   testDir: './e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
